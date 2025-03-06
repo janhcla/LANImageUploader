@@ -1,24 +1,49 @@
 {
-    "triggerTaskOnSave.tasks": {
-        "sweetpad: build": [
-            "**/*.swift"
-        ]
-    },
-    "triggerTaskOnSave.on": true,
-    "triggerTaskOnSave.showNotifications": false,
-    "triggerTaskOnSave.restart": true,
-    "triggerTaskOnSave.delay": 1000,
-    "triggerTaskOnSave.resultIndicatorResetTimeout": 5,
-    "workbench.colorCustomizations": {},
-    "sweetpad.format.args": [
-        "--in-place",
-        "--configuration",
-        ".vscode/.swift-format",
-        "${file}"
-    ],
-    "[swift]": {
-        "editor.defaultFormatter": "sweetpad.sweetpad",
-        "editor.formatOnSave": true
-    },
-    "cursor.composer.agentLoopOnLints": false
+  "triggerTaskOnSave.tasks": {
+    "cursor: build": [
+      "**/*.swift"
+    ]
+  },
+  "triggerTaskOnSave.on": true,
+  "triggerTaskOnSave.showNotifications": false,
+  "triggerTaskOnSave.restart": true,
+  "triggerTaskOnSave.delay": 1000,
+  "triggerTaskOnSave.resultIndicatorResetTimeout": 5,
+  "workbench.colorCustomizations": {
+    "editor.guides.indentation": false,
+    "editor.tokenColorCustomizations": {
+      "textMateRules": [
+        {
+          "scope": [
+            "entity.name.type.struct.swift",
+            "entity.name.type.class.swift",
+            "entity.name.type.actor.swift",
+            "entity.name.type.protocol.swift",
+            "entity.name.type.enum.swift",
+            "entity.name.type.swift"
+          ],
+          "settings": {
+            "fontStyle": "bold"
+          }
+        },
+        {
+          "scope": "meta.import.swift entity.name.type.swift",
+          "settings": {
+            "fontStyle": ""
+          }
+        }
+      ]
+    }
+  },
+  "cursor.format.args": [
+    "--in-place",
+    "--configuration",
+    ".vscode/.swift-format",
+    "${file}"
+  ],
+  "[swift]": {
+    "editor.defaultFormatter": "swiftlang.swift-vscode",
+    "editor.formatOnSave": true
+  },
+  "cursor.composer.agentLoopOnLints": false
 }
