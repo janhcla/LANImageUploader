@@ -344,12 +344,13 @@ struct ArchivedImagesView: View {
     @State private var showRestoreConfirmation = false
     @State private var restoreMessage = ""
     @State private var showDeleteSelectedConfirmation = false
+    @State private var images: [URL] = []
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 10) {
-                    ForEach(appData.getImagesForDate(date), id: \.self) { imageURL in
+                    ForEach(images, id: \.self) { imageURL in
                         imageThumbnail(for: imageURL)
                     }
                 }
@@ -428,6 +429,22 @@ struct ArchivedImagesView: View {
                 Text(
                     "Do you really want to delete all selected images in the archive - this action cannot be undone"
                 )
+            }
+            .onAppear {
+                refreshImages()
+
+                // Set up notification observer for deleted images
+                NotificationCenter.default.addObserver(
+                    forName: Notification.Name("ArchivedImageDeleted"),
+                    object: nil,
+                    queue: .main) { notification in
+                    if let deletedURL = notification.object as? URL {
+                        // Remove the deleted image from our local array
+                        images.removeAll(where: { $0 == deletedURL })
+                        // Also remove from selected images if needed
+                        selectedImages.remove(deletedURL)
+                    }
+                }
             }
         }
     }
@@ -554,6 +571,10 @@ struct ArchivedImagesView: View {
     private func showRestoreConfirmation(_ message: String) {
         restoreMessage = message
         showRestoreConfirmation = true
+    }
+
+    private func refreshImages() {
+        images = appData.getImagesForDate(date)
     }
 }
 
@@ -729,6 +750,9 @@ struct FullscreenArchivedImageView: View {
                 try fileManager.removeItem(at: archiveFolder)
                 print("Deleted empty archive: \(archiveFolderName)")
             }
+
+            // Immediately trigger a UI update in the ArchivedImagesView by posting a notification
+            NotificationCenter.default.post(name: Notification.Name("ArchivedImageDeleted"), object: imageURL)
 
             // Dismiss the view after deletion
             dismiss()

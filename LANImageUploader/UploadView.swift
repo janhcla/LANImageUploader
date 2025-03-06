@@ -45,7 +45,7 @@ struct UploadView: View {
                     ToolbarItem(placement: .primaryAction) {
                         if hasActiveUploads {
                             Button("Abort Upload", role: .destructive) { abortUploads() }
-                        } else {
+                        } else if !appData.images.isEmpty {
                             Button("Start Upload") {
                                 if areSettingsComplete {
                                     startUpload()
@@ -71,6 +71,15 @@ struct UploadView: View {
                     Button("Cancel") {}
                 } message: {
                     Text("Server settings are incomplete. Uploads cannot proceed without them.")
+                }
+                if appData.images.isEmpty {
+                    VStack {
+                        Spacer()
+                        Text("Nothing to upload - capture images first")
+                            .foregroundStyle(.gray)
+                            .padding()
+                        Spacer()
+                    }
                 }
                 if showSuccessBanner {
                     SuccessBanner(message: "All images have been uploaded successfully!")

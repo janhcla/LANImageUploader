@@ -79,11 +79,13 @@ struct FullscreenImageView: View {
                     Spacer()
                     Button(action: { dismiss() }) {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.title3)
+                            .font(.title)
                             .foregroundColor(.white)
-                            .padding(6)
+                            .padding(12)
                             .background(Circle().fill(Color.black.opacity(0.7)))
                     }
+                    .padding(.top, 20)
+                    .padding(.trailing, 20)
                 }
                 Spacer()
                 HStack {

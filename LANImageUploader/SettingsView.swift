@@ -65,11 +65,20 @@ struct SettingsView: View {
             HelpGuideView()
         }
         .safeAreaInset(edge: .bottom) {
-            Text("(c) Jan H. Clausen, Midtbylægerne")
-                .font(.caption2)
-                .foregroundStyle(.gray)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 5)
+            VStack(spacing: 4) {
+                if let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+                   let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String {
+                    Text("Version \(appVersion) (\(buildNumber))")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                }
+
+                Text("(c) Jan H. Clausen, Midtbylægerne")
+                    .font(.caption2)
+                    .foregroundStyle(.gray)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 5)
         }
     }
 
@@ -87,7 +96,7 @@ struct SettingsView: View {
             errorMessage = "Server IP and Share Name are required."
             return
         }
-        
+
         let ipComponents = serverIP.split(separator: ".")
         guard ipComponents.count == 4, ipComponents.allSatisfy({ $0.allSatisfy(\.isNumber) }) else {
             showError = true
@@ -218,7 +227,7 @@ extension View {
 //            errorMessage = "Server IP and Share Name are required."
 //            return
 //        }
-//        
+//
 //        let ipComponents = serverIP.split(separator: ".")
 //        guard ipComponents.count == 4, ipComponents.allSatisfy({ $0.allSatisfy(\.isNumber) }) else {
 //            showError = true
