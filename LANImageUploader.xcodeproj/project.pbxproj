@@ -1,0 +1,649 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		8E0F16112D6B5F2700843EEC /* AMSMB2 in Frameworks */ = {isa = PBXBuildFile; productRef = 8E0F16102D6B5F2700843EEC /* AMSMB2 */; settings = {ATTRIBUTES = (Required, ); }; };
+		8E0F16122D6B5F5200843EEC /* AMSMB2 in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 8E0F16102D6B5F2700843EEC /* AMSMB2 */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		8E4693D02D6FAA9200C537C9 /* VisionKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E4693CF2D6FAA9200C537C9 /* VisionKit.framework */; };
+		8E4693D22D6FAA9F00C537C9 /* Vision.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E4693D12D6FAA9F00C537C9 /* Vision.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		8EC4E84D2D68B564001D57FD /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8EC4E8342D68B563001D57FD /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8EC4E83B2D68B563001D57FD;
+			remoteInfo = LANImageUploader;
+		};
+		8EC4E8572D68B564001D57FD /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8EC4E8342D68B563001D57FD /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8EC4E83B2D68B563001D57FD;
+			remoteInfo = LANImageUploader;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		8E0F16132D6B5F5200843EEC /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				8E0F16122D6B5F5200843EEC /* AMSMB2 in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		8E4693CF2D6FAA9200C537C9 /* VisionKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = VisionKit.framework; path = System/Library/Frameworks/VisionKit.framework; sourceTree = SDKROOT; };
+		8E4693D12D6FAA9F00C537C9 /* Vision.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Vision.framework; path = System/Library/Frameworks/Vision.framework; sourceTree = SDKROOT; };
+		8EC4E83C2D68B563001D57FD /* LANImageUploader.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LANImageUploader.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8EC4E84C2D68B564001D57FD /* LANImageUploaderTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LANImageUploaderTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		8EC4E8562D68B564001D57FD /* LANImageUploaderUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LANImageUploaderUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8EF957702D749AC80050CFAA /* Exceptions for "LANImageUploader" folder in "LANImageUploader" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 8EC4E83B2D68B563001D57FD /* LANImageUploader */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		8EC4E83E2D68B563001D57FD /* LANImageUploader */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8EF957702D749AC80050CFAA /* Exceptions for "LANImageUploader" folder in "LANImageUploader" target */,
+			);
+			name = LANImageUploader;
+			path = "../../../Library/Mobile Documents/com~apple~CloudDocs/Documents/XCode Programmering/LANImageUploader/LANImageUploader";
+			sourceTree = "<group>";
+		};
+		8EC4E84F2D68B564001D57FD /* LANImageUploaderTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			name = LANImageUploaderTests;
+			path = "../../../Library/Mobile Documents/com~apple~CloudDocs/Documents/XCode Programmering/LANImageUploader/LANImageUploaderTests";
+			sourceTree = "<group>";
+		};
+		8EC4E8592D68B564001D57FD /* LANImageUploaderUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			name = LANImageUploaderUITests;
+			path = "../../../Library/Mobile Documents/com~apple~CloudDocs/Documents/XCode Programmering/LANImageUploader/LANImageUploaderUITests";
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		8EC4E8392D68B563001D57FD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8E4693D22D6FAA9F00C537C9 /* Vision.framework in Frameworks */,
+				8E4693D02D6FAA9200C537C9 /* VisionKit.framework in Frameworks */,
+				8E0F16112D6B5F2700843EEC /* AMSMB2 in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8EC4E8492D68B564001D57FD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8EC4E8532D68B564001D57FD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		8E4693CE2D6FAA9200C537C9 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				8E4693D12D6FAA9F00C537C9 /* Vision.framework */,
+				8E4693CF2D6FAA9200C537C9 /* VisionKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		8EC4E8332D68B563001D57FD = {
+			isa = PBXGroup;
+			children = (
+				8EC4E83E2D68B563001D57FD /* LANImageUploader */,
+				8EC4E84F2D68B564001D57FD /* LANImageUploaderTests */,
+				8EC4E8592D68B564001D57FD /* LANImageUploaderUITests */,
+				8E4693CE2D6FAA9200C537C9 /* Frameworks */,
+				8EC4E83D2D68B563001D57FD /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		8EC4E83D2D68B563001D57FD /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				8EC4E83C2D68B563001D57FD /* LANImageUploader.app */,
+				8EC4E84C2D68B564001D57FD /* LANImageUploaderTests.xctest */,
+				8EC4E8562D68B564001D57FD /* LANImageUploaderUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		8EC4E83B2D68B563001D57FD /* LANImageUploader */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8EC4E8602D68B564001D57FD /* Build configuration list for PBXNativeTarget "LANImageUploader" */;
+			buildPhases = (
+				8EC4E8382D68B563001D57FD /* Sources */,
+				8EC4E8392D68B563001D57FD /* Frameworks */,
+				8EC4E83A2D68B563001D57FD /* Resources */,
+				8E0F16132D6B5F5200843EEC /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				8EC4E83E2D68B563001D57FD /* LANImageUploader */,
+			);
+			name = LANImageUploader;
+			packageProductDependencies = (
+				8E0F16102D6B5F2700843EEC /* AMSMB2 */,
+			);
+			productName = LANImageUploader;
+			productReference = 8EC4E83C2D68B563001D57FD /* LANImageUploader.app */;
+			productType = "com.apple.product-type.application";
+		};
+		8EC4E84B2D68B564001D57FD /* LANImageUploaderTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8EC4E8632D68B564001D57FD /* Build configuration list for PBXNativeTarget "LANImageUploaderTests" */;
+			buildPhases = (
+				8EC4E8482D68B564001D57FD /* Sources */,
+				8EC4E8492D68B564001D57FD /* Frameworks */,
+				8EC4E84A2D68B564001D57FD /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8EC4E84E2D68B564001D57FD /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				8EC4E84F2D68B564001D57FD /* LANImageUploaderTests */,
+			);
+			name = LANImageUploaderTests;
+			packageProductDependencies = (
+			);
+			productName = LANImageUploaderTests;
+			productReference = 8EC4E84C2D68B564001D57FD /* LANImageUploaderTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		8EC4E8552D68B564001D57FD /* LANImageUploaderUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8EC4E8662D68B564001D57FD /* Build configuration list for PBXNativeTarget "LANImageUploaderUITests" */;
+			buildPhases = (
+				8EC4E8522D68B564001D57FD /* Sources */,
+				8EC4E8532D68B564001D57FD /* Frameworks */,
+				8EC4E8542D68B564001D57FD /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8EC4E8582D68B564001D57FD /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				8EC4E8592D68B564001D57FD /* LANImageUploaderUITests */,
+			);
+			name = LANImageUploaderUITests;
+			packageProductDependencies = (
+			);
+			productName = LANImageUploaderUITests;
+			productReference = 8EC4E8562D68B564001D57FD /* LANImageUploaderUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		8EC4E8342D68B563001D57FD /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1620;
+				LastUpgradeCheck = 1620;
+				TargetAttributes = {
+					8EC4E83B2D68B563001D57FD = {
+						CreatedOnToolsVersion = 16.2;
+					};
+					8EC4E84B2D68B564001D57FD = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = 8EC4E83B2D68B563001D57FD;
+					};
+					8EC4E8552D68B564001D57FD = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = 8EC4E83B2D68B563001D57FD;
+					};
+				};
+			};
+			buildConfigurationList = 8EC4E8372D68B563001D57FD /* Build configuration list for PBXProject "LANImageUploader" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 8EC4E8332D68B563001D57FD;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				8E0F160F2D6B5F2700843EEC /* XCRemoteSwiftPackageReference "AMSMB2" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 8EC4E83D2D68B563001D57FD /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8EC4E83B2D68B563001D57FD /* LANImageUploader */,
+				8EC4E84B2D68B564001D57FD /* LANImageUploaderTests */,
+				8EC4E8552D68B564001D57FD /* LANImageUploaderUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		8EC4E83A2D68B563001D57FD /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8EC4E84A2D68B564001D57FD /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8EC4E8542D68B564001D57FD /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8EC4E8382D68B563001D57FD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8EC4E8482D68B564001D57FD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8EC4E8522D68B564001D57FD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		8EC4E84E2D68B564001D57FD /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8EC4E83B2D68B563001D57FD /* LANImageUploader */;
+			targetProxy = 8EC4E84D2D68B564001D57FD /* PBXContainerItemProxy */;
+		};
+		8EC4E8582D68B564001D57FD /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8EC4E83B2D68B563001D57FD /* LANImageUploader */;
+			targetProxy = 8EC4E8572D68B564001D57FD /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		8EC4E85E2D68B564001D57FD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		8EC4E85F2D68B564001D57FD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		8EC4E8612D68B564001D57FD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"LANImageUploader/Preview Content\"";
+				DEVELOPMENT_TEAM = ARQN5UD84L;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LANImageUploader/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = DermaSnap;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.janhagenclausen.LANImageUploader;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8EC4E8622D68B564001D57FD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"LANImageUploader/Preview Content\"";
+				DEVELOPMENT_TEAM = ARQN5UD84L;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LANImageUploader/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = DermaSnap;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.janhagenclausen.LANImageUploader;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		8EC4E8642D68B564001D57FD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ARQN5UD84L;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jhc.LANImageUploaderTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LANImageUploader.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LANImageUploader";
+			};
+			name = Debug;
+		};
+		8EC4E8652D68B564001D57FD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ARQN5UD84L;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jhc.LANImageUploaderTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LANImageUploader.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LANImageUploader";
+			};
+			name = Release;
+		};
+		8EC4E8672D68B564001D57FD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ARQN5UD84L;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jhc.LANImageUploaderUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = LANImageUploader;
+			};
+			name = Debug;
+		};
+		8EC4E8682D68B564001D57FD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = ARQN5UD84L;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = jhc.LANImageUploaderUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = LANImageUploader;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		8EC4E8372D68B563001D57FD /* Build configuration list for PBXProject "LANImageUploader" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8EC4E85E2D68B564001D57FD /* Debug */,
+				8EC4E85F2D68B564001D57FD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8EC4E8602D68B564001D57FD /* Build configuration list for PBXNativeTarget "LANImageUploader" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8EC4E8612D68B564001D57FD /* Debug */,
+				8EC4E8622D68B564001D57FD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8EC4E8632D68B564001D57FD /* Build configuration list for PBXNativeTarget "LANImageUploaderTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8EC4E8642D68B564001D57FD /* Debug */,
+				8EC4E8652D68B564001D57FD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8EC4E8662D68B564001D57FD /* Build configuration list for PBXNativeTarget "LANImageUploaderUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8EC4E8672D68B564001D57FD /* Debug */,
+				8EC4E8682D68B564001D57FD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		8E0F160F2D6B5F2700843EEC /* XCRemoteSwiftPackageReference "AMSMB2" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/amosavian/AMSMB2.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.0.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		8E0F16102D6B5F2700843EEC /* AMSMB2 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 8E0F160F2D6B5F2700843EEC /* XCRemoteSwiftPackageReference "AMSMB2" */;
+			productName = AMSMB2;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 8EC4E8342D68B563001D57FD /* Project object */;
+}
