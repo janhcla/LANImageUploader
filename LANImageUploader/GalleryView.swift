@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-// On iOS, UIKit is available so we import it directly
 import UIKit
 
 struct FullscreenImageData: Identifiable {
@@ -28,100 +27,19 @@ struct GalleryView: View {
     @State private var fullscreenData: FullscreenImageData?
     @State private var showSaveConfirmation = false
 
-    private var imageNameBinding: Binding<String> {
-        Binding(
-            get: { self.imageName },
-            set: {
-                self.imageName = $0
-                self.appData.imageName = $0
-            }
-        )
-    }
-
-    private var alertTitle: String {
-        isMultiSelectMode ? "Delete Selected Images" : "Delete Selected Image"
-    }
-
-    private var alertMessage: String {
-        isMultiSelectMode
-            ? "Are you sure you want to delete \(selectedImages.count) image(s)?"
-            : "Are you sure you want to delete this image?"
-    }
-
     var body: some View {
-        // Standard NavigationView for consistent title placement
         NavigationStack {
-            VStack(spacing: 0) {
-                // Main content
-                if appData.images.isEmpty {
-                    VStack {
-                        Spacer()
-                        Text("No images in gallery")
-                            .foregroundColor(.gray)
-                        Spacer()
-                    }
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 10) {
-                            ForEach(appData.images) { image in
-                                galleryImageRow(for: image)
-                            }
-                        }
-                        .padding()
+            ScrollView {
+                LazyVStack(spacing: 10) {
+                    ForEach(appData.images) { image in
+                        imageRow(for: image)
                     }
                 }
-
-                Spacer()  // Push content to the top
-
-                // Bottom buttons only if there are images
-                if !appData.images.isEmpty {
-                    // Only show these buttons when not in multi-select mode or when no selection
-                    if !isMultiSelectMode || selectedImages.isEmpty {
-                        VStack(spacing: 10) {
-                            // Gray button for Save to Archive
-                            Button(action: {
-                                appData.saveImagesToDatedFolder()
-                                showSaveConfirmation = true
-                            }) {
-                                HStack {
-                                    Image(systemName: "square.and.arrow.down")
-                                        .font(.system(size: 18))
-                                    Text("Save to Archive")
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.gray)
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
-                            }
-
-                            // Orange button for Batch Rename & Upload
-                            Button(action: {
-                                selectedImages = Set(appData.images.map { $0.id })
-                                isBatchRenameUpload = true
-                                isShowingNamingSheet = true
-                            }) {
-                                HStack {
-                                    Image(systemName: "square.and.pencil")
-                                        .font(.system(size: 18))
-                                    Text("Batch Rename & Upload")
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.orange)
-                                .foregroundColor(.white)
-                                .cornerRadius(10)
-                            }
-                        }
-                        .padding()
-                    }
-                }
+                .padding()
             }
-            // Use navigationTitle for consistent positioning
             .navigationTitle("Gallery")
-            // Use standard toolbar implementation that works with NavigationStack
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .primaryAction) {
                     if !appData.images.isEmpty {
                         Button(isMultiSelectMode ? "Done" : "Select") {
                             isMultiSelectMode.toggle()
@@ -131,92 +49,107 @@ struct GalleryView: View {
                         }
                     }
                 }
-            }
-
-            // Selection overlay for multi-select mode with selected images
-            .overlay(
-                Group {
-                    if isMultiSelectMode && !selectedImages.isEmpty {
-                        VStack {
-                            Spacer()  // Push to bottom
-                            // Action buttons without visible container
-                            HStack(spacing: 30) {
-                                // Rename button
-                                Button(action: { isShowingNamingSheet = true }) {
-                                    VStack {
-                                        Image(systemName: "pencil")
-                                            .font(.system(size: 24))
-                                        Text("Rename")
-                                            .font(.caption)
-                                    }
-                                    .foregroundColor(.blue)
-                                }
-
-                                // Save and Upload Now button
-                                Button(action: saveAndUpload) {
-                                    VStack {
-                                        Image(systemName: "arrow.up.circle")
-                                            .font(.system(size: 24))
-                                        Text("Upload")
-                                            .font(.caption)
-                                    }
-                                    .foregroundColor(.blue)
-                                }
-
-                                // Delete button
-                                Button(action: {
-                                    showDeleteConfirmation = true
-                                }) {
-                                    VStack {
-                                        Image(systemName: "trash")
-                                            .font(.system(size: 24))
-                                        Text("Delete")
-                                            .font(.caption)
-                                    }
-                                    .foregroundColor(.red)
-                                }
+                ToolbarItem(placement: .bottomBar) {
+                    if isMultiSelectMode && !selectedImages.isEmpty && !appData.images.isEmpty {
+                        HStack {
+                            Button(action: { isShowingNamingSheet = true }) {
+                                Label("Rename", systemImage: "pencil")
                             }
-                            .padding()
-                            // No background or shadow to make the box invisible
-                            .padding(.bottom, 8)
+                            Button(action: saveAndUpload) {
+                                Label("Save and Upload Now", systemImage: "arrow.up.circle")
+                            }
+                            Button(role: .destructive, action: { showDeleteConfirmation = true }) {
+                                Label("Delete", systemImage: "trash")
+                            }
                         }
                     }
                 }
-            )
-
-            // Modals and alerts
+            }
             .sheet(isPresented: $isShowingNamingSheet) {
                 NamingSheet(
-                    imageName: imageNameBinding,
-                    onSave: handleNamingSave,
+                    imageName: $imageName,
+                    onSave: isBatchRenameUpload
+                        ? batchRenameAndUpload
+                        : (isMultiSelectMode ? batchRenameImages : renameImage),
                     saveButtonLabel: isBatchRenameUpload ? "Save & Upload" : "Save"
                 )
             }
-            .alert(alertTitle, isPresented: $showDeleteConfirmation) {
-                Alert.Button.destructive(Text("Delete"), action: batchDeleteImages)
-                Alert.Button.cancel()
+            .alert(
+                isMultiSelectMode ? "Delete Selected Images" : "Delete Selected Image",
+                isPresented: $showDeleteConfirmation
+            ) {
+                Button("Delete", role: .destructive) { batchDeleteImages() }
+                Button("Cancel", role: .cancel) {}
             } message: {
-                Text(alertMessage)
+                Text(
+                    isMultiSelectMode
+                        ? "Are you sure you want to delete \(selectedImages.count) image(s)?"
+                        : "Are you sure you want to delete this image?")
+            }
+            .navigationDestination(isPresented: $navigateToUpload) {
+                UploadView().environmentObject(appData)
+            }
+            .fullScreenCover(item: $fullscreenData) { data in
+                FullscreenImageView(
+                    image: data.capturedImage,
+                    uiImage: data.uiImage,
+                    onDelete: {
+                        selectedImages = [data.capturedImage.id]
+                        batchDeleteImages()
+                        fullscreenData = nil
+                    },
+                    onSave: {
+                        saveSingleImageToArchive(data.capturedImage)
+                        showSaveConfirmation = true
+                    }
+                )
+            }
+            .safeAreaInset(edge: .bottom) {
+                if !appData.images.isEmpty {
+                    VStack(spacing: 10) {
+                        Button(action: {
+                            appData.saveImagesToDatedFolder()
+                            showSaveConfirmation = true
+                        }) {
+                            Label("Save to Archive", systemImage: "square.and.arrow.down")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.gray)
+                                .foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        Button(action: {
+                            selectedImages = Set(appData.images.map { $0.id })
+                            isBatchRenameUpload = true
+                            isShowingNamingSheet = true
+                        }) {
+                            Label("Batch Rename & Upload", systemImage: "square.and.pencil")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.orange)
+                                .foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                    }
+                    .padding()
+                } else {
+                    Text("No images in gallery")
+                        .foregroundStyle(.gray)
+                        .padding()
+                }
             }
             .alert("Confirmation", isPresented: $showSaveConfirmation) {
-                Alert.Button.default(Text("OK"))
+                Button("OK") { showSaveConfirmation = false }
             } message: {
                 Text(
                     appData.scanStatus.isEmpty
                         ? "Images saved to the app archive" : appData.scanStatus)
             }
-            .fullScreenCover(item: $fullscreenData) { data in
-                fullscreenView(for: data)
-            }
-            .navigationDestination(isPresented: $navigateToUpload) {
-                UploadView().environmentObject(appData)
-            }
         }
-        // Remove the navigationViewStyle as it's not needed with NavigationStack
     }
 
     @ViewBuilder
-    func galleryImageRow(for image: CapturedImage) -> some View {
+    func imageRow(for image: CapturedImage) -> some View {
         let isSelected = selectedImages.contains(image.id)
         VStack(alignment: .center) {
             AsyncImage(url: image.fileURL) { phase in
@@ -224,37 +157,61 @@ struct GalleryView: View {
                     swiftUIImage
                         .resizable()
                         .scaledToFit()
-                        .cornerRadius(8)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                         .frame(maxHeight: 200)
-                        .overlay(
-                            isMultiSelectMode ? selectionOverlay(isSelected: isSelected) : nil
-                        )
+                        .overlay {
+                            if isMultiSelectMode {
+                                selectionOverlay(isSelected: isSelected)
+                            } else {
+                                EmptyView()
+                            }
+                        }
                 } else if phase.error != nil {
                     Image(systemName: "exclamationmark.triangle")
-                        .foregroundColor(.red)
+                        .foregroundStyle(.red)
                 } else {
                     ProgressView()
                 }
             }
             Text(image.name)
                 .font(.caption)
-                .foregroundColor(.gray)
+                .foregroundStyle(.gray)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .onTapGesture {
             if !isMultiSelectMode {
-                openFullscreenImage(image)
+                if let imageData = try? Data(contentsOf: image.fileURL),
+                    let uiImage = UIImage(data: imageData)
+                {
+                    fullscreenData = FullscreenImageData(
+                        id: image.id, capturedImage: image, uiImage: uiImage)
+                }
             } else {
-                toggleImageSelection(image.id)
+                if selectedImages.contains(image.id) {
+                    selectedImages.remove(image.id)
+                } else {
+                    selectedImages.insert(image.id)
+                }
             }
         }
         .contextMenu {
             if !isMultiSelectMode {
-                Button(action: { prepareRename(image) }) {
+                Button(action: {
+                    selectedImage = image
+                    imageName = image.name
+                    isShowingNamingSheet = true
+                }) {
                     Label("Rename", systemImage: "pencil")
                 }
-                Button(role: .destructive, action: { prepareDelete(image) }) {
+                Button(
+                    role: .destructive,
+                    action: {
+                        selectedImage = image
+                        selectedImages = [image.id]
+                        showDeleteConfirmation = true
+                    }
+                ) {
                     Label("Delete", systemImage: "trash")
                 }
             }
@@ -264,54 +221,11 @@ struct GalleryView: View {
     @ViewBuilder
     func selectionOverlay(isSelected: Bool) -> some View {
         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-            .foregroundColor(isSelected ? .blue : .gray)
+            .foregroundStyle(isSelected ? .blue : .gray)
             .padding(8)
             .background(Circle().fill(Color.white.opacity(0.8)))
             .offset(x: -8, y: -8)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-    }
-
-    private func openFullscreenImage(_ image: CapturedImage) {
-        if let imageData = try? Data(contentsOf: image.fileURL),
-            let uiImage = UIImage(data: imageData)
-        {
-            self.fullscreenData = FullscreenImageData(
-                id: UUID(),
-                capturedImage: image,
-                uiImage: uiImage
-            )
-        }
-    }
-
-    private func toggleImageSelection(_ id: UUID) {
-        if selectedImages.contains(id) {
-            selectedImages.remove(id)
-        } else {
-            selectedImages.insert(id)
-        }
-    }
-
-    private func prepareRename(_ image: CapturedImage) {
-        selectedImage = image
-        imageName = image.name
-        appData.imageName = image.name
-        isShowingNamingSheet = true
-    }
-
-    private func prepareDelete(_ image: CapturedImage) {
-        selectedImage = image
-        selectedImages = [image.id]
-        showDeleteConfirmation = true
-    }
-
-    private func handleNamingSave() {
-        if isBatchRenameUpload {
-            batchRenameAndUpload()
-        } else if isMultiSelectMode {
-            batchRenameImages()
-        } else {
-            renameImage()
-        }
     }
 
     func saveSingleImageToArchive(_ image: CapturedImage) {
@@ -326,7 +240,10 @@ struct GalleryView: View {
             let destinationURL = datedFolderURL.appendingPathComponent(
                 image.fileURL.lastPathComponent)
 
+            // Check if the image already exists in the archive
             if FileManager.default.fileExists(atPath: destinationURL.path) {
+                // Show warning that image is already saved
+                showSaveConfirmation = true
                 DispatchQueue.main.async {
                     showSaveConfirmation = true
                     appData.scanStatus = "Image is already saved to archive."
@@ -337,12 +254,14 @@ struct GalleryView: View {
             try FileManager.default.copyItem(at: image.fileURL, to: destinationURL)
             print("Single image saved to \(datedFolderURL.path)")
 
+            // Show success message
             DispatchQueue.main.async {
                 showSaveConfirmation = true
                 appData.scanStatus = "Image saved to archive."
             }
         } catch {
             print("Failed to save single image: \(error.localizedDescription)")
+            // Show error message
             DispatchQueue.main.async {
                 showSaveConfirmation = true
                 appData.scanStatus = "Failed to save image: \(error.localizedDescription)"
@@ -364,16 +283,8 @@ struct GalleryView: View {
     }
 
     func saveAndUpload() {
-        // Rename images if needed
         batchRenameImages()
-
-        // Force navigation with a delay to ensure state update is processed
-        DispatchQueue.main.async {
-            self.navigateToUpload = true
-        }
-
-        // Print debug message
-        print("Navigating to upload view: navigateToUpload = \(navigateToUpload)")
+        navigateToUpload = true
     }
 
     func batchRenameAndUpload() {
@@ -392,59 +303,25 @@ struct GalleryView: View {
     }
 
     func batchDeleteImages() {
-        let imagesToDelete = appData.images.filter { image in
-            selectedImages.contains(image.id)
-        }
-
-        deleteImageFiles(imagesToDelete)
-
         appData.images.removeAll { image in
-            selectedImages.contains(image.id)
+            if selectedImages.contains(image.id) {
+                try? FileManager.default.removeItem(at: image.fileURL)
+                return true
+            }
+            return false
         }
-
         selectedImages.removeAll()
         isMultiSelectMode = false
         fullscreenData = nil
-    }
-
-    func deleteImageFiles(_ images: [CapturedImage]) {
-        for image in images {
-            try? FileManager.default.removeItem(at: image.fileURL)
-        }
     }
 
     func renameImage() {
         guard let image = selectedImage,
             let index = appData.images.firstIndex(where: { $0.id == image.id })
         else { return }
-        appData.images[index].name = imageName.isEmpty ? "Image" : imageName
+        appData.images[index].name = appData.imageName.isEmpty ? "Image" : appData.imageName
         selectedImage = nil
         imageName = ""
         isShowingNamingSheet = false
-    }
-
-    private func fullscreenView(for data: FullscreenImageData) -> some View {
-        FullscreenImageView(
-            image: data.capturedImage,
-            uiImage: data.uiImage,
-            onDelete: {
-                selectedImages = [data.capturedImage.id]
-                batchDeleteImages()
-                fullscreenData = nil
-            },
-            onSave: {
-                // Save image to archive
-                saveSingleImageToArchive(data.capturedImage)
-                // Set confirmation message - the dismiss is handled in the button now
-                DispatchQueue.main.async {
-                    // Wait briefly for the view to dismiss before showing alert
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        appData.scanStatus = "Image saved to archive."
-                        showSaveConfirmation = true
-                    }
-                }
-                // The fullscreenData is nil'd by dismiss() in the FullscreenImageView
-            }
-        )
     }
 }
