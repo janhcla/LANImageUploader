@@ -13,6 +13,7 @@ struct LANImageUploaderApp: App {
     @AppStorage("onboardingCompleted") var onboardingCompleted: Bool = false
     @StateObject private var appData = AppData()
     @Environment(\.scenePhase) private var scenePhase
+    @State private var isShowingLaunchScreen = true
 
     init() {
         // Register the background task without 'weak' for struct (value type)
@@ -25,12 +26,25 @@ struct LANImageUploaderApp: App {
     var body: some Scene {
         WindowGroup {
             ZStack {
+                if isShowingLaunchScreen {
+                    LaunchScreenView()
+                        .transition(.opacity)
+                        .zIndex(1)
+                }
                 if onboardingCompleted {
                     HomeView()
                         .environmentObject(appData)
                 } else {
                     OnboardingView()
                         .environmentObject(appData)
+                }
+            }
+            .onAppear {
+                // Simulate a delay for the launch screen
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    withAnimation {
+                        isShowingLaunchScreen = false
+                    }
                 }
             }
             .onChange(of: scenePhase) { oldPhase, newPhase in

@@ -254,14 +254,19 @@ struct ArchiveView: View {
             let imagesFolderURL = appData.documentsDirectory.appendingPathComponent("images")
 
             do {
-                try fileManager.createDirectory(
-                    at: imagesFolderURL, withIntermediateDirectories: true)
+                try fileManager.createDirectory(at: imagesFolderURL, withIntermediateDirectories: true)
 
                 for imageURL in images {
-                    let destinationURL = imagesFolderURL.appendingPathComponent(
-                        imageURL.lastPathComponent)
+                    let destinationURL = imagesFolderURL.appendingPathComponent(imageURL.lastPathComponent)
 
+                    // Check if this image is already in our app's images array
                     if !appData.images.contains(where: { $0.fileURL == destinationURL }) {
+                        // If file exists on disk but not in app's array, it's a leftover file - clean it up
+                        if fileManager.fileExists(atPath: destinationURL.path) {
+                            try fileManager.removeItem(at: destinationURL)
+                        }
+                        
+                        // Copy from archive to gallery
                         try fileManager.copyItem(at: imageURL, to: destinationURL)
                         let capturedImage = CapturedImage(
                             name: imageURL.deletingPathExtension().lastPathComponent,
@@ -280,7 +285,7 @@ struct ArchiveView: View {
 
         restoreMessage =
             "Restored \(successCount) images"
-            + (failureCount > 0 ? " (\(failureCount) already existed)" : "")
+            + (failureCount > 0 ? " (\(failureCount) already in gallery)" : "")
         showRestoreConfirmation = true
         selectedDates.removeAll()
         isMultiSelectMode = false
@@ -340,7 +345,7 @@ struct ArchivedImagesView: View {
     @EnvironmentObject var appData: AppData
     @State private var selectedImages: Set<URL> = []
     @State private var isMultiSelectMode = false
-    @State private var selectedImageURL: IdentifiableURL?  // Updated to IdentifiableURL
+    @State private var selectedImageURL: IdentifiableURL? = nil
     @State private var showRestoreConfirmation = false
     @State private var restoreMessage = ""
     @State private var showDeleteSelectedConfirmation = false
@@ -383,7 +388,7 @@ struct ArchivedImagesView: View {
                     VStack {
                         HStack(spacing: 20) {
                             Button(action: restoreSelectedImages) {
-                                Label("Restore to Gallery", systemImage: "arrow.uturn.backward")
+                                Label("Restore", systemImage: "arrow.uturn.backward")
                                     .frame(maxWidth: .infinity)
                                     .padding()
                                     .background(Color.green)
@@ -594,111 +599,98 @@ struct FullscreenArchivedImageView: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-
-            GeometryReader { geo in
-                let viewCenter = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
-
-                AsyncImage(url: imageURL) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .scaleEffect(scale)
-                            .offset(offset)
-                            .gesture(
-                                DragGesture(minimumDistance: 10)
-                                    .onChanged { gesture in
-                                        offset = CGSize(
-                                            width: lastOffset.width + gesture.translation.width,
-                                            height: lastOffset.height + gesture.translation.height)
+            
+            AsyncImage(url: imageURL) { phase in
+                if let image = phase.image {
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .scaleEffect(scale)
+                        .offset(offset)
+                        .gesture(
+                            DragGesture(minimumDistance: 10)
+                                .onChanged { gesture in
+                                    offset = CGSize(
+                                        width: lastOffset.width + gesture.translation.width,
+                                        height: lastOffset.height + gesture.translation.height)
+                                }
+                                .onEnded { _ in
+                                    lastOffset = offset
+                                }
+                        )
+                        .simultaneousGesture(
+                            SimultaneousGesture(
+                                MagnificationGesture()
+                                    .onChanged { value in
+                                        let newScale = lastScale * value
+                                        scale = newScale
                                     }
                                     .onEnded { _ in
-                                        lastOffset = offset
+                                        lastScale = scale
+                                    },
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { gesture in
+                                        pinchCenter = gesture.location
                                     }
                             )
-                            .simultaneousGesture(
-                                SimultaneousGesture(
-                                    MagnificationGesture()
-                                        .onChanged { value in
-                                            let newScale = lastScale * value
-                                            let deltaScale = newScale / lastScale
-                                            let translation = CGPoint(
-                                                x: pinchCenter.x - viewCenter.x,
-                                                y: pinchCenter.y - viewCenter.y)
-                                            let newOffset = CGSize(
-                                                width: lastOffset.width - translation.x
-                                                    * (deltaScale - 1),
-                                                height: lastOffset.height - translation.y
-                                                    * (deltaScale - 1)
-                                            )
-                                            scale = newScale
-                                            offset = newOffset
-                                        }
-                                        .onEnded { _ in
-                                            lastScale = scale
-                                            lastOffset = offset
-                                        },
-                                    DragGesture(minimumDistance: 0)
-                                        .onChanged { gesture in
-                                            pinchCenter = gesture.location
-                                        }
-                                )
-                            )
-                            .onAppear {
-                                pinchCenter = viewCenter
-                            }
-                    } else if phase.error != nil {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundStyle(.red)
-                    } else {
-                        ProgressView()
-                    }
+                        )
+                } else if phase.error != nil {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
+                } else {
+                    ProgressView()
                 }
             }
-
-            // UI controls overlay
+            
             VStack {
-                // Top right dismiss button
                 HStack {
                     Spacer()
                     Button(action: { dismiss() }) {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.title3)
+                            .font(.title)
                             .foregroundColor(.white)
-                            .padding(6)
+                            .padding(12)
                             .background(Circle().fill(Color.black.opacity(0.7)))
                     }
+                    .padding(.top, 20)
+                    .padding(.trailing, 20)
                 }
-                .padding()
 
                 Spacer()
 
-                // Bottom buttons
                 HStack {
-                    // Bottom left restore button
                     Button(action: { restoreImage() }) {
-                        Image(systemName: "arrow.uturn.backward")
-                            .font(.body)
-                            .foregroundColor(.white)
-                            .padding(10)
-                            .background(Circle().fill(Color.green))
+                        ZStack {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 44, height: 44)
+                            
+                            Image(systemName: "arrow.uturn.backward")
+                                .font(.system(size: 18))
+                                .foregroundColor(.white)
+                        }
                     }
                     .padding(.leading, 16)
 
                     Spacer()
 
-                    // Bottom right delete button
                     Button(action: { deleteImage() }) {
-                        Image(systemName: "trash")
-                            .font(.body)
-                            .foregroundColor(.white)
-                            .padding(6)
-                            .background(Circle().fill(Color.red))
+                        ZStack {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 44, height: 44)
+                            
+                            Image(systemName: "trash")
+                                .font(.system(size: 18))
+                                .foregroundColor(.white)
+                        }
                     }
                     .padding(.trailing, 16)
                 }
-                .padding(.bottom)
+                .padding(.bottom, 8)
             }
+            .padding()
+            .zIndex(2)
         }
         .alert(restoreMessage, isPresented: $showRestoreConfirmation) {
             Button("OK") { showRestoreConfirmation = false }
@@ -712,7 +704,12 @@ struct FullscreenArchivedImageView: View {
         do {
             try fileManager.createDirectory(at: imagesFolderURL, withIntermediateDirectories: true)
             let destinationURL = imagesFolderURL.appendingPathComponent(imageURL.lastPathComponent)
+            
             if !appData.images.contains(where: { $0.fileURL == destinationURL }) {
+                if fileManager.fileExists(atPath: destinationURL.path) {
+                    try fileManager.removeItem(at: destinationURL)
+                }
+                
                 try fileManager.copyItem(at: imageURL, to: destinationURL)
                 let capturedImage = CapturedImage(
                     name: imageURL.deletingPathExtension().lastPathComponent,
@@ -734,27 +731,22 @@ struct FullscreenArchivedImageView: View {
         let archiveFolderName = archiveFolder.lastPathComponent
 
         do {
-            // Delete the image file
             try fileManager.removeItem(at: imageURL)
             print("Deleted image: \(imageURL.path)")
 
-            // Check if the archive is now empty
             let contents = try fileManager.contentsOfDirectory(
                 at: archiveFolder, includingPropertiesForKeys: nil)
             let imageFiles = contents.filter {
                 ["jpg", "png"].contains($0.pathExtension.lowercased())
             }
 
-            // If no images left, delete the archive folder
             if imageFiles.isEmpty {
                 try fileManager.removeItem(at: archiveFolder)
                 print("Deleted empty archive: \(archiveFolderName)")
             }
 
-            // Immediately trigger a UI update in the ArchivedImagesView by posting a notification
             NotificationCenter.default.post(name: Notification.Name("ArchivedImageDeleted"), object: imageURL)
 
-            // Dismiss the view after deletion
             dismiss()
         } catch {
             print("Failed to delete image \(imageURL.path): \(error)")
