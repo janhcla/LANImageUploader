@@ -20,6 +20,7 @@ struct FullscreenImageView: View {
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
     @State private var pinchCenter: CGPoint = .zero
+    @State private var showSuccessToast = false
 
     var body: some View {
         ZStack {
@@ -89,12 +90,23 @@ struct FullscreenImageView: View {
                 }
                 Spacer()
                 HStack {
-                    Button(action: onSave) {
+                    Button(action: {
+                        // Show success toast
+                        showSuccessToast = true
+
+                        // First call onSave handler
+                        onSave()
+
+                        // Dismiss with delay to show the toast
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                            dismiss()
+                        }
+                    }) {
                         ZStack {
                             Circle()
                                 .fill(Color.green)
                                 .frame(width: 44, height: 44)
-                            
+
                             Image(systemName: "square.and.arrow.down")
                                 .font(.system(size: 18))
                                 .foregroundColor(.white)
@@ -109,7 +121,7 @@ struct FullscreenImageView: View {
                             Circle()
                                 .fill(Color.red)
                                 .frame(width: 44, height: 44)
-                            
+
                             Image(systemName: "trash")
                                 .font(.system(size: 18))
                                 .foregroundColor(.white)
@@ -121,6 +133,24 @@ struct FullscreenImageView: View {
             }
             .padding()
             .zIndex(2)
+
+            // Success toast
+            if showSuccessToast {
+                VStack {
+                    Spacer()
+                    Text("Image saved to archive")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding()
+                        .background(Color.green)
+                        .cornerRadius(10)
+                        .shadow(radius: 4)
+                        .padding(.bottom, 80)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                .animation(.easeInOut, value: showSuccessToast)
+                .zIndex(3)
+            }
         }
     }
 }

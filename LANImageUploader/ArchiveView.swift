@@ -254,10 +254,12 @@ struct ArchiveView: View {
             let imagesFolderURL = appData.documentsDirectory.appendingPathComponent("images")
 
             do {
-                try fileManager.createDirectory(at: imagesFolderURL, withIntermediateDirectories: true)
+                try fileManager.createDirectory(
+                    at: imagesFolderURL, withIntermediateDirectories: true)
 
                 for imageURL in images {
-                    let destinationURL = imagesFolderURL.appendingPathComponent(imageURL.lastPathComponent)
+                    let destinationURL = imagesFolderURL.appendingPathComponent(
+                        imageURL.lastPathComponent)
 
                     // Check if this image is already in our app's images array
                     if !appData.images.contains(where: { $0.fileURL == destinationURL }) {
@@ -265,7 +267,7 @@ struct ArchiveView: View {
                         if fileManager.fileExists(atPath: destinationURL.path) {
                             try fileManager.removeItem(at: destinationURL)
                         }
-                        
+
                         // Copy from archive to gallery
                         try fileManager.copyItem(at: imageURL, to: destinationURL)
                         let capturedImage = CapturedImage(
@@ -442,7 +444,8 @@ struct ArchivedImagesView: View {
                 NotificationCenter.default.addObserver(
                     forName: Notification.Name("ArchivedImageDeleted"),
                     object: nil,
-                    queue: .main) { notification in
+                    queue: .main
+                ) { notification in
                     if let deletedURL = notification.object as? URL {
                         // Remove the deleted image from our local array
                         images.removeAll(where: { $0 == deletedURL })
@@ -599,7 +602,7 @@ struct FullscreenArchivedImageView: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            
+
             AsyncImage(url: imageURL) { phase in
                 if let image = phase.image {
                     image
@@ -641,7 +644,7 @@ struct FullscreenArchivedImageView: View {
                     ProgressView()
                 }
             }
-            
+
             VStack {
                 HStack {
                     Spacer()
@@ -664,7 +667,7 @@ struct FullscreenArchivedImageView: View {
                             Circle()
                                 .fill(Color.green)
                                 .frame(width: 44, height: 44)
-                            
+
                             Image(systemName: "arrow.uturn.backward")
                                 .font(.system(size: 18))
                                 .foregroundColor(.white)
@@ -679,7 +682,7 @@ struct FullscreenArchivedImageView: View {
                             Circle()
                                 .fill(Color.red)
                                 .frame(width: 44, height: 44)
-                            
+
                             Image(systemName: "trash")
                                 .font(.system(size: 18))
                                 .foregroundColor(.white)
@@ -704,12 +707,12 @@ struct FullscreenArchivedImageView: View {
         do {
             try fileManager.createDirectory(at: imagesFolderURL, withIntermediateDirectories: true)
             let destinationURL = imagesFolderURL.appendingPathComponent(imageURL.lastPathComponent)
-            
+
             if !appData.images.contains(where: { $0.fileURL == destinationURL }) {
                 if fileManager.fileExists(atPath: destinationURL.path) {
                     try fileManager.removeItem(at: destinationURL)
                 }
-                
+
                 try fileManager.copyItem(at: imageURL, to: destinationURL)
                 let capturedImage = CapturedImage(
                     name: imageURL.deletingPathExtension().lastPathComponent,
@@ -745,7 +748,8 @@ struct FullscreenArchivedImageView: View {
                 print("Deleted empty archive: \(archiveFolderName)")
             }
 
-            NotificationCenter.default.post(name: Notification.Name("ArchivedImageDeleted"), object: imageURL)
+            NotificationCenter.default.post(
+                name: Notification.Name("ArchivedImageDeleted"), object: imageURL)
 
             dismiss()
         } catch {
