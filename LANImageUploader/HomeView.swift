@@ -65,8 +65,12 @@ struct HomeView: View {
                 }
             }
             .padding()
+            .background(Color.clear) // Add to VStack
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarBackground(Color.clear, for: .navigationBar)
             .navigationTitle("DermaSnap")
             .animation(.easeInOut, value: true)
         }
+        .background(Color.clear) // Ensures NavigationStack doesn't override the gradient
     }
 }
