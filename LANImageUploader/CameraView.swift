@@ -34,7 +34,7 @@ struct CameraView: View {
                 .padding()
                 .background(Color.clear)
                 .navigationTitle("Capture Image")
-                .sheet(
+                .fullScreenCover(
                     isPresented: $isShowingCamera,
                     onDismiss: {
                         if capturedImage != nil {
@@ -42,7 +42,7 @@ struct CameraView: View {
                         }
                     }
                 ) {
-                    CameraPicker(image: $capturedImage)
+                    CameraPickerWrapper(image: $capturedImage)
                 }
                 .alert("Error", isPresented: $showError) {
                     Button("OK", role: .cancel) {}
