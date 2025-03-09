@@ -32,103 +32,107 @@ struct ArchiveView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                ForEach(appData.getArchivedDates(), id: \.self) { date in
-                    archiveRow(for: date)
+        BackgroundContainerView {
+            NavigationStack {
+                List {
+                    ForEach(appData.getArchivedDates(), id: \.self) { date in
+                        archiveRow(for: date)
+                    }
                 }
-            }
-            .navigationTitle("Archived Images")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    if hasArchives {
-                        Button(isMultiSelectMode ? "Done" : "Select") {
-                            isMultiSelectMode.toggle()
-                            if !isMultiSelectMode {
-                                selectedDates.removeAll()
+                .scrollContentBackground(.hidden)
+                .background(Color.clear)
+                .navigationTitle("Archived Images")
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        if hasArchives {
+                            Button(isMultiSelectMode ? "Done" : "Select") {
+                                isMultiSelectMode.toggle()
+                                if !isMultiSelectMode {
+                                    selectedDates.removeAll()
+                                }
                             }
                         }
                     }
-                }
-                ToolbarItem(placement: .bottomBar) {
-                    if isMultiSelectMode && !selectedDates.isEmpty {
-                        HStack {
-                            Button(action: restoreSelectedArchives) {
-                                Label("Restore", systemImage: "arrow.uturn.backward")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.green)
-                                    .foregroundStyle(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                            }
+                    ToolbarItem(placement: .bottomBar) {
+                        if isMultiSelectMode && !selectedDates.isEmpty {
+                            HStack {
+                                Button(action: restoreSelectedArchives) {
+                                    Label("Restore", systemImage: "arrow.uturn.backward")
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(Color.green)
+                                        .foregroundStyle(.white)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
 
-                            Button(action: {
-                                showDeleteSelectedConfirmation = true
-                            }) {
-                                Label("Delete", systemImage: "trash")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.red)
-                                    .foregroundStyle(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                Button(action: {
+                                    showDeleteSelectedConfirmation = true
+                                }) {
+                                    Label("Delete", systemImage: "trash")
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(Color.red)
+                                        .foregroundStyle(.white)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
                             }
+                            .padding(.horizontal)
                         }
-                        .padding(.horizontal)
                     }
                 }
-            }
-            .safeAreaInset(edge: .bottom) {
-                if hasArchives && !isMultiSelectMode {
-                    Button(action: {
-                        showDeleteAllConfirmation = true
-                    }) {
-                        Label("Delete ALL", systemImage: "trash")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.red)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                .safeAreaInset(edge: .bottom) {
+                    if hasArchives && !isMultiSelectMode {
+                        Button(action: {
+                            showDeleteAllConfirmation = true
+                        }) {
+                            Label("Delete ALL", systemImage: "trash")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.red)
+                                .foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        .padding()
                     }
-                    .padding()
+                }
+                .alert("Confirmation", isPresented: $showDeleteAllConfirmation) {
+                    Button("Yes", role: .destructive) { deleteAllArchives() }
+                    Button("No", role: .cancel) {}
+                } message: {
+                    Text(
+                        "Do you really want to delete all images in the archive - this action cannot be undone"
+                    )
+                }
+                .alert("Confirmation", isPresented: $showDeleteSelectedConfirmation) {
+                    Button("Yes", role: .destructive) { deleteSelectedArchives() }
+                    Button("No", role: .cancel) {}
+                } message: {
+                    Text(
+                        "Do you really want to delete the selected archives? This action cannot be undone."
+                    )
+                }
+                .alert("Confirmation", isPresented: $showRestoreConfirmation) {
+                    Button("OK") { showRestoreConfirmation = false }
+                } message: {
+                    Text(restoreMessage)
+                }
+                .sheet(isPresented: $showRenameSheet) {
+                    renameArchiveSheet
                 }
             }
-            .alert("Confirmation", isPresented: $showDeleteAllConfirmation) {
-                Button("Yes", role: .destructive) { deleteAllArchives() }
-                Button("No", role: .cancel) {}
-            } message: {
-                Text(
-                    "Do you really want to delete all images in the archive - this action cannot be undone"
+            .sheet(
+                isPresented: Binding(
+                    get: { selectedDate != nil },
+                    set: { selectedDate = $0 ? selectedDate : nil }
                 )
+            ) {
+                if let date = selectedDate {
+                    ArchivedImagesView(date: date, displayName: customArchiveNames[date] ?? date)
+                }
             }
-            .alert("Confirmation", isPresented: $showDeleteSelectedConfirmation) {
-                Button("Yes", role: .destructive) { deleteSelectedArchives() }
-                Button("No", role: .cancel) {}
-            } message: {
-                Text(
-                    "Do you really want to delete the selected archives? This action cannot be undone."
-                )
+            .onAppear {
+                loadCustomArchiveNames()
             }
-            .alert("Confirmation", isPresented: $showRestoreConfirmation) {
-                Button("OK") { showRestoreConfirmation = false }
-            } message: {
-                Text(restoreMessage)
-            }
-            .sheet(isPresented: $showRenameSheet) {
-                renameArchiveSheet
-            }
-        }
-        .sheet(
-            isPresented: Binding(
-                get: { selectedDate != nil },
-                set: { selectedDate = $0 ? selectedDate : nil }
-            )
-        ) {
-            if let date = selectedDate {
-                ArchivedImagesView(date: date, displayName: customArchiveNames[date] ?? date)
-            }
-        }
-        .onAppear {
-            loadCustomArchiveNames()
         }
     }
 
@@ -354,103 +358,106 @@ struct ArchivedImagesView: View {
     @State private var images: [URL] = []
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 10) {
-                    ForEach(images, id: \.self) { imageURL in
-                        imageThumbnail(for: imageURL)
-                    }
-                }
-                .padding()
-            }
-            .navigationTitle("Images from \(displayName)")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
-                        dismiss()
-                    }) {
-                        HStack {
-                            Image(systemName: "chevron.left")
-                            Text("Back")
-                        }
-                    }
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Button(isMultiSelectMode ? "Done" : "Select") {
-                        isMultiSelectMode.toggle()
-                        if !isMultiSelectMode { selectedImages.removeAll() }
-                    }
-                }
-            }
-            .fullScreenCover(item: $selectedImageURL) { identifiableURL in
-                FullscreenArchivedImageView(imageURL: identifiableURL.url)
-            }
-            .safeAreaInset(edge: .bottom) {
-                if isMultiSelectMode && !selectedImages.isEmpty {
-                    VStack {
-                        HStack(spacing: 20) {
-                            Button(action: restoreSelectedImages) {
-                                Label("Restore", systemImage: "arrow.uturn.backward")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.green)
-                                    .foregroundStyle(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                            }
-
-                            Button(action: {
-                                showDeleteSelectedConfirmation = true
-                            }) {
-                                Label("Delete", systemImage: "trash")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.red)
-                                    .foregroundStyle(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                            }
+        BackgroundContainerView {
+            NavigationStack {
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 10) {
+                        ForEach(images, id: \.self) { imageURL in
+                            imageThumbnail(for: imageURL)
                         }
                     }
                     .padding()
-                    .background(Color(UIColor.systemBackground))
-                } else if !isMultiSelectMode {
-                    Button(action: restoreAllImages) {
-                        Label("Restore Images", systemImage: "arrow.uturn.backward")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.green)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                    }
-                    .padding()
                 }
-            }
-            .alert("Confirmation", isPresented: $showRestoreConfirmation) {
-                Button("OK") { showRestoreConfirmation = false }
-            } message: {
-                Text(restoreMessage)
-            }
-            .alert("Confirmation", isPresented: $showDeleteSelectedConfirmation) {
-                Button("Yes", role: .destructive) { deleteSelectedImages() }
-                Button("No", role: .cancel) {}
-            } message: {
-                Text(
-                    "Do you really want to delete all selected images in the archive - this action cannot be undone"
-                )
-            }
-            .onAppear {
-                refreshImages()
+                .background(Color.clear)
+                .navigationTitle("Images from \(displayName)")
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(action: {
+                            dismiss()
+                        }) {
+                            HStack {
+                                Image(systemName: "chevron.left")
+                                Text("Back")
+                            }
+                        }
+                    }
+                    ToolbarItem(placement: .primaryAction) {
+                        Button(isMultiSelectMode ? "Done" : "Select") {
+                            isMultiSelectMode.toggle()
+                            if !isMultiSelectMode { selectedImages.removeAll() }
+                        }
+                    }
+                }
+                .fullScreenCover(item: $selectedImageURL) { identifiableURL in
+                    FullscreenArchivedImageView(imageURL: identifiableURL.url)
+                }
+                .safeAreaInset(edge: .bottom) {
+                    if isMultiSelectMode && !selectedImages.isEmpty {
+                        VStack {
+                            HStack(spacing: 20) {
+                                Button(action: restoreSelectedImages) {
+                                    Label("Restore", systemImage: "arrow.uturn.backward")
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(Color.green)
+                                        .foregroundStyle(.white)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
 
-                // Set up notification observer for deleted images
-                NotificationCenter.default.addObserver(
-                    forName: Notification.Name("ArchivedImageDeleted"),
-                    object: nil,
-                    queue: .main
-                ) { notification in
-                    if let deletedURL = notification.object as? URL {
-                        // Remove the deleted image from our local array
-                        images.removeAll(where: { $0 == deletedURL })
-                        // Also remove from selected images if needed
-                        selectedImages.remove(deletedURL)
+                                Button(action: {
+                                    showDeleteSelectedConfirmation = true
+                                }) {
+                                    Label("Delete", systemImage: "trash")
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(Color.red)
+                                        .foregroundStyle(.white)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color(UIColor.systemBackground))
+                    } else if !isMultiSelectMode {
+                        Button(action: restoreAllImages) {
+                            Label("Restore Images", systemImage: "arrow.uturn.backward")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.green)
+                                .foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        .padding()
+                    }
+                }
+                .alert("Confirmation", isPresented: $showRestoreConfirmation) {
+                    Button("OK") { showRestoreConfirmation = false }
+                } message: {
+                    Text(restoreMessage)
+                }
+                .alert("Confirmation", isPresented: $showDeleteSelectedConfirmation) {
+                    Button("Yes", role: .destructive) { deleteSelectedImages() }
+                    Button("No", role: .cancel) {}
+                } message: {
+                    Text(
+                        "Do you really want to delete all selected images in the archive - this action cannot be undone"
+                    )
+                }
+                .onAppear {
+                    refreshImages()
+
+                    // Set up notification observer for deleted images
+                    NotificationCenter.default.addObserver(
+                        forName: Notification.Name("ArchivedImageDeleted"),
+                        object: nil,
+                        queue: .main
+                    ) { notification in
+                        if let deletedURL = notification.object as? URL {
+                            // Remove the deleted image from our local array
+                            images.removeAll(where: { $0 == deletedURL })
+                            // Also remove from selected images if needed
+                            selectedImages.remove(deletedURL)
+                        }
                     }
                 }
             }

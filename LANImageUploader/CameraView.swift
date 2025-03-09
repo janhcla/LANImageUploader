@@ -17,57 +17,60 @@ struct CameraView: View {
     @State private var navigateToGallery = false
 
     var body: some View {
-        NavigationStack {
-            VStack {
-                Spacer()
-                Button(action: { isShowingCamera = true }) {
-                    Label("Take Photo", systemImage: "camera.fill")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                }
-                Spacer()
-            }
-            .padding()
-            .navigationTitle("Capture Image")
-            .sheet(
-                isPresented: $isShowingCamera,
-                onDismiss: {
-                    if capturedImage != nil {
-                        capturedImage = nil
-                    }
-                }
-            ) {
-                CameraPicker(image: $capturedImage)
-            }
-            .alert("Error", isPresented: $showError) {
-                Button("OK", role: .cancel) {}
-            } message: {
-                Text(errorMessage)
-            }
-            .onChange(of: capturedImage) {
-                if let image = capturedImage {
-                    saveImage(image: image)
-                    capturedImage = nil
-                    UINotificationFeedbackGenerator().notificationOccurred(.success)
-                }
-            }
-            .navigationDestination(isPresented: $navigateToGallery) {
-                GalleryView().environmentObject(appData)
-            }
-            .safeAreaInset(edge: .bottom) {
-                if !appData.images.isEmpty {
-                    Button(action: { navigateToGallery = true }) {
-                        Label("View Gallery", systemImage: "photo.on.rectangle")
+        BackgroundContainerView {
+            NavigationStack {
+                VStack {
+                    Spacer()
+                    Button(action: { isShowingCamera = true }) {
+                        Label("Take Photo", systemImage: "camera.fill")
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color.green)
+                            .background(Color.blue)
                             .foregroundStyle(.white)
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
-                    .padding()
+                    Spacer()
+                }
+                .padding()
+                .background(Color.clear)
+                .navigationTitle("Capture Image")
+                .sheet(
+                    isPresented: $isShowingCamera,
+                    onDismiss: {
+                        if capturedImage != nil {
+                            capturedImage = nil
+                        }
+                    }
+                ) {
+                    CameraPicker(image: $capturedImage)
+                }
+                .alert("Error", isPresented: $showError) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(errorMessage)
+                }
+                .onChange(of: capturedImage) {
+                    if let image = capturedImage {
+                        saveImage(image: image)
+                        capturedImage = nil
+                        UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    }
+                }
+                .navigationDestination(isPresented: $navigateToGallery) {
+                    GalleryView().environmentObject(appData)
+                }
+                .safeAreaInset(edge: .bottom) {
+                    if !appData.images.isEmpty {
+                        Button(action: { navigateToGallery = true }) {
+                            Label("View Gallery", systemImage: "photo.on.rectangle")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.green)
+                                .foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        .padding()
+                    }
                 }
             }
         }
