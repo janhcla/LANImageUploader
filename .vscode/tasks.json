@@ -1,20 +1,4 @@
 {
 	"version": "2.0.0",
-	"tasks": [
-	  {
-		"type": "sweetpad",
-		"action": "launch",
-		"problemMatcher": [
-		  "$sweetpad-watch",
-		  "$sweetpad-xcodebuild-default",
-		  "$sweetpad-xcbeautify-errors",
-		  "$sweetpad-xcbeautify-warnings"
-		],
-		"label": "sweetpad: launch",
-		"detail": "Build and Launch the app",
-		"scheme": "Debug",
-		"configuration": "Debug",
-		"isBackground": true // Ensures VS Code knows when the launch is done
-	  }
-	]
-  }
+	"tasks": []
+}

@@ -13,16 +13,16 @@ struct AppBackground: View {
     var body: some View {
         if colorScheme == .dark {
             LinearGradient(
-                gradient: Gradient(colors: [Color(.systemGray2), Color.black]),
+                gradient: Gradient(colors: [Color(uiColor: .systemGray2), Color.black]),
                 startPoint: .top,
                 endPoint: .bottom
             )
             .ignoresSafeArea()
         } else {
             LinearGradient(
-                gradient: Gradient(colors: [Color(.systemGray6), Color.white]),
-                startPoint: .top,
-                endPoint: .bottom
+                gradient: Gradient(colors: [Color(uiColor: .systemGray3), Color.white]),
+                startPoint: .bottom,
+                endPoint: .top
             )
             .ignoresSafeArea()
         }

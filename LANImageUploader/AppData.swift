@@ -9,6 +9,13 @@ import Foundation
 import Security
 import SwiftUI
 
+// Add this struct
+struct NetworkInfo {
+    let serverIP: String
+    let shareName: String
+    let targetDirectory: String?
+}
+
 struct CapturedImage: Identifiable, Codable {
     let id = UUID()
     var name: String
@@ -24,6 +31,7 @@ struct ServerSettings: Codable {
     var shareName: String
     var targetDirectory: String?
     var username: String
+    var port: Int?  // Add this line
 }
 
 enum UploadStatus: Equatable {

@@ -1,0 +1,36 @@
+{
+    "linting": {
+        "swift": {
+            "enabled": false
+        },
+        "enabled": false
+    },
+    "formattingOptions": {
+        "swift": {
+            "enabled": false
+        },
+        "enabled": false
+    },
+    "editor": {
+        "formatOnSave": false,
+        "formatOnType": false
+    },
+    "language": {
+        "swift": {
+            "enabled": false,
+            "diagnostics": false,
+            "formatting": false,
+            "validation": false,
+            "suggestions": false
+        }
+    },
+    "problems": {
+        "enabled": false,
+        "decorations": {
+            "enabled": false
+        }
+    },
+    "tasks": {
+        "enabled": false
+    }
+}
