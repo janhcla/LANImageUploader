@@ -15,7 +15,7 @@ class NetworkMonitor {
     private let monitor: NWPathMonitor
     private let queue = DispatchQueue(label: "NetworkMonitor")
     
-    var isConnected = false {
+    var isConnected: Bool {
         didSet {
             print("Network connection state changed to: \(isConnected)")
         }
@@ -23,26 +23,25 @@ class NetworkMonitor {
     
     private init() {
         self.monitor = NWPathMonitor()
-        startMonitoring()
-    }
-    
-    deinit {
-        stopMonitoring()
-    }
-    
-    private func startMonitoring() {
+        self.monitor.start(queue: queue)
+        self.isConnected = monitor.currentPath.status == .satisfied
+        print("NetworkMonitor initialized - Initial connected: \(isConnected)")
+        
         monitor.pathUpdateHandler = { [weak self] path in
+            print("Path update received - Status: \(path.status)")
             Task { @MainActor in
                 self?.isConnected = path.status == .satisfied
                 print("Network status updated - Connected: \(path.status == .satisfied)")
             }
         }
-        monitor.start(queue: queue)
+    }
+    
+    func checkCurrentStatus() {
+        let path = monitor.currentPath
+        print("Current path status: \(path.status)")
     }
     
     private func stopMonitoring() {
         monitor.cancel()
     }
 }
-
-// End of file. No additional code.

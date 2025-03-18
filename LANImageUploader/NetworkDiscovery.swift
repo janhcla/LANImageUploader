@@ -15,43 +15,30 @@ import Network
 internal func retrieveNetworkInfo(targetFolder: String, username: String, password: String, directIP: String? = nil, port: Int? = nil) async throws -> NetworkInfo {
     print("Starting network info retrieval...")
     
-    // Use the network monitor's isConnected property directly
     guard NetworkMonitor.shared.isConnected else {
         throw NSError(domain: "NetworkDiscovery", code: -1,
             userInfo: [NSLocalizedDescriptionKey: "No network connection available. Please check your Wi-Fi connection."])
     }
     
-    // If we have a direct IP, parse it for potential port number
-    if let directIP = directIP {
-        let components = directIP.split(separator: ":")
-        let ip = String(components[0])
-        let specifiedPort = components.count > 1 ? Int(components[1]) : port
-        
-        print("Attempting direct connection to: \(ip) with port: \(String(describing: specifiedPort))")
-        
+    if let directIP = directIP, !directIP.isEmpty {
+        print("Attempting direct connection to: \(directIP) with port: \(String(describing: port))")
         do {
-            return try await connectToDirectIP(
-                ip: ip,
-                targetFolder: targetFolder,
-                username: username,
-                password: password,
-                port: specifiedPort ?? port
-            )
+            let client = SMB2Manager(
+                url: URL(string: "smb://\(directIP)")!,
+                credential: URLCredential(user: username, password: password, persistence: .forSession)
+            )!
+            try await client.connectShare(name: "smb") // Replace "smb" with actual share name logic if needed
+            let shareName = "smb" // Temporary; adjust based on your NAS
+            try await client.disconnectShare()
+            return NetworkInfo(serverIP: directIP, shareName: shareName, targetDirectory: targetFolder.isEmpty ? nil : targetFolder)
         } catch {
             print("Direct IP connection failed: \(error.localizedDescription)")
-            // Only throw if we had a port specified
-            if specifiedPort != nil {
-                throw error
-            }
-            // Otherwise, continue with discovery
-            print("Falling back to network discovery...")
+            // Fall back to discovery
         }
     }
     
-    // Try discovering servers on the network
     print("Starting network discovery...")
     let services = try await discoverSMBServers()
-    
     guard !services.isEmpty else {
         throw NSError(domain: "NetworkDiscovery", code: -3,
             userInfo: [NSLocalizedDescriptionKey: "No SMB servers found on the network"])
