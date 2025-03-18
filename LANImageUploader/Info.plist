@@ -6,6 +6,10 @@
 	<string>This app needs camera access to capture images.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>This app needs local network access to discover servers on your local network to be able to auto-fill settings and to upload images to your server.</string>
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_smb._tcp</string>
+    </array>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.janhagenclausen.LANImageUploader.dailyImageSave</string>
