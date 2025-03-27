@@ -498,7 +498,7 @@ extension View {
 //                errorMessage = "All fields must be filled to save."
 //                return
 //            }
-//            
+//
 //            let ipComponents = serverIP.split(separator: ".")
 //            guard ipComponents.count == 4, ipComponents.allSatisfy({ $0.allSatisfy(\.isNumber) }) else {
 //                showError = true
@@ -518,10 +518,10 @@ extension View {
 //            } else {
 //                portNumber = nil
 //            }
-//            
+//
 //            let trimmedTargetDirectory = targetDirectory.trimmingCharacters(in: .init(charactersIn: "/\\"))
 //            let targetDir: String? = trimmedTargetDirectory.isEmpty ? nil : trimmedTargetDirectory
-//            
+//
 //            appData.settings = ServerSettings(
 //                serverIP: serverIP,
 //                shareName: shareName,
@@ -529,7 +529,7 @@ extension View {
 //                username: username,
 //                port: portNumber
 //            )
-//            
+//
 //            do {
 //                try appData.savePassword(password)
 //                showSuccess = true
