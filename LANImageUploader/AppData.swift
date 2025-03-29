@@ -57,6 +57,12 @@ class AppData: ObservableObject {
     private let fileManager = FileManager.default
     internal let documentsDirectory: URL  // Changed from `private` to `internal`
 
+    // Add function to clear naming data
+    func clearNamingData() {
+        imageName = ""
+        ocrText = ""
+    }
+
     init() {
         documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
         self.settings = ServerSettings(

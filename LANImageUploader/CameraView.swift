@@ -98,3 +98,8 @@ struct CameraView: View {
         }
     }
 }
+
+#Preview {
+    CameraView()
+        .environmentObject(AppData())
+}
