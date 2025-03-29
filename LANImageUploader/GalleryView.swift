@@ -330,3 +330,8 @@ struct GalleryView: View {
         isShowingNamingSheet = false
     }
 }
+
+#Preview {
+    GalleryView()
+        .environmentObject(AppData())
+}

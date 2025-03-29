@@ -310,10 +310,10 @@ struct StepItem: View {
                 .frame(maxWidth: .infinity, maxHeight: 150)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                )
+//                .overlay(
+//                    RoundedRectangle(cornerRadius: 12)
+//                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+//                )
                 .onAppear {
                     print("Loading image: \(imageName) – Found: \(UIImage(named: imageName) != nil)")
                 }
@@ -408,12 +408,18 @@ struct NetworkSetupView: View {
     @State private var targetDirectory = ""
     @State private var username = ""
     @State private var password = ""
-    @State private var port = ""  // Add this line
+    @State private var port = ""
     @State private var showWarning = false
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showSuccess = false
     @State private var networkInfo: NetworkInfo?
+    @State private var isDiscovering = false
+    @State private var discoveryProgress = "Initializing..."
+
+    var canAutoFill: Bool {
+        !targetDirectory.isEmpty && !username.isEmpty && !password.isEmpty
+    }
 
     var body: some View {
         VStack(spacing: 20) {
@@ -427,6 +433,18 @@ struct NetworkSetupView: View {
                 .foregroundStyle(.gray)
                 .padding(.horizontal)
             Form {
+                if isDiscovering {
+                    VStack(spacing: 10) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text(discoveryProgress)
+                            .foregroundStyle(.gray)
+                            .font(.caption)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                }
+                
                 TextField("Target Directory (e.g., MediaCapture)", text: $targetDirectory)
                     .autocapitalization(.none)
                 TextField("Username (e.g., WORKGROUP\\user)", text: $username)
@@ -437,6 +455,7 @@ struct NetworkSetupView: View {
                     .keyboardType(.numberPad)
             }
             .frame(maxHeight: 200)
+            
             Button("Auto-Fill and Save") {
                 Task { await autoFillNetworkInfo() }
             }
@@ -446,7 +465,8 @@ struct NetworkSetupView: View {
             .foregroundStyle(.white)
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .padding(.horizontal)
-            .disabled(!canAutoFill)
+            .disabled(!canAutoFill || isDiscovering)
+            
             Button("Skip") {
                 showWarning = true
             }
@@ -473,13 +493,43 @@ struct NetworkSetupView: View {
         }
     }
 
-    var canAutoFill: Bool {
-        !targetDirectory.isEmpty && !username.isEmpty && !password.isEmpty
+    private func autoFillNetworkInfo() async {
+        isDiscovering = true
+        discoveryProgress = "Checking network connection..."
+        
+        defer {
+            Task { @MainActor in
+                isDiscovering = false
+            }
+        }
+        
+        do {
+            let portNumber = Int(port)
+            discoveryProgress = "Searching for SMB servers..."
+                
+            let info = try await NetworkDiscovery.shared.retrieveNetworkInfo(
+                targetFolder: targetDirectory,
+                username: username,
+                password: password,
+                directIP: nil as String?,
+                port: portNumber
+            )
+                
+            await MainActor.run {
+                networkInfo = info
+                showSuccess = true
+            }
+        } catch {
+            await MainActor.run {
+                showError = true
+                errorMessage = "Failed to retrieve network info: \(error.localizedDescription)"
+            }
+        }
     }
 
-    func saveSettings() {
+    private func saveSettings() {
         guard let info = networkInfo else { return }
-
+        
         // Validate port if provided
         let portNumber: Int?
         if !port.isEmpty {
@@ -494,8 +544,8 @@ struct NetworkSetupView: View {
         }
         
         appData.settings = ServerSettings(
-            serverIP: info.serverIP,  // Use info.serverIP instead of serverIP
-            shareName: info.shareName,  // Use info.shareName instead of shareName
+            serverIP: info.serverIP,
+            shareName: info.shareName,
             targetDirectory: info.targetDirectory,
             username: username,
             port: portNumber
@@ -503,26 +553,11 @@ struct NetworkSetupView: View {
         try? appData.savePassword(password)
         nextAction()
     }
+}
 
-    private func autoFillNetworkInfo() async {
-            do {
-                let portNumber = Int(port)
-                let info = try await retrieveNetworkInfo(
-                    targetFolder: targetDirectory,
-                    username: username,
-                    password: password,
-                    directIP: nil,
-                    port: portNumber
-                )
-                await MainActor.run {
-                    networkInfo = info
-                    showSuccess = true
-                }
-            } catch {
-                await MainActor.run {
-                    showError = true
-                    errorMessage = "Failed to retrieve network info: \(error.localizedDescription)"
-                }
-            }
-        }
+// Rest of the file (OnboardingView, other view structures) remains unchanged...
+
+#Preview {
+    OnboardingView()
+        .environmentObject(AppData())
 }

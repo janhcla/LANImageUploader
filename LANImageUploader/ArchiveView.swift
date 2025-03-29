@@ -769,3 +769,8 @@ struct FullscreenArchivedImageView: View {
         showRestoreConfirmation = true
     }
 }
+
+#Preview {
+    ArchiveView()
+        .environmentObject(AppData())
+}

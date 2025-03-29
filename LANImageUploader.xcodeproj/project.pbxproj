@@ -7,6 +7,33 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3DB36FFA2D98046E003D8E4A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3DB36FE32D98046E003D8E4A /* Assets.xcassets */; };
+		3DB36FFB2D98046E003D8E4A /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3DB36FDE2D98046E003D8E4A /* Preview Assets.xcassets */; };
+		3DB36FFC2D98046E003D8E4A /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FEC2D98046E003D8E4A /* HomeView.swift */; };
+		3DB36FFD2D98046E003D8E4A /* CameraPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE52D98046E003D8E4A /* CameraPicker.swift */; };
+		3DB36FFE2D98046E003D8E4A /* AppBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE02D98046E003D8E4A /* AppBackground.swift */; };
+		3DB36FFF2D98046E003D8E4A /* GalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FEA2D98046E003D8E4A /* GalleryView.swift */; };
+		3DB370002D98046E003D8E4A /* ButtonStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE42D98046E003D8E4A /* ButtonStyles.swift */; };
+		3DB370012D98046E003D8E4A /* GalleryBottomActionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE82D98046E003D8E4A /* GalleryBottomActionView.swift */; };
+		3DB370022D98046E003D8E4A /* AppData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE12D98046E003D8E4A /* AppData.swift */; };
+		3DB370032D98046E003D8E4A /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF42D98046E003D8E4A /* OnboardingView.swift */; };
+		3DB370042D98046E003D8E4A /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE62D98046E003D8E4A /* CameraView.swift */; };
+		3DB370052D98046E003D8E4A /* NetworkDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF22D98046E003D8E4A /* NetworkDiscovery.swift */; };
+		3DB370062D98046E003D8E4A /* ArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE22D98046E003D8E4A /* ArchiveView.swift */; };
+		3DB370072D98046E003D8E4A /* GalleryToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE92D98046E003D8E4A /* GalleryToolbarView.swift */; };
+		3DB370082D98046E003D8E4A /* LaunchScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF02D98046E003D8E4A /* LaunchScreenView.swift */; };
+		3DB370092D98046E003D8E4A /* FullscreenImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE72D98046E003D8E4A /* FullscreenImageView.swift */; };
+		3DB3700A2D98046E003D8E4A /* LANImageUploaderApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FEF2D98046E003D8E4A /* LANImageUploaderApp.swift */; };
+		3DB3700B2D98046E003D8E4A /* HelpGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FEB2D98046E003D8E4A /* HelpGuideView.swift */; };
+		3DB3700C2D98046E003D8E4A /* Utilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF72D98046E003D8E4A /* Utilities.swift */; };
+		3DB3700D2D98046E003D8E4A /* UploadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF62D98046E003D8E4A /* UploadView.swift */; };
+		3DB3700E2D98046E003D8E4A /* NamingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF12D98046E003D8E4A /* NamingSheet.swift */; };
+		3DB3700F2D98046E003D8E4A /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF32D98046E003D8E4A /* NetworkMonitor.swift */; };
+		3DB370102D98046E003D8E4A /* ImageRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FED2D98046E003D8E4A /* ImageRowView.swift */; };
+		3DB370112D98046E003D8E4A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF52D98046E003D8E4A /* SettingsView.swift */; };
+		3DB370142D98048A003D8E4A /* LANImageUploaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB370122D98048A003D8E4A /* LANImageUploaderTests.swift */; };
+		3DB370182D980499003D8E4A /* LANImageUploaderUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB370162D980499003D8E4A /* LANImageUploaderUITestsLaunchTests.swift */; };
+		3DB370192D980499003D8E4A /* LANImageUploaderUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB370152D980499003D8E4A /* LANImageUploaderUITests.swift */; };
 		8E0F16112D6B5F2700843EEC /* AMSMB2 in Frameworks */ = {isa = PBXBuildFile; productRef = 8E0F16102D6B5F2700843EEC /* AMSMB2 */; settings = {ATTRIBUTES = (Required, ); }; };
 		8E0F16122D6B5F5200843EEC /* AMSMB2 in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 8E0F16102D6B5F2700843EEC /* AMSMB2 */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		8E4693D02D6FAA9200C537C9 /* VisionKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E4693CF2D6FAA9200C537C9 /* VisionKit.framework */; };
@@ -45,46 +72,40 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		3DB36FDE2D98046E003D8E4A /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		3DB36FE02D98046E003D8E4A /* AppBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBackground.swift; sourceTree = "<group>"; };
+		3DB36FE12D98046E003D8E4A /* AppData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppData.swift; sourceTree = "<group>"; };
+		3DB36FE22D98046E003D8E4A /* ArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveView.swift; sourceTree = "<group>"; };
+		3DB36FE32D98046E003D8E4A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		3DB36FE42D98046E003D8E4A /* ButtonStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtonStyles.swift; sourceTree = "<group>"; };
+		3DB36FE52D98046E003D8E4A /* CameraPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPicker.swift; sourceTree = "<group>"; };
+		3DB36FE62D98046E003D8E4A /* CameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
+		3DB36FE72D98046E003D8E4A /* FullscreenImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenImageView.swift; sourceTree = "<group>"; };
+		3DB36FE82D98046E003D8E4A /* GalleryBottomActionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryBottomActionView.swift; sourceTree = "<group>"; };
+		3DB36FE92D98046E003D8E4A /* GalleryToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryToolbarView.swift; sourceTree = "<group>"; };
+		3DB36FEA2D98046E003D8E4A /* GalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryView.swift; sourceTree = "<group>"; };
+		3DB36FEB2D98046E003D8E4A /* HelpGuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpGuideView.swift; sourceTree = "<group>"; };
+		3DB36FEC2D98046E003D8E4A /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		3DB36FED2D98046E003D8E4A /* ImageRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageRowView.swift; sourceTree = "<group>"; };
+		3DB36FEE2D98046E003D8E4A /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		3DB36FEF2D98046E003D8E4A /* LANImageUploaderApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LANImageUploaderApp.swift; sourceTree = "<group>"; };
+		3DB36FF02D98046E003D8E4A /* LaunchScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScreenView.swift; sourceTree = "<group>"; };
+		3DB36FF12D98046E003D8E4A /* NamingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NamingSheet.swift; sourceTree = "<group>"; };
+		3DB36FF22D98046E003D8E4A /* NetworkDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkDiscovery.swift; sourceTree = "<group>"; };
+		3DB36FF32D98046E003D8E4A /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
+		3DB36FF42D98046E003D8E4A /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		3DB36FF52D98046E003D8E4A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		3DB36FF62D98046E003D8E4A /* UploadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadView.swift; sourceTree = "<group>"; };
+		3DB36FF72D98046E003D8E4A /* Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utilities.swift; sourceTree = "<group>"; };
+		3DB370122D98048A003D8E4A /* LANImageUploaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LANImageUploaderTests.swift; sourceTree = "<group>"; };
+		3DB370152D980499003D8E4A /* LANImageUploaderUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LANImageUploaderUITests.swift; sourceTree = "<group>"; };
+		3DB370162D980499003D8E4A /* LANImageUploaderUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LANImageUploaderUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		8E4693CF2D6FAA9200C537C9 /* VisionKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = VisionKit.framework; path = System/Library/Frameworks/VisionKit.framework; sourceTree = SDKROOT; };
 		8E4693D12D6FAA9F00C537C9 /* Vision.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Vision.framework; path = System/Library/Frameworks/Vision.framework; sourceTree = SDKROOT; };
 		8EC4E83C2D68B563001D57FD /* LANImageUploader.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LANImageUploader.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8EC4E84C2D68B564001D57FD /* LANImageUploaderTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LANImageUploaderTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		8EC4E8562D68B564001D57FD /* LANImageUploaderUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LANImageUploaderUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		8EF957702D749AC80050CFAA /* Exceptions for "LANImageUploader" folder in "LANImageUploader" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 8EC4E83B2D68B563001D57FD /* LANImageUploader */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		8EC4E83E2D68B563001D57FD /* LANImageUploader */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				8EF957702D749AC80050CFAA /* Exceptions for "LANImageUploader" folder in "LANImageUploader" target */,
-			);
-			name = LANImageUploader;
-			path = "../../../Library/Mobile Documents/com~apple~CloudDocs/Documents/XCode Programmering/LANImageUploader/LANImageUploader";
-			sourceTree = "<group>";
-		};
-		8EC4E84F2D68B564001D57FD /* LANImageUploaderTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			name = LANImageUploaderTests;
-			path = "../../../Library/Mobile Documents/com~apple~CloudDocs/Documents/XCode Programmering/LANImageUploader/LANImageUploaderTests";
-			sourceTree = "<group>";
-		};
-		8EC4E8592D68B564001D57FD /* LANImageUploaderUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			name = LANImageUploaderUITests;
-			path = "../../../Library/Mobile Documents/com~apple~CloudDocs/Documents/XCode Programmering/LANImageUploader/LANImageUploaderUITests";
-			sourceTree = "<group>";
-		};
-/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		8EC4E8392D68B563001D57FD /* Frameworks */ = {
@@ -114,6 +135,63 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		3DB36FDF2D98046E003D8E4A /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				3DB36FDE2D98046E003D8E4A /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		3DB36FF82D98046E003D8E4A /* LANImageUploader */ = {
+			isa = PBXGroup;
+			children = (
+				3DB36FE02D98046E003D8E4A /* AppBackground.swift */,
+				3DB36FE12D98046E003D8E4A /* AppData.swift */,
+				3DB36FE22D98046E003D8E4A /* ArchiveView.swift */,
+				3DB36FE32D98046E003D8E4A /* Assets.xcassets */,
+				3DB36FE42D98046E003D8E4A /* ButtonStyles.swift */,
+				3DB36FE52D98046E003D8E4A /* CameraPicker.swift */,
+				3DB36FE62D98046E003D8E4A /* CameraView.swift */,
+				3DB36FE72D98046E003D8E4A /* FullscreenImageView.swift */,
+				3DB36FE82D98046E003D8E4A /* GalleryBottomActionView.swift */,
+				3DB36FE92D98046E003D8E4A /* GalleryToolbarView.swift */,
+				3DB36FEA2D98046E003D8E4A /* GalleryView.swift */,
+				3DB36FEB2D98046E003D8E4A /* HelpGuideView.swift */,
+				3DB36FEC2D98046E003D8E4A /* HomeView.swift */,
+				3DB36FED2D98046E003D8E4A /* ImageRowView.swift */,
+				3DB36FEE2D98046E003D8E4A /* Info.plist */,
+				3DB36FEF2D98046E003D8E4A /* LANImageUploaderApp.swift */,
+				3DB36FF02D98046E003D8E4A /* LaunchScreenView.swift */,
+				3DB36FF12D98046E003D8E4A /* NamingSheet.swift */,
+				3DB36FF22D98046E003D8E4A /* NetworkDiscovery.swift */,
+				3DB36FF32D98046E003D8E4A /* NetworkMonitor.swift */,
+				3DB36FF42D98046E003D8E4A /* OnboardingView.swift */,
+				3DB36FF52D98046E003D8E4A /* SettingsView.swift */,
+				3DB36FF62D98046E003D8E4A /* UploadView.swift */,
+				3DB36FF72D98046E003D8E4A /* Utilities.swift */,
+				3DB36FDF2D98046E003D8E4A /* Preview Content */,
+			);
+			path = LANImageUploader;
+			sourceTree = "<group>";
+		};
+		3DB370132D98048A003D8E4A /* LANImageUploaderTests */ = {
+			isa = PBXGroup;
+			children = (
+				3DB370122D98048A003D8E4A /* LANImageUploaderTests.swift */,
+			);
+			path = LANImageUploaderTests;
+			sourceTree = "<group>";
+		};
+		3DB370172D980499003D8E4A /* LANImageUploaderUITests */ = {
+			isa = PBXGroup;
+			children = (
+				3DB370152D980499003D8E4A /* LANImageUploaderUITests.swift */,
+				3DB370162D980499003D8E4A /* LANImageUploaderUITestsLaunchTests.swift */,
+			);
+			path = LANImageUploaderUITests;
+			sourceTree = "<group>";
+		};
 		8E4693CE2D6FAA9200C537C9 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -126,9 +204,9 @@
 		8EC4E8332D68B563001D57FD = {
 			isa = PBXGroup;
 			children = (
-				8EC4E83E2D68B563001D57FD /* LANImageUploader */,
-				8EC4E84F2D68B564001D57FD /* LANImageUploaderTests */,
-				8EC4E8592D68B564001D57FD /* LANImageUploaderUITests */,
+				3DB36FF82D98046E003D8E4A /* LANImageUploader */,
+				3DB370172D980499003D8E4A /* LANImageUploaderUITests */,
+				3DB370132D98048A003D8E4A /* LANImageUploaderTests */,
 				8E4693CE2D6FAA9200C537C9 /* Frameworks */,
 				8EC4E83D2D68B563001D57FD /* Products */,
 			);
@@ -160,9 +238,6 @@
 			);
 			dependencies = (
 			);
-			fileSystemSynchronizedGroups = (
-				8EC4E83E2D68B563001D57FD /* LANImageUploader */,
-			);
 			name = LANImageUploader;
 			packageProductDependencies = (
 				8E0F16102D6B5F2700843EEC /* AMSMB2 */,
@@ -184,9 +259,6 @@
 			dependencies = (
 				8EC4E84E2D68B564001D57FD /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				8EC4E84F2D68B564001D57FD /* LANImageUploaderTests */,
-			);
 			name = LANImageUploaderTests;
 			packageProductDependencies = (
 			);
@@ -207,9 +279,6 @@
 			dependencies = (
 				8EC4E8582D68B564001D57FD /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				8EC4E8592D68B564001D57FD /* LANImageUploaderUITests */,
-			);
 			name = LANImageUploaderUITests;
 			packageProductDependencies = (
 			);
@@ -225,7 +294,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1620;
-				LastUpgradeCheck = 1620;
+				LastUpgradeCheck = 1630;
 				TargetAttributes = {
 					8EC4E83B2D68B563001D57FD = {
 						CreatedOnToolsVersion = 16.2;
@@ -269,6 +338,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3DB36FFA2D98046E003D8E4A /* Assets.xcassets in Resources */,
+				3DB36FFB2D98046E003D8E4A /* Preview Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -293,6 +364,28 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3DB36FFC2D98046E003D8E4A /* HomeView.swift in Sources */,
+				3DB36FFD2D98046E003D8E4A /* CameraPicker.swift in Sources */,
+				3DB36FFE2D98046E003D8E4A /* AppBackground.swift in Sources */,
+				3DB36FFF2D98046E003D8E4A /* GalleryView.swift in Sources */,
+				3DB370002D98046E003D8E4A /* ButtonStyles.swift in Sources */,
+				3DB370012D98046E003D8E4A /* GalleryBottomActionView.swift in Sources */,
+				3DB370022D98046E003D8E4A /* AppData.swift in Sources */,
+				3DB370032D98046E003D8E4A /* OnboardingView.swift in Sources */,
+				3DB370042D98046E003D8E4A /* CameraView.swift in Sources */,
+				3DB370052D98046E003D8E4A /* NetworkDiscovery.swift in Sources */,
+				3DB370062D98046E003D8E4A /* ArchiveView.swift in Sources */,
+				3DB370072D98046E003D8E4A /* GalleryToolbarView.swift in Sources */,
+				3DB370082D98046E003D8E4A /* LaunchScreenView.swift in Sources */,
+				3DB370092D98046E003D8E4A /* FullscreenImageView.swift in Sources */,
+				3DB3700A2D98046E003D8E4A /* LANImageUploaderApp.swift in Sources */,
+				3DB3700B2D98046E003D8E4A /* HelpGuideView.swift in Sources */,
+				3DB3700C2D98046E003D8E4A /* Utilities.swift in Sources */,
+				3DB3700D2D98046E003D8E4A /* UploadView.swift in Sources */,
+				3DB3700E2D98046E003D8E4A /* NamingSheet.swift in Sources */,
+				3DB3700F2D98046E003D8E4A /* NetworkMonitor.swift in Sources */,
+				3DB370102D98046E003D8E4A /* ImageRowView.swift in Sources */,
+				3DB370112D98046E003D8E4A /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -300,6 +393,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3DB370142D98048A003D8E4A /* LANImageUploaderTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -307,6 +401,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3DB370182D980499003D8E4A /* LANImageUploaderUITestsLaunchTests.swift in Sources */,
+				3DB370192D980499003D8E4A /* LANImageUploaderUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -361,6 +457,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = ARQN5UD84L;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -424,6 +521,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = ARQN5UD84L;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -454,7 +552,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 300;
 				DEVELOPMENT_ASSET_PATHS = "\"LANImageUploader/Preview Content\"";
-				DEVELOPMENT_TEAM = ARQN5UD84L;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LANImageUploader/Info.plist;
@@ -488,7 +585,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 300;
 				DEVELOPMENT_ASSET_PATHS = "\"LANImageUploader/Preview Content\"";
-				DEVELOPMENT_TEAM = ARQN5UD84L;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LANImageUploader/Info.plist;
@@ -519,7 +615,6 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ARQN5UD84L;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MARKETING_VERSION = 1.0;
@@ -538,7 +633,6 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ARQN5UD84L;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MARKETING_VERSION = 1.0;
@@ -556,7 +650,6 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ARQN5UD84L;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = jhc.LANImageUploaderUITests;
@@ -573,7 +666,6 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ARQN5UD84L;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = jhc.LANImageUploaderUITests;
