@@ -28,12 +28,16 @@ extension NetworkDiscovery {
     internal func retrieveNetworkInfo(targetFolder: String, username: String, password: String, directIP: String? = nil, port: Int? = nil) async throws -> NetworkInfo {
         logger.info("--- Starting retrieveNetworkInfo ---")
         logger.debug("Target Folder: '\(targetFolder)', Username: '\(username)', DirectIP: \(directIP ?? "None"), Port: \(port?.description ?? "Default")")
-        
-        // CHANGE: Remove 'await' as NetworkMonitor.shared.isConnected is not async
-        guard NetworkMonitor.shared.isConnected else {
-            logger.error("Network connection unavailable.")
-            throw NSError(domain: "NetworkDiscovery", code: -1,
-                         userInfo: [NSLocalizedDescriptionKey: "No network connection available. Please check your Wi-Fi connection."])
+
+        // Wait for network to be available
+        do {
+            try await NetworkMonitor.shared.waitForNetwork()
+            logger.info("Network connection is active.")
+        } catch {
+            logger.error("Network connection unavailable after waiting: \(error.localizedDescription)")
+            // You might want to throw a more specific error or handle it according to your app's logic
+            throw NSError(domain: "NetworkDiscovery", code: -100, // Example error code
+                          userInfo: [NSLocalizedDescriptionKey: "Network not available: \(error.localizedDescription)"])
         }
         
         // Check cache for direct IP
