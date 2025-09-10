@@ -11,11 +11,14 @@ import SwiftUI
 
 enum KeychainError: Error, LocalizedError {
     case unexpectedStatus(OSStatus)
+    case dataEncodingFailed
 
     var errorDescription: String? {
         switch self {
         case .unexpectedStatus(let status):
             return "A keychain operation failed. OSStatus code: \(status)"
+        case .dataEncodingFailed:
+            return "Failed to encode API key data."
         }
     }
 }
