@@ -147,7 +147,13 @@ class AppData: ObservableObject {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: apiKeyKey
         ]
-        SecItemDelete(deleteQuery as CFDictionary)
+        let status = SecItemDelete(deleteQuery as CFDictionary)
+        if status != errSecSuccess && status != errSecItemNotFound {
+            throw NSError(
+                domain: "KeychainError",
+                code: Int(status),
+                userInfo: [NSLocalizedDescriptionKey: "Failed to delete existing API key"])
+        }
 
         if !apiKey.isEmpty {
             let apiKeyData = apiKey.data(using: .utf8)!
@@ -156,10 +162,11 @@ class AppData: ObservableObject {
                 kSecAttrAccount as String: apiKeyKey,
                 kSecValueData as String: apiKeyData
             ]
-            let status = SecItemAdd(addQuery as CFDictionary, nil)
-            guard status == errSecSuccess else {
+            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            guard addStatus == errSecSuccess else {
                 throw NSError(
-                    domain: "KeychainError", code: Int(status),
+                    domain: "KeychainError",
+                    code: Int(addStatus),
                     userInfo: [NSLocalizedDescriptionKey: "Failed to save API key"])
             }
         }
