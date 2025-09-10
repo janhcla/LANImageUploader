@@ -143,18 +143,25 @@ class AppData: ObservableObject {
     }
 
     func saveAPIKey(_ apiKey: String) throws {
-        let apiKeyData = apiKey.data(using: .utf8)!
-        let query: [String: Any] = [
+        let deleteQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: apiKeyKey,
-            kSecValueData as String: apiKeyData,
+            kSecAttrAccount as String: apiKeyKey
         ]
-        SecItemDelete(query as CFDictionary)
-        let status = SecItemAdd(query as CFDictionary, nil)
-        guard status == errSecSuccess else {
-            throw NSError(
-                domain: "KeychainError", code: Int(status),
-                userInfo: [NSLocalizedDescriptionKey: "Failed to save API key"])
+        SecItemDelete(deleteQuery as CFDictionary)
+
+        if !apiKey.isEmpty {
+            let apiKeyData = apiKey.data(using: .utf8)!
+            let addQuery: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: apiKeyKey,
+                kSecValueData as String: apiKeyData
+            ]
+            let status = SecItemAdd(addQuery as CFDictionary, nil)
+            guard status == errSecSuccess else {
+                throw NSError(
+                    domain: "KeychainError", code: Int(status),
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to save API key"])
+            }
         }
     }
 
