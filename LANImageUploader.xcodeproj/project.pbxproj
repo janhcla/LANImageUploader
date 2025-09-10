@@ -34,8 +34,6 @@
 		3DB370142D98048A003D8E4A /* LANImageUploaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB370122D98048A003D8E4A /* LANImageUploaderTests.swift */; };
 		3DB370182D980499003D8E4A /* LANImageUploaderUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB370162D980499003D8E4A /* LANImageUploaderUITestsLaunchTests.swift */; };
 		3DB370192D980499003D8E4A /* LANImageUploaderUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB370152D980499003D8E4A /* LANImageUploaderUITests.swift */; };
-		8E0F16112D6B5F2700843EEC /* AMSMB2 in Frameworks */ = {isa = PBXBuildFile; productRef = 8E0F16102D6B5F2700843EEC /* AMSMB2 */; settings = {ATTRIBUTES = (Required, ); }; };
-		8E0F16122D6B5F5200843EEC /* AMSMB2 in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 8E0F16102D6B5F2700843EEC /* AMSMB2 */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		8E4693D02D6FAA9200C537C9 /* VisionKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E4693CF2D6FAA9200C537C9 /* VisionKit.framework */; };
 		8E4693D22D6FAA9F00C537C9 /* Vision.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E4693D12D6FAA9F00C537C9 /* Vision.framework */; };
 /* End PBXBuildFile section */
@@ -58,17 +56,6 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		8E0F16132D6B5F5200843EEC /* Embed Frameworks */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-				8E0F16122D6B5F5200843EEC /* AMSMB2 in Embed Frameworks */,
-			);
-			name = "Embed Frameworks";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -114,7 +101,6 @@
 			files = (
 				8E4693D22D6FAA9F00C537C9 /* Vision.framework in Frameworks */,
 				8E4693D02D6FAA9200C537C9 /* VisionKit.framework in Frameworks */,
-				8E0F16112D6B5F2700843EEC /* AMSMB2 in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -232,7 +218,6 @@
 				8EC4E8382D68B563001D57FD /* Sources */,
 				8EC4E8392D68B563001D57FD /* Frameworks */,
 				8EC4E83A2D68B563001D57FD /* Resources */,
-				8E0F16132D6B5F5200843EEC /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -240,7 +225,6 @@
 			);
 			name = LANImageUploader;
 			packageProductDependencies = (
-				8E0F16102D6B5F2700843EEC /* AMSMB2 */,
 			);
 			productName = LANImageUploader;
 			productReference = 8EC4E83C2D68B563001D57FD /* LANImageUploader.app */;
@@ -319,7 +303,6 @@
 			mainGroup = 8EC4E8332D68B563001D57FD;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				8E0F160F2D6B5F2700843EEC /* XCRemoteSwiftPackageReference "AMSMB2" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 8EC4E83D2D68B563001D57FD /* Products */;
@@ -719,22 +702,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		8E0F160F2D6B5F2700843EEC /* XCRemoteSwiftPackageReference "AMSMB2" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/amosavian/AMSMB2.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 4.0.1;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		8E0F16102D6B5F2700843EEC /* AMSMB2 */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 8E0F160F2D6B5F2700843EEC /* XCRemoteSwiftPackageReference "AMSMB2" */;
-			productName = AMSMB2;
-		};
 /* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 8EC4E8342D68B563001D57FD /* Project object */;
