@@ -24,24 +24,13 @@ struct CompanionUploader {
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
-        var body = Data()
+        let httpBody = createMultipartBody(
+            boundary: boundary,
+            filename: filename,
+            imageData: imageData
+        )
 
-        // Add image data part
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
-        body.append(imageData)
-        body.append("\r\n".data(using: .utf8)!)
-
-        // Add filename part
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"filename\"\r\n\r\n".data(using: .utf8)!)
-        body.append(filename.data(using: .utf8)!)
-        body.append("\r\n".data(using: .utf8)!)
-
-        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
-
-        request.httpBody = body
+        request.httpBody = httpBody
 
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
@@ -64,6 +53,35 @@ struct CompanionUploader {
         } catch {
             logger.error("Upload request failed: \(error.localizedDescription)")
             throw UploadError.requestFailed(error)
+        }
+    }
+
+    private func createMultipartBody(boundary: String, filename: String, imageData: Data) -> Data {
+        var body = Data()
+
+        // Add image data part
+        body.append("--\(boundary)\r\n")
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n")
+        body.append("Content-Type: image/jpeg\r\n\r\n")
+        body.append(imageData)
+        body.append("\r\n")
+
+        // Add filename part
+        body.append("--\(boundary)\r\n")
+        body.append("Content-Disposition: form-data; name=\"filename\"\r\n\r\n")
+        body.append(filename)
+        body.append("\r\n")
+
+        body.append("--\(boundary)--\r\n")
+
+        return body
+    }
+}
+
+private extension Data {
+    mutating func append(_ string: String) {
+        if let data = string.data(using: .utf8) {
+            append(data)
         }
     }
 }
