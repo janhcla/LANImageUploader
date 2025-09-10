@@ -11,7 +11,7 @@ struct OnboardingView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            Text("Welcome to LAN Image Uploader")
+            Text("Welcome to DermaSnap!")
                 .font(.largeTitle)
                 .fontWeight(.bold)
                 .multilineTextAlignment(.center)
