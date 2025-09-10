@@ -25,14 +25,10 @@ struct SettingsView: View {
     @State private var port: String = ""
     @State private var showValidationError = false
     @State private var validationErrorMessage = ""
-    @State private var isDiscovering = false
-    @State private var searchProgress = "Initializing..."
-    @State private var showAutoFillConfirmation = false
-    @State private var tempNetworkInfo: NetworkInfo?
     @State private var showResetConfirmation = false
-    @State private var showDirectIPPrompt = false
+    @State private var showOfflineSaveSuccess = false
+    @State private var isPasswordVisible = false
     @State private var isKeyboardVisible = false
-    @State private var directIPInput = ""
 
     var isSetupComplete: Bool {
         !appData.settings.serverIP.isEmpty && !appData.settings.shareName.isEmpty &&
@@ -98,21 +94,10 @@ struct SettingsView: View {
         } message: {
             Text("Are you sure you want to delete these settings? This action cannot be undone.")
         }
-        .alert("Enter Direct IP", isPresented: $showDirectIPPrompt) {
-            TextField("Server IP Address (e.g., 192.168.1.10)", text: $directIPInput)
-                .keyboardType(.numbersAndPunctuation)
-            Button("Cancel", role: .cancel) {
-                directIPInput = ""
-            }
-            Button("Connect") {
-                if !directIPInput.isEmpty {
-                    serverIP = directIPInput
-                    Task { await startAutoFill() }
-                }
-                directIPInput = ""
-            }
+        .alert("Credentials Saved", isPresented: $showOfflineSaveSuccess) {
+            Button("OK", role: .cancel) {}
         } message: {
-            Text("Enter the IP address of your SMB server.\n\nYou can typically find this in your router's connected devices list or by checking the server's network settings.")
+            Text("Credentials saved, will connect when online")
         }
         .sheet(isPresented: $showHelpGuide) {
             HelpGuideView()
@@ -144,67 +129,54 @@ struct SettingsView: View {
     var firstSetupView: some View {
         Group {
             Section("First Setup") {
-                if isDiscovering {
-                    VStack(spacing: 10) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text(searchProgress)
-                            .foregroundStyle(.gray)
-                            .font(.caption)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                }
-                
-                Text("Enter your credentials and target folder. Then choose 'Auto-Fill' to detect your SMB server automatically, or select 'Try Direct IP' if you already know the server's IP address. Note: Sometimes 'Auto-Fill' cannot exctract the server info automatically. This app stores your password in a secure keychain.")
+                Text("Welcome! Please enter your server details to get started. Your password will be stored securely in the device's Keychain.")
                     .font(.caption)
                     .foregroundStyle(.gray)
+
+                TextField("Server IP (e.g., 192.168.1.10)", text: $serverIP)
+                    .textContentType(.URL)
+                    .keyboardType(.numbersAndPunctuation)
+                    .autocapitalization(.none)
+
+                TextField("Share Name (e.g., MediaCaptureShare)", text: $shareName)
+                    .autocapitalization(.none)
+
                 TextField("Target Directory (e.g., MediaCapture)", text: $targetDirectory)
                     .autocapitalization(.none)
+
                 TextField("Username (e.g., WORKGROUP\\user)", text: $username)
                     .textContentType(.username)
-                SecureField("Password", text: $password)
-                    .textContentType(.password)
+
+                ZStack(alignment: .trailing) {
+                    if isPasswordVisible {
+                        TextField("Password", text: $password)
+                            .textContentType(.password)
+                    } else {
+                        SecureField("Password", text: $password)
+                            .textContentType(.password)
+                    }
+
+                    Button(action: {
+                        isPasswordVisible.toggle()
+                    }) {
+                        Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")
+                            .foregroundColor(.gray)
+                    }
+                }
+
                 TextField("Port (optional)", text: $port)
                     .keyboardType(.numberPad)
             }
             Section {
-                Button("Auto-Fill Network Info") {
-                    Task { await startAutoFill() }
+                Button("Save") {
+                    Task { await saveSettingsOffline() }
                 }
-                .disabled(!canAutoFill || isDiscovering)
-                .foregroundStyle(canAutoFill && !isDiscovering ? .blue : .gray)
-                
-                Button("Try Direct IP") {
-                    showDirectIPPrompt = true
+                .disabled(!canSave)
+                .foregroundStyle(canSave ? .green : .gray)
+
+                Button("Reset", role: .destructive) {
+                    showResetConfirmation = true
                 }
-                .disabled(!canAutoFill || isDiscovering)
-                .foregroundStyle(canAutoFill && !isDiscovering ? .blue : .gray)
-                
-                Button("Switch to Manual Setup") {
-                    isFirstSetup = false
-                }
-                .foregroundStyle(.blue)
-                .disabled(isDiscovering)
-            }
-        }
-        .alert("Confirm Auto-Fill", isPresented: $showAutoFillConfirmation) {
-            Button("Cancel", role: .cancel) {
-                tempNetworkInfo = nil
-            }
-            Button(appData.settings.serverIP.isEmpty ? "Save" : "Overwrite") {
-                if let info = tempNetworkInfo {
-                    serverIP = info.serverIP
-                    shareName = info.shareName
-                    targetDirectory = info.targetDirectory ?? ""
-                    isFirstSetup = false
-                    tempNetworkInfo = nil
-                    showSuccess = true
-                }
-            }
-        } message: {
-            if let info = tempNetworkInfo {
-                Text("Network information found:\nServer: \(info.serverIP)\nShare: \(info.shareName)\(info.targetDirectory != nil ? "\nDirectory: \(info.targetDirectory!)" : "")\n\nDo you want to use this configuration?")
             }
         }
     }
@@ -232,8 +204,22 @@ struct SettingsView: View {
                     }
                 TextField("Username (e.g., WORKGROUP\\user)", text: $username)
                     .textContentType(.username)
-                SecureField("Password", text: $password)
-                    .textContentType(.password)
+                ZStack(alignment: .trailing) {
+                    if isPasswordVisible {
+                        TextField("Password", text: $password)
+                            .textContentType(.password)
+                    } else {
+                        SecureField("Password", text: $password)
+                            .textContentType(.password)
+                    }
+
+                    Button(action: {
+                        isPasswordVisible.toggle()
+                    }) {
+                        Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")
+                            .foregroundColor(.gray)
+                    }
+                }
             }
             Section {
                 Button("Save") {
@@ -245,7 +231,7 @@ struct SettingsView: View {
                 .disabled(!hasUnsavedChanges)
                 .foregroundStyle(hasUnsavedChanges ? .red : .gray)
                 Button("Reset", role: .destructive) { showResetConfirmation = true }
-                Button("Switch to Auto-Fill Setup") {
+                Button("Re-configure (First Time Setup)") {
                     isFirstSetup = true
                 }
                 .foregroundStyle(.blue)
@@ -253,36 +239,55 @@ struct SettingsView: View {
         }
     }
 
-    private func startAutoFill() async {
-        isDiscovering = true
-        searchProgress = "Checking network connection..."
-        
-        defer {
-            Task { @MainActor in
-                isDiscovering = false
-            }
+
+    func saveSettingsOffline() async {
+        guard canSave else {
+            showError = true
+            errorMessage = "All required fields must be filled to save."
+            return
         }
-        
-        do {
-            let portNumber = Int(port)
-            searchProgress = "Searching for SMB servers..."
-            
-            let info = try await NetworkDiscovery.shared.retrieveNetworkInfo(
-                targetFolder: targetDirectory,
+
+        // Validate IP address
+        let ipComponents = serverIP.split(separator: ".")
+        guard ipComponents.count == 4, ipComponents.allSatisfy({ $0.allSatisfy(\.isNumber) }) else {
+            showError = true
+            errorMessage = "Please enter a valid IP address (e.g., 192.168.1.10)"
+            return
+        }
+
+        // Validate port if provided
+        let portNumber: Int?
+        if !port.isEmpty {
+            guard let number = Int(port), number > 0, number <= 65535 else {
+                showError = true
+                errorMessage = "Please enter a valid port number (1-65535)"
+                return
+            }
+            portNumber = number
+        } else {
+            portNumber = nil
+        }
+
+        let trimmedTargetDirectory = targetDirectory.trimmingCharacters(in: .init(charactersIn: "/\\"))
+        let targetDir: String? = trimmedTargetDirectory.isEmpty ? nil : trimmedTargetDirectory
+
+        // Save settings without network test
+        await MainActor.run {
+            appData.settings = ServerSettings(
+                serverIP: serverIP,
+                shareName: shareName,
+                targetDirectory: targetDir,
                 username: username,
-                password: password,
-                directIP: nil as String?,
                 port: portNumber
             )
-            
-            await MainActor.run {
-                tempNetworkInfo = info
-                showAutoFillConfirmation = true
-            }
-        } catch {
-            await MainActor.run {
+            do {
+                try appData.savePassword(password)
+                showOfflineSaveSuccess = true
+                isFirstSetup = false
+                showAutoFillOption = false
+            } catch {
                 showError = true
-                errorMessage = "Failed to retrieve network info: \(error.localizedDescription)"
+                errorMessage = "Failed to save password: \(error.localizedDescription)"
             }
         }
     }
