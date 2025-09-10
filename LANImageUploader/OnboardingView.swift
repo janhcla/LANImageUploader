@@ -54,8 +54,8 @@ struct OnboardingView: View {
             QRCodeScannerView { result in
                 Task {
                     await handleScan(result: result)
+                    self.isShowingScanner = false
                 }
-                self.isShowingScanner = false
             }
         }
         .alert("Pairing Error", isPresented: $showError) {
