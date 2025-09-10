@@ -27,11 +27,7 @@ struct CapturedImage: Identifiable, Codable {
 }
 
 struct ServerSettings: Codable {
-    var serverIP: String
-    var shareName: String
-    var targetDirectory: String?
-    var username: String
-    var port: Int?  // Add this line
+    var baseURL: String
 }
 
 enum UploadStatus: Equatable {
@@ -52,7 +48,11 @@ class AppData: ObservableObject {
     @Published var imageName: String = ""
     @Published var scanStatus: String = ""
 
-    private let passwordKey = "serverPassword"
+    var isConfigured: Bool {
+        !settings.baseURL.isEmpty && getAPIKey() != nil
+    }
+
+    private let apiKeyKey = "companionAPIKey"
     private let settingsKey = "serverSettings"
     private let fileManager = FileManager.default
     internal let documentsDirectory: URL  // Changed from `private` to `internal`
@@ -65,8 +65,7 @@ class AppData: ObservableObject {
 
     init() {
         documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
-        self.settings = ServerSettings(
-            serverIP: "", shareName: "", targetDirectory: nil, username: "")
+        self.settings = ServerSettings(baseURL: "")
         if let savedSettings = loadSettingsFromUserDefaults() {
             self.settings = savedSettings
         }
@@ -143,26 +142,26 @@ class AppData: ObservableObject {
         }
     }
 
-    func savePassword(_ password: String) throws {
-        let passwordData = password.data(using: .utf8)!
+    func saveAPIKey(_ apiKey: String) throws {
+        let apiKeyData = apiKey.data(using: .utf8)!
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: passwordKey,
-            kSecValueData as String: passwordData,
+            kSecAttrAccount as String: apiKeyKey,
+            kSecValueData as String: apiKeyData,
         ]
         SecItemDelete(query as CFDictionary)
         let status = SecItemAdd(query as CFDictionary, nil)
         guard status == errSecSuccess else {
             throw NSError(
                 domain: "KeychainError", code: Int(status),
-                userInfo: [NSLocalizedDescriptionKey: "Failed to save password"])
+                userInfo: [NSLocalizedDescriptionKey: "Failed to save API key"])
         }
     }
 
-    func getPassword() -> String? {
+    func getAPIKey() -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: passwordKey,
+            kSecAttrAccount as String: apiKeyKey,
             kSecReturnData as String: kCFBooleanTrue!,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
