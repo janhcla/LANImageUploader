@@ -37,6 +37,20 @@ enum UploadStatus: Equatable {
     case failure(String)
 }
 
+enum KeychainError: Error, LocalizedError {
+    case deleteFailed(OSStatus)
+    case addFailed(OSStatus)
+
+    var errorDescription: String? {
+        switch self {
+        case .deleteFailed:
+            return "Failed to delete existing API key."
+        case .addFailed:
+            return "Failed to save API key."
+        }
+    }
+}
+
 class AppData: ObservableObject {
     @Published var images: [CapturedImage] = []
     @Published var settings: ServerSettings {
@@ -147,7 +161,10 @@ class AppData: ObservableObject {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: apiKeyKey
         ]
-        SecItemDelete(deleteQuery as CFDictionary)
+        let status = SecItemDelete(deleteQuery as CFDictionary)
+        if status != errSecSuccess && status != errSecItemNotFound {
+            throw KeychainError.deleteFailed(status)
+        }
 
         if !apiKey.isEmpty {
             let apiKeyData = apiKey.data(using: .utf8)!
@@ -156,11 +173,9 @@ class AppData: ObservableObject {
                 kSecAttrAccount as String: apiKeyKey,
                 kSecValueData as String: apiKeyData
             ]
-            let status = SecItemAdd(addQuery as CFDictionary, nil)
-            guard status == errSecSuccess else {
-                throw NSError(
-                    domain: "KeychainError", code: Int(status),
-                    userInfo: [NSLocalizedDescriptionKey: "Failed to save API key"])
+            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            guard addStatus == errSecSuccess else {
+                throw KeychainError.addFailed(addStatus)
             }
         }
     }

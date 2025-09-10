@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var appData: AppData
     @State private var showDisconnectConfirmation = false
+    @State private var disconnectError: Error?
 
     var body: some View {
         Form {
@@ -38,11 +39,28 @@ struct SettingsView: View {
         } message: {
             Text("Are you sure you want to disconnect from the server? You will need to scan the QR code again to reconnect.")
         }
+        .alert("Error", isPresented: Binding(
+            get: { disconnectError != nil },
+            set: { if !$0 { disconnectError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(disconnectError?.localizedDescription ?? "Unknown error")
+        }
     }
 
     private func disconnect() {
-        appData.settings.baseURL = ""
-        try? appData.saveAPIKey("")
+        let appData = self.appData
+        Task {
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    try appData.saveAPIKey("")
+                }.value
+                self.appData.settings.baseURL = ""
+            } catch {
+                self.disconnectError = error
+            }
+        }
     }
 }
 
