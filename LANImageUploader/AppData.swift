@@ -166,7 +166,7 @@ class AppData: ObservableObject {
         }
 
         if !apiKey.isEmpty {
-            guard let apiKeyData = apiKey.data(using: .utf8) else { return }
+            guard let apiKeyData = apiKey.data(using: .utf8) else { throw KeychainError.dataEncodingFailed }
 
             var addQuery = query
             addQuery[kSecValueData as String] = apiKeyData
