@@ -1,0 +1,73 @@
+{
+  "triggerTaskOnSave.tasks": {},
+  "triggerTaskOnSave.on": false,
+  "triggerTaskOnSave.showNotifications": false,
+  "triggerTaskOnSave.restart": false,
+  "triggerTaskOnSave.delay": 1000,
+  "triggerTaskOnSave.resultIndicatorResetTimeout": 5,
+  "workbench.colorCustomizations": {
+    "editor.guides.indentation": false,
+    "editor.tokenColorCustomizations": {
+      "textMateRules": [
+        {
+          "scope": [
+            "entity.name.type.struct.swift",
+            "entity.name.type.class.swift",
+            "entity.name.type.actor.swift",
+            "entity.name.type.protocol.swift",
+            "entity.name.type.enum.swift",
+            "entity.name.type.swift"
+          ],
+          "settings": {
+            "fontStyle": "bold"
+          }
+        },
+        {
+          "scope": "meta.import.swift entity.name.type.swift",
+          "settings": {
+            "fontStyle": ""
+          }
+        }
+      ]
+    }
+  },
+  "cursor.format.args": [],
+  "[swift]": {
+    "editor.defaultFormatter": null,
+    "editor.formatOnSave": false,
+    "editor.quickSuggestions": {
+      "comments": false,
+      "strings": false,
+      "other": false
+    },
+    "editor.suggestOnTriggerCharacters": false,
+    "editor.acceptSuggestionOnEnter": "off",
+    "editor.validate": false
+  },
+  "cursor.composer.agentLoopOnLints": false,
+  "swift.enabled": false,
+  "swift.path.swift_driver_bin": "",
+  "swift.path.sourcekite": "",
+  "swift.diagnostics": {
+    "enabled": false
+  },
+  "files.validate.swift": false,
+  "problems.decorations.enabled": false,
+  "extensions.ignoreRecommendations": true,
+  "swift.path": "",
+  "swift.swiftEnvironmentVariables": {},
+
+  // Additional settings to disable linting and diagnostics
+  "editor.semanticHighlighting.enabled": false,
+  "editor.semanticTokenColorCustomizations": null,
+  "editor.quickSuggestionsDelay": 1000,
+  "editor.suggest.showSnippets": false,
+  "editor.acceptSuggestionOnCommitCharacter": false,
+  "editor.suggest.filterGraceful": false,
+  "editor.hover.enabled": false,
+  "editor.wordBasedSuggestions": "off",
+  "editor.snippetSuggestions": "none",
+  "editor.suggest.showWords": false,
+  "editor.parameterHints.enabled": false,
+  "editor.hover.delay": 100000
+}

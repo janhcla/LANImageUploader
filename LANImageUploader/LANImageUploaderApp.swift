@@ -7,30 +7,82 @@
 
 import SwiftUI
 import BackgroundTasks
+import UIKit
+
+// Add a custom UIHostingController to fix background issues
+class ClearBackgroundHostingController<Content: View>: UIHostingController<Content> {
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        // Set UIHostingController's view background to clear
+        view.backgroundColor = .clear
+    }
+}
 
 @main
 struct LANImageUploaderApp: App {
-    @AppStorage("onboardingCompleted") var onboardingCompleted: Bool = false
     @StateObject private var appData = AppData()
     @Environment(\.scenePhase) private var scenePhase
+    @State private var isShowingLaunchScreen = true
 
     init() {
         // Register the background task without 'weak' for struct (value type)
         BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.janhagenclausen.LANImageUploader.dailyImageSave", using: nil) { [self] task in
             handleAppRefreshTask(task: task as! BGAppRefreshTask)
         }
-        print("Onboarding completed state at launch: \(onboardingCompleted)")
+
+        // Set up UIKit appearance to ensure transparent backgrounds
+        UITableView.appearance().backgroundColor = .clear
+        UINavigationBar.appearance().setBackgroundImage(UIImage(), for: .default)
+        UINavigationBar.appearance().shadowImage = UIImage()
+        UINavigationBar.appearance().isTranslucent = true
     }
 
     var body: some Scene {
         WindowGroup {
             ZStack {
-                if onboardingCompleted {
-                    HomeView()
-                        .environmentObject(appData)
-                } else {
-                    OnboardingView()
-                        .environmentObject(appData)
+                // Launch Screen
+                LaunchScreenView()
+                    .opacity(isShowingLaunchScreen ? 1.0 : 0.0) // Fade out smoothly
+                    .animation(.easeInOut(duration: 0.8), value: isShowingLaunchScreen) // Smooth animation
+                    .zIndex(1) // Keep on top initially
+
+                // Main Content
+                Group {
+                    if appData.isConfigured {
+                        HomeView()
+                            .environmentObject(appData)
+                            .opacity(isShowingLaunchScreen ? 0.0 : 1.0) // Fade in smoothly
+                            .animation(.easeInOut(duration: 0.8), value: isShowingLaunchScreen)
+                    } else {
+                        OnboardingView()
+                            .environmentObject(appData)
+                            .opacity(isShowingLaunchScreen ? 0.0 : 1.0) // Fade in smoothly
+                            .animation(.easeInOut(duration: 0.8), value: isShowingLaunchScreen)
+                    }
+                }
+            }
+            .background(AppBackground())
+            .onAppear {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                    isShowingLaunchScreen = false // Trigger the fade transition
+                }
+
+                // Fix UIHostingController background after scene is created
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                       let window = windowScene.windows.first,
+                       let rootViewController = window.rootViewController {
+                        // Set background color of the root view controller to clear
+                        rootViewController.view.backgroundColor = .clear
+
+                        // If there's a UIHostingController in the hierarchy, also set its background to clear
+                        if let hostingController = rootViewController as? UIHostingController<AnyView> {
+                            hostingController.view.backgroundColor = .clear
+                        } else if let hostingController = rootViewController.children.first as? UIHostingController<AnyView> {
+                            hostingController.view.backgroundColor = .clear
+                        }
+                    }
                 }
             }
             .onChange(of: scenePhase) { oldPhase, newPhase in

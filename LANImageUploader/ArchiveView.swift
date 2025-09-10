@@ -32,103 +32,107 @@ struct ArchiveView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                ForEach(appData.getArchivedDates(), id: \.self) { date in
-                    archiveRow(for: date)
+        BackgroundContainerView {
+            NavigationStack {
+                List {
+                    ForEach(appData.getArchivedDates(), id: \.self) { date in
+                        archiveRow(for: date)
+                    }
                 }
-            }
-            .navigationTitle("Archived Images")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    if hasArchives {
-                        Button(isMultiSelectMode ? "Done" : "Select") {
-                            isMultiSelectMode.toggle()
-                            if !isMultiSelectMode {
-                                selectedDates.removeAll()
+                .scrollContentBackground(.hidden)
+                .background(Color.clear)
+                .navigationTitle("Archived Images")
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        if hasArchives {
+                            Button(isMultiSelectMode ? "Done" : "Select") {
+                                isMultiSelectMode.toggle()
+                                if !isMultiSelectMode {
+                                    selectedDates.removeAll()
+                                }
                             }
                         }
                     }
-                }
-                ToolbarItem(placement: .bottomBar) {
-                    if isMultiSelectMode && !selectedDates.isEmpty {
-                        HStack {
-                            Button(action: restoreSelectedArchives) {
-                                Label("Restore", systemImage: "arrow.uturn.backward")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.green)
-                                    .foregroundStyle(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                            }
+                    ToolbarItem(placement: .bottomBar) {
+                        if isMultiSelectMode && !selectedDates.isEmpty {
+                            HStack {
+                                Button(action: restoreSelectedArchives) {
+                                    Label("Restore", systemImage: "arrow.uturn.backward")
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(Color.green)
+                                        .foregroundStyle(.white)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
 
-                            Button(action: {
-                                showDeleteSelectedConfirmation = true
-                            }) {
-                                Label("Delete", systemImage: "trash")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.red)
-                                    .foregroundStyle(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                Button(action: {
+                                    showDeleteSelectedConfirmation = true
+                                }) {
+                                    Label("Delete", systemImage: "trash")
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(Color.red)
+                                        .foregroundStyle(.white)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
                             }
+                            .padding(.horizontal)
                         }
-                        .padding(.horizontal)
                     }
                 }
-            }
-            .safeAreaInset(edge: .bottom) {
-                if hasArchives && !isMultiSelectMode {
-                    Button(action: {
-                        showDeleteAllConfirmation = true
-                    }) {
-                        Label("Delete ALL", systemImage: "trash")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.red)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                .safeAreaInset(edge: .bottom) {
+                    if hasArchives && !isMultiSelectMode {
+                        Button(action: {
+                            showDeleteAllConfirmation = true
+                        }) {
+                            Label("Delete ALL", systemImage: "trash")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.red)
+                                .foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        .padding()
                     }
-                    .padding()
+                }
+                .alert("Confirmation", isPresented: $showDeleteAllConfirmation) {
+                    Button("Yes", role: .destructive) { deleteAllArchives() }
+                    Button("No", role: .cancel) {}
+                } message: {
+                    Text(
+                        "Do you really want to delete all images in the archive - this action cannot be undone"
+                    )
+                }
+                .alert("Confirmation", isPresented: $showDeleteSelectedConfirmation) {
+                    Button("Yes", role: .destructive) { deleteSelectedArchives() }
+                    Button("No", role: .cancel) {}
+                } message: {
+                    Text(
+                        "Do you really want to delete the selected archives? This action cannot be undone."
+                    )
+                }
+                .alert("Confirmation", isPresented: $showRestoreConfirmation) {
+                    Button("OK") { showRestoreConfirmation = false }
+                } message: {
+                    Text(restoreMessage)
+                }
+                .sheet(isPresented: $showRenameSheet) {
+                    renameArchiveSheet
                 }
             }
-            .alert("Confirmation", isPresented: $showDeleteAllConfirmation) {
-                Button("Yes", role: .destructive) { deleteAllArchives() }
-                Button("No", role: .cancel) {}
-            } message: {
-                Text(
-                    "Do you really want to delete all images in the archive - this action cannot be undone"
+            .sheet(
+                isPresented: Binding(
+                    get: { selectedDate != nil },
+                    set: { selectedDate = $0 ? selectedDate : nil }
                 )
+            ) {
+                if let date = selectedDate {
+                    ArchivedImagesView(date: date, displayName: customArchiveNames[date] ?? date)
+                }
             }
-            .alert("Confirmation", isPresented: $showDeleteSelectedConfirmation) {
-                Button("Yes", role: .destructive) { deleteSelectedArchives() }
-                Button("No", role: .cancel) {}
-            } message: {
-                Text(
-                    "Do you really want to delete the selected archives? This action cannot be undone."
-                )
+            .onAppear {
+                loadCustomArchiveNames()
             }
-            .alert("Confirmation", isPresented: $showRestoreConfirmation) {
-                Button("OK") { showRestoreConfirmation = false }
-            } message: {
-                Text(restoreMessage)
-            }
-            .sheet(isPresented: $showRenameSheet) {
-                renameArchiveSheet
-            }
-        }
-        .sheet(
-            isPresented: Binding(
-                get: { selectedDate != nil },
-                set: { selectedDate = $0 ? selectedDate : nil }
-            )
-        ) {
-            if let date = selectedDate {
-                ArchivedImagesView(date: date, displayName: customArchiveNames[date] ?? date)
-            }
-        }
-        .onAppear {
-            loadCustomArchiveNames()
         }
     }
 
@@ -261,7 +265,14 @@ struct ArchiveView: View {
                     let destinationURL = imagesFolderURL.appendingPathComponent(
                         imageURL.lastPathComponent)
 
+                    // Check if this image is already in our app's images array
                     if !appData.images.contains(where: { $0.fileURL == destinationURL }) {
+                        // If file exists on disk but not in app's array, it's a leftover file - clean it up
+                        if fileManager.fileExists(atPath: destinationURL.path) {
+                            try fileManager.removeItem(at: destinationURL)
+                        }
+
+                        // Copy from archive to gallery
                         try fileManager.copyItem(at: imageURL, to: destinationURL)
                         let capturedImage = CapturedImage(
                             name: imageURL.deletingPathExtension().lastPathComponent,
@@ -280,7 +291,7 @@ struct ArchiveView: View {
 
         restoreMessage =
             "Restored \(successCount) images"
-            + (failureCount > 0 ? " (\(failureCount) already existed)" : "")
+            + (failureCount > 0 ? " (\(failureCount) already in gallery)" : "")
         showRestoreConfirmation = true
         selectedDates.removeAll()
         isMultiSelectMode = false
@@ -340,94 +351,115 @@ struct ArchivedImagesView: View {
     @EnvironmentObject var appData: AppData
     @State private var selectedImages: Set<URL> = []
     @State private var isMultiSelectMode = false
-    @State private var selectedImageURL: IdentifiableURL?  // Updated to IdentifiableURL
+    @State private var selectedImageURL: IdentifiableURL? = nil
     @State private var showRestoreConfirmation = false
     @State private var restoreMessage = ""
     @State private var showDeleteSelectedConfirmation = false
+    @State private var images: [URL] = []
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 10) {
-                    ForEach(appData.getImagesForDate(date), id: \.self) { imageURL in
-                        imageThumbnail(for: imageURL)
+        BackgroundContainerView {
+            NavigationStack {
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 10) {
+                        ForEach(images, id: \.self) { imageURL in
+                            imageThumbnail(for: imageURL)
+                        }
                     }
+                    .padding()
                 }
-                .padding()
-            }
-            .navigationTitle("Images from \(displayName)")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: {
-                        dismiss()
-                    }) {
-                        HStack {
-                            Image(systemName: "chevron.left")
-                            Text("Back")
+                .background(Color.clear)
+                .navigationTitle("Images from \(displayName)")
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button(action: {
+                            dismiss()
+                        }) {
+                            HStack {
+                                Image(systemName: "chevron.left")
+                                Text("Back")
+                            }
+                        }
+                    }
+                    ToolbarItem(placement: .primaryAction) {
+                        Button(isMultiSelectMode ? "Done" : "Select") {
+                            isMultiSelectMode.toggle()
+                            if !isMultiSelectMode { selectedImages.removeAll() }
                         }
                     }
                 }
-                ToolbarItem(placement: .primaryAction) {
-                    Button(isMultiSelectMode ? "Done" : "Select") {
-                        isMultiSelectMode.toggle()
-                        if !isMultiSelectMode { selectedImages.removeAll() }
-                    }
+                .fullScreenCover(item: $selectedImageURL) { identifiableURL in
+                    FullscreenArchivedImageView(imageURL: identifiableURL.url)
                 }
-            }
-            .fullScreenCover(item: $selectedImageURL) { identifiableURL in
-                FullscreenArchivedImageView(imageURL: identifiableURL.url)
-            }
-            .safeAreaInset(edge: .bottom) {
-                if isMultiSelectMode && !selectedImages.isEmpty {
-                    VStack {
-                        HStack(spacing: 20) {
-                            Button(action: restoreSelectedImages) {
-                                Label("Restore to Gallery", systemImage: "arrow.uturn.backward")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.green)
-                                    .foregroundStyle(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                            }
+                .safeAreaInset(edge: .bottom) {
+                    if isMultiSelectMode && !selectedImages.isEmpty {
+                        VStack {
+                            HStack(spacing: 20) {
+                                Button(action: restoreSelectedImages) {
+                                    Label("Restore", systemImage: "arrow.uturn.backward")
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(Color.green)
+                                        .foregroundStyle(.white)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
 
-                            Button(action: {
-                                showDeleteSelectedConfirmation = true
-                            }) {
-                                Label("Delete", systemImage: "trash")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.red)
-                                    .foregroundStyle(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                Button(action: {
+                                    showDeleteSelectedConfirmation = true
+                                }) {
+                                    Label("Delete", systemImage: "trash")
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(Color.red)
+                                        .foregroundStyle(.white)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
                             }
                         }
+                        .padding()
+                        .background(Color(UIColor.systemBackground))
+                    } else if !isMultiSelectMode {
+                        Button(action: restoreAllImages) {
+                            Label("Restore Images", systemImage: "arrow.uturn.backward")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.green)
+                                .foregroundStyle(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        .padding()
                     }
-                    .padding()
-                    .background(Color(UIColor.systemBackground))
-                } else if !isMultiSelectMode {
-                    Button(action: restoreAllImages) {
-                        Label("Restore Images", systemImage: "arrow.uturn.backward")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.green)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                    }
-                    .padding()
                 }
-            }
-            .alert("Confirmation", isPresented: $showRestoreConfirmation) {
-                Button("OK") { showRestoreConfirmation = false }
-            } message: {
-                Text(restoreMessage)
-            }
-            .alert("Confirmation", isPresented: $showDeleteSelectedConfirmation) {
-                Button("Yes", role: .destructive) { deleteSelectedImages() }
-                Button("No", role: .cancel) {}
-            } message: {
-                Text(
-                    "Do you really want to delete all selected images in the archive - this action cannot be undone"
-                )
+                .alert("Confirmation", isPresented: $showRestoreConfirmation) {
+                    Button("OK") { showRestoreConfirmation = false }
+                } message: {
+                    Text(restoreMessage)
+                }
+                .alert("Confirmation", isPresented: $showDeleteSelectedConfirmation) {
+                    Button("Yes", role: .destructive) { deleteSelectedImages() }
+                    Button("No", role: .cancel) {}
+                } message: {
+                    Text(
+                        "Do you really want to delete all selected images in the archive - this action cannot be undone"
+                    )
+                }
+                .onAppear {
+                    refreshImages()
+
+                    // Set up notification observer for deleted images
+                    NotificationCenter.default.addObserver(
+                        forName: Notification.Name("ArchivedImageDeleted"),
+                        object: nil,
+                        queue: .main
+                    ) { notification in
+                        if let deletedURL = notification.object as? URL {
+                            // Remove the deleted image from our local array
+                            images.removeAll(where: { $0 == deletedURL })
+                            // Also remove from selected images if needed
+                            selectedImages.remove(deletedURL)
+                        }
+                    }
+                }
             }
         }
     }
@@ -555,6 +587,10 @@ struct ArchivedImagesView: View {
         restoreMessage = message
         showRestoreConfirmation = true
     }
+
+    private func refreshImages() {
+        images = appData.getImagesForDate(date)
+    }
 }
 
 struct FullscreenArchivedImageView: View {
@@ -574,110 +610,97 @@ struct FullscreenArchivedImageView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            GeometryReader { geo in
-                let viewCenter = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
-
-                AsyncImage(url: imageURL) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .scaleEffect(scale)
-                            .offset(offset)
-                            .gesture(
-                                DragGesture(minimumDistance: 10)
-                                    .onChanged { gesture in
-                                        offset = CGSize(
-                                            width: lastOffset.width + gesture.translation.width,
-                                            height: lastOffset.height + gesture.translation.height)
+            AsyncImage(url: imageURL) { phase in
+                if let image = phase.image {
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .scaleEffect(scale)
+                        .offset(offset)
+                        .gesture(
+                            DragGesture(minimumDistance: 10)
+                                .onChanged { gesture in
+                                    offset = CGSize(
+                                        width: lastOffset.width + gesture.translation.width,
+                                        height: lastOffset.height + gesture.translation.height)
+                                }
+                                .onEnded { _ in
+                                    lastOffset = offset
+                                }
+                        )
+                        .simultaneousGesture(
+                            SimultaneousGesture(
+                                MagnificationGesture()
+                                    .onChanged { value in
+                                        let newScale = lastScale * value
+                                        scale = newScale
                                     }
                                     .onEnded { _ in
-                                        lastOffset = offset
+                                        lastScale = scale
+                                    },
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { gesture in
+                                        pinchCenter = gesture.location
                                     }
                             )
-                            .simultaneousGesture(
-                                SimultaneousGesture(
-                                    MagnificationGesture()
-                                        .onChanged { value in
-                                            let newScale = lastScale * value
-                                            let deltaScale = newScale / lastScale
-                                            let translation = CGPoint(
-                                                x: pinchCenter.x - viewCenter.x,
-                                                y: pinchCenter.y - viewCenter.y)
-                                            let newOffset = CGSize(
-                                                width: lastOffset.width - translation.x
-                                                    * (deltaScale - 1),
-                                                height: lastOffset.height - translation.y
-                                                    * (deltaScale - 1)
-                                            )
-                                            scale = newScale
-                                            offset = newOffset
-                                        }
-                                        .onEnded { _ in
-                                            lastScale = scale
-                                            lastOffset = offset
-                                        },
-                                    DragGesture(minimumDistance: 0)
-                                        .onChanged { gesture in
-                                            pinchCenter = gesture.location
-                                        }
-                                )
-                            )
-                            .onAppear {
-                                pinchCenter = viewCenter
-                            }
-                    } else if phase.error != nil {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundStyle(.red)
-                    } else {
-                        ProgressView()
-                    }
+                        )
+                } else if phase.error != nil {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.red)
+                } else {
+                    ProgressView()
                 }
             }
 
-            // UI controls overlay
             VStack {
-                // Top right dismiss button
                 HStack {
                     Spacer()
                     Button(action: { dismiss() }) {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.title3)
+                            .font(.title)
                             .foregroundColor(.white)
-                            .padding(6)
+                            .padding(12)
                             .background(Circle().fill(Color.black.opacity(0.7)))
                     }
+                    .padding(.top, 20)
+                    .padding(.trailing, 20)
                 }
-                .padding()
 
                 Spacer()
 
-                // Bottom buttons
                 HStack {
-                    // Bottom left restore button
                     Button(action: { restoreImage() }) {
-                        Image(systemName: "arrow.uturn.backward")
-                            .font(.body)
-                            .foregroundColor(.white)
-                            .padding(10)
-                            .background(Circle().fill(Color.green))
+                        ZStack {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 44, height: 44)
+
+                            Image(systemName: "arrow.uturn.backward")
+                                .font(.system(size: 18))
+                                .foregroundColor(.white)
+                        }
                     }
                     .padding(.leading, 16)
 
                     Spacer()
 
-                    // Bottom right delete button
                     Button(action: { deleteImage() }) {
-                        Image(systemName: "trash")
-                            .font(.body)
-                            .foregroundColor(.white)
-                            .padding(6)
-                            .background(Circle().fill(Color.red))
+                        ZStack {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 44, height: 44)
+
+                            Image(systemName: "trash")
+                                .font(.system(size: 18))
+                                .foregroundColor(.white)
+                        }
                     }
                     .padding(.trailing, 16)
                 }
-                .padding(.bottom)
+                .padding(.bottom, 8)
             }
+            .padding()
+            .zIndex(2)
         }
         .alert(restoreMessage, isPresented: $showRestoreConfirmation) {
             Button("OK") { showRestoreConfirmation = false }
@@ -691,7 +714,12 @@ struct FullscreenArchivedImageView: View {
         do {
             try fileManager.createDirectory(at: imagesFolderURL, withIntermediateDirectories: true)
             let destinationURL = imagesFolderURL.appendingPathComponent(imageURL.lastPathComponent)
+
             if !appData.images.contains(where: { $0.fileURL == destinationURL }) {
+                if fileManager.fileExists(atPath: destinationURL.path) {
+                    try fileManager.removeItem(at: destinationURL)
+                }
+
                 try fileManager.copyItem(at: imageURL, to: destinationURL)
                 let capturedImage = CapturedImage(
                     name: imageURL.deletingPathExtension().lastPathComponent,
@@ -713,24 +741,23 @@ struct FullscreenArchivedImageView: View {
         let archiveFolderName = archiveFolder.lastPathComponent
 
         do {
-            // Delete the image file
             try fileManager.removeItem(at: imageURL)
             print("Deleted image: \(imageURL.path)")
 
-            // Check if the archive is now empty
             let contents = try fileManager.contentsOfDirectory(
                 at: archiveFolder, includingPropertiesForKeys: nil)
             let imageFiles = contents.filter {
                 ["jpg", "png"].contains($0.pathExtension.lowercased())
             }
 
-            // If no images left, delete the archive folder
             if imageFiles.isEmpty {
                 try fileManager.removeItem(at: archiveFolder)
                 print("Deleted empty archive: \(archiveFolderName)")
             }
 
-            // Dismiss the view after deletion
+            NotificationCenter.default.post(
+                name: Notification.Name("ArchivedImageDeleted"), object: imageURL)
+
             dismiss()
         } catch {
             print("Failed to delete image \(imageURL.path): \(error)")
@@ -741,4 +768,9 @@ struct FullscreenArchivedImageView: View {
         restoreMessage = message
         showRestoreConfirmation = true
     }
+}
+
+#Preview {
+    ArchiveView()
+        .environmentObject(AppData())
 }

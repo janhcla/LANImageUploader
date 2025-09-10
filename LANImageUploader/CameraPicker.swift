@@ -32,13 +32,29 @@ struct CameraPicker: UIViewControllerRepresentable {
             self.parent = parent
         }
 
-        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+        func imagePickerController(
+            _ picker: UIImagePickerController,
+            didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]
+        ) {
             parent.image = info[.originalImage] as? UIImage
             parent.dismiss()
         }
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             parent.dismiss()
+        }
+    }
+}
+
+// Wrapper to ensure the picker covers the entire screen with black background
+struct CameraPickerWrapper: View {
+    @Binding var image: UIImage?
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea(.all)
+            CameraPicker(image: $image)
+                .ignoresSafeArea(.all)
         }
     }
 }

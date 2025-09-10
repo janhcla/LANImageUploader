@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-// On iOS, UIKit is available so we import it directly
 import UIKit
 
 struct FullscreenImageData: Identifiable {
@@ -29,38 +28,43 @@ struct GalleryView: View {
     @State private var showSaveConfirmation = false
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVStack(spacing: 10) {
-                    ForEach(appData.images) { image in
-                        imageRow(for: image)
+        BackgroundContainerView {
+            NavigationStack {
+                ScrollView {
+                    LazyVStack(spacing: 10) {
+                        ForEach(appData.images) { image in
+                            imageRow(for: image)
+                        }
                     }
+                    .padding()
                 }
-                .padding()
-            }
-            .navigationTitle("Gallery")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    if !appData.images.isEmpty {
-                        Button(isMultiSelectMode ? "Done" : "Select") {
-                            isMultiSelectMode.toggle()
-                            if !isMultiSelectMode {
-                                selectedImages.removeAll()
+                .background(Color.clear)
+                .navigationTitle("Gallery")
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        if !appData.images.isEmpty {
+                            Button(isMultiSelectMode ? "Done" : "Select") {
+                                isMultiSelectMode.toggle()
+                                if !isMultiSelectMode {
+                                    selectedImages.removeAll()
+                                }
                             }
                         }
                     }
-                }
-                ToolbarItem(placement: .bottomBar) {
-                    if isMultiSelectMode && !selectedImages.isEmpty && !appData.images.isEmpty {
-                        HStack {
-                            Button(action: { isShowingNamingSheet = true }) {
-                                Label("Rename", systemImage: "pencil")
-                            }
-                            Button(action: saveAndUpload) {
-                                Label("Save and Upload Now", systemImage: "arrow.up.circle")
-                            }
-                            Button(role: .destructive, action: { showDeleteConfirmation = true }) {
-                                Label("Delete", systemImage: "trash")
+                    ToolbarItem(placement: .bottomBar) {
+                        if isMultiSelectMode && !selectedImages.isEmpty && !appData.images.isEmpty {
+                            HStack {
+                                Button(action: { isShowingNamingSheet = true }) {
+                                    Label("Rename", systemImage: "pencil")
+                                }
+                                Button(action: saveAndUpload) {
+                                    Label("Save and Upload Now", systemImage: "arrow.up.circle")
+                                }
+                                Button(
+                                    role: .destructive, action: { showDeleteConfirmation = true }
+                                ) {
+                                    Label("Delete", systemImage: "trash")
+                                }
                             }
                         }
                     }
@@ -325,4 +329,9 @@ struct GalleryView: View {
         imageName = ""
         isShowingNamingSheet = false
     }
+}
+
+#Preview {
+    GalleryView()
+        .environmentObject(AppData())
 }
