@@ -28,10 +28,7 @@ struct HomeView: View {
     @Environment(\.colorScheme) private var colorScheme
     
     var areSettingsComplete: Bool {
-        !appData.settings.serverIP.isEmpty && !appData.settings.shareName.isEmpty
-            && !(appData.settings.targetDirectory?.trimmingCharacters(in: .whitespaces).isEmpty
-                ?? true)
-            && !appData.settings.username.isEmpty && appData.getPassword() != nil
+        appData.isConfigured
     }
 
     var body: some View {
