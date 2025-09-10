@@ -50,11 +50,13 @@ struct SettingsView: View {
     }
 
     private func disconnect() {
-        do {
-            try appData.saveAPIKey("")
-            appData.settings.baseURL = ""
-        } catch {
-            disconnectError = error.localizedDescription
+        Task {
+            do {
+                try await appData.saveAPIKey("")
+                appData.settings.baseURL = ""
+            } catch {
+                disconnectError = error.localizedDescription
+            }
         }
     }
 }

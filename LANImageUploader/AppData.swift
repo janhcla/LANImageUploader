@@ -9,6 +9,17 @@ import Foundation
 import Security
 import SwiftUI
 
+enum KeychainError: Error, LocalizedError {
+    case unexpectedStatus(OSStatus)
+
+    var errorDescription: String? {
+        switch self {
+        case .unexpectedStatus(let status):
+            return "A keychain operation failed. OSStatus code: \(status)"
+        }
+    }
+}
+
 // Add this struct
 struct NetworkInfo {
     let serverIP: String
@@ -37,6 +48,7 @@ enum UploadStatus: Equatable {
     case failure(String)
 }
 
+@MainActor
 class AppData: ObservableObject {
     @Published var images: [CapturedImage] = []
     @Published var settings: ServerSettings {
@@ -52,8 +64,8 @@ class AppData: ObservableObject {
         !settings.baseURL.isEmpty && getAPIKey() != nil
     }
 
-    private let apiKeyKey = "companionAPIKey"
-    private let settingsKey = "serverSettings"
+    private static let apiKeyKey = "companionAPIKey"
+    private static let settingsKey = "serverSettings"
     private let fileManager = FileManager.default
     internal let documentsDirectory: URL  // Changed from `private` to `internal`
 
@@ -142,25 +154,26 @@ class AppData: ObservableObject {
         }
     }
 
-    func saveAPIKey(_ apiKey: String) throws {
-        let deleteQuery: [String: Any] = [
+    nonisolated func saveAPIKey(_ apiKey: String) async throws {
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: apiKeyKey
+            kSecAttrAccount as String: AppData.apiKeyKey
         ]
-        SecItemDelete(deleteQuery as CFDictionary)
+
+        let deleteStatus = SecItemDelete(query as CFDictionary)
+        if deleteStatus != errSecSuccess && deleteStatus != errSecItemNotFound {
+            throw KeychainError.unexpectedStatus(deleteStatus)
+        }
 
         if !apiKey.isEmpty {
-            let apiKeyData = apiKey.data(using: .utf8)!
-            let addQuery: [String: Any] = [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrAccount as String: apiKeyKey,
-                kSecValueData as String: apiKeyData
-            ]
-            let status = SecItemAdd(addQuery as CFDictionary, nil)
-            guard status == errSecSuccess else {
-                throw NSError(
-                    domain: "KeychainError", code: Int(status),
-                    userInfo: [NSLocalizedDescriptionKey: "Failed to save API key"])
+            guard let apiKeyData = apiKey.data(using: .utf8) else { return }
+
+            var addQuery = query
+            addQuery[kSecValueData as String] = apiKeyData
+
+            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            if addStatus != errSecSuccess {
+                throw KeychainError.unexpectedStatus(addStatus)
             }
         }
     }
@@ -168,7 +181,7 @@ class AppData: ObservableObject {
     func getAPIKey() -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: apiKeyKey,
+            kSecAttrAccount as String: AppData.apiKeyKey,
             kSecReturnData as String: kCFBooleanTrue!,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
@@ -181,12 +194,12 @@ class AppData: ObservableObject {
     private func saveSettingsToUserDefaults() {
         let encoder = JSONEncoder()
         if let encoded = try? encoder.encode(settings) {
-            UserDefaults.standard.set(encoded, forKey: settingsKey)
+            UserDefaults.standard.set(encoded, forKey: AppData.settingsKey)
         }
     }
 
     private func loadSettingsFromUserDefaults() -> ServerSettings? {
-        if let savedData = UserDefaults.standard.data(forKey: settingsKey) {
+        if let savedData = UserDefaults.standard.data(forKey: AppData.settingsKey) {
             let decoder = JSONDecoder()
             return try? decoder.decode(ServerSettings.self, from: savedData)
         }
