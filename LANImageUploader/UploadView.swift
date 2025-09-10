@@ -5,7 +5,6 @@
 //  Created by Jan Hagen Clausen on 21/02/2025.
 //
 
-import AMSMB2
 import SwiftUI
 
 struct UploadView: View {
@@ -21,13 +20,9 @@ struct UploadView: View {
     @State private var areAllUploadsSuccessful = false
     @State private var showClearSuccess = false
     @State private var navigateToHome = false
-    @State private var showDuplicatePrompt = false
-    @State private var duplicateImage: CapturedImage?
-    @State private var overwriteConfirmed = false
 
     var areSettingsComplete: Bool {
-        !appData.settings.serverIP.isEmpty && !appData.settings.shareName.isEmpty &&
-        !appData.settings.username.isEmpty && appData.getPassword() != nil
+        appData.isConfigured
     }
 
     var hasFailedUploads: Bool {
@@ -86,18 +81,6 @@ struct UploadView: View {
                         }
                     } message: {
                         Text("Server settings are incomplete. Uploads cannot proceed without them.")
-                    }
-                    .alert("Duplicate File", isPresented: $showDuplicatePrompt) {
-                        Button("Rename") {
-                            renameImage(duplicateImage!)
-                        }
-                        Button("Overwrite", role: .destructive) {
-                            overwriteConfirmed = true
-                            Task { await uploadImage(duplicateImage!, overwrite: true) }
-                        }
-                        Button("Cancel", role: .cancel) { duplicateImage = nil }
-                    } message: {
-                        Text("A file named '\(duplicateImage?.name ?? "")' already exists. Do you want to rename it or overwrite the existing file?")
                     }
                     if appData.images.isEmpty {
                         VStack {
@@ -234,106 +217,51 @@ struct UploadView: View {
     }
 
     func uploadImage(_ image: CapturedImage, overwrite: Bool = false) async {
-        guard let originalImage = UIImage(contentsOfFile: image.fileURL.path),
-              let imageData = originalImage.jpegData(compressionQuality: 1.0),
-              let password = appData.getPassword() else {
+        guard let imageData = try? Data(contentsOf: image.fileURL) else {
             await MainActor.run {
-                uploadStatuses[image.id] = .failure("Invalid image or server settings")
-                showError = true
-                errorMessage = "Check your server settings and try again."
+                uploadStatuses[image.id] = .failure("Could not read image file.")
+            }
+            return
+        }
+
+        guard let apiKey = appData.getAPIKey(), !appData.settings.baseURL.isEmpty else {
+            await MainActor.run {
+                uploadStatuses[image.id] = .failure("App not paired. Please go to Settings.")
             }
             return
         }
 
         await MainActor.run {
+            // We can't easily track URLSessionUploadTask progress as a stream,
+            // so we'll just show an indeterminate progress indicator.
             uploadStatuses[image.id] = .uploading(0)
             uploadTasks[image.id] = true
         }
 
+        let uploader = CompanionUploader()
+
         do {
-            let client = SMB2Manager(
-                url: URL(string: "smb://\(appData.settings.serverIP)")!,
-                credential: URLCredential(
-                    user: appData.settings.username,
-                    password: password,
-                    persistence: .forSession
-                )
-            )!
-            try await client.connectShare(name: appData.settings.shareName)
-
-            let targetDir = appData.settings.targetDirectory?.trimmingCharacters(in: .init(charactersIn: "/\\")) ?? ""
-            let destinationPath = targetDir.isEmpty ? "\(image.name).jpg" : "\(targetDir)/\(image.name).jpg"
-
-            // Check if file exists
-            if !overwrite {
-                let parentPath = targetDir.isEmpty ? "" : targetDir
-                do {
-                    let contents = try await client.contentsOfDirectory(atPath: parentPath)
-                    if contents.contains(where: { $0.name == "\(image.name).jpg" }) {
-                        await MainActor.run {
-                            duplicateImage = image
-                            showDuplicatePrompt = true
-                        }
-                        return
-                    }
-                } catch {
-                    // If parentPath doesn't exist, we'll catch it below
-                }
-            }
-
-            // Verify directory exists if specified
-            if !targetDir.isEmpty {
-                do {
-                    _ = try await client.contentsOfDirectory(atPath: targetDir)
-                } catch {
-                    throw NSError(domain: "SMBError", code: -4,
-                        userInfo: [NSLocalizedDescriptionKey: "Target directory '\(targetDir)' does not exist on the server."])
-                }
-            }
-
-            try await client.write(data: imageData, toPath: destinationPath) { progressBytes in
-                let totalSize = Double(imageData.count)
-                let progressFraction = totalSize > 0 ? Double(progressBytes) / totalSize : 0.0
-                DispatchQueue.main.async {
-                    uploadStatuses[image.id] = .uploading(progressFraction)
-                }
-                return true
-            }
+            // Note: The new uploader doesn't support overwrite checks, as this
+            // logic is now expected to be handled by the companion server.
+            try await uploader.uploadImage(
+                imageData: imageData,
+                filename: "\(image.name).jpg",
+                to: appData.settings.baseURL,
+                with: apiKey
+            )
 
             await MainActor.run {
                 uploadStatuses[image.id] = .success
                 uploadTasks.removeValue(forKey: image.id)
             }
-
-            try await client.disconnectShare()
         } catch {
             await MainActor.run {
-                let message: String
-                if error.localizedDescription.contains("already exists") {
-                    message = "File '\(image.name).jpg' already exists on the server."
-                } else if error.localizedDescription.contains("does not exist") {
-                    message = error.localizedDescription
-                } else {
-                    message = "Upload failed: \(error.localizedDescription)"
-                }
-                uploadStatuses[image.id] = .failure(message)
-                showError = true
-                errorMessage = message
+                uploadStatuses[image.id] = .failure(error.localizedDescription)
                 uploadTasks.removeValue(forKey: image.id)
             }
         }
     }
 
-    func renameImage(_ image: CapturedImage) {
-        let newName = "\(image.name)_\(Int(Date().timeIntervalSince1970))"
-        if let index = appData.images.firstIndex(where: { $0.id == image.id }) {
-            // Update existing CapturedImage without passing id
-            appData.images[index] = CapturedImage(name: newName, fileURL: image.fileURL)
-        }
-        if let updatedImage = appData.images.first(where: { $0.name == newName }) {
-            Task { await uploadImage(updatedImage) }
-        }
-    }
 }
 
 struct SuccessBanner: View {

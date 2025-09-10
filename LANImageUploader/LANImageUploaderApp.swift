@@ -21,7 +21,6 @@ class ClearBackgroundHostingController<Content: View>: UIHostingController<Conte
 
 @main
 struct LANImageUploaderApp: App {
-    @AppStorage("onboardingCompleted") var onboardingCompleted: Bool = false
     @StateObject private var appData = AppData()
     @Environment(\.scenePhase) private var scenePhase
     @State private var isShowingLaunchScreen = true
@@ -31,7 +30,6 @@ struct LANImageUploaderApp: App {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.janhagenclausen.LANImageUploader.dailyImageSave", using: nil) { [self] task in
             handleAppRefreshTask(task: task as! BGAppRefreshTask)
         }
-        print("Onboarding completed state at launch: \(onboardingCompleted)")
 
         // Set up UIKit appearance to ensure transparent backgrounds
         UITableView.appearance().backgroundColor = .clear
@@ -51,7 +49,7 @@ struct LANImageUploaderApp: App {
 
                 // Main Content
                 Group {
-                    if onboardingCompleted {
+                    if appData.isConfigured {
                         HomeView()
                             .environmentObject(appData)
                             .opacity(isShowingLaunchScreen ? 0.0 : 1.0) // Fade in smoothly
