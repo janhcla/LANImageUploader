@@ -52,8 +52,10 @@ struct OnboardingView: View {
         .padding()
         .sheet(isPresented: $isShowingScanner) {
             QRCodeScannerView { result in
-                handleScan(result: result)
-                self.isShowingScanner = false
+                Task {
+                    await handleScan(result: result)
+                    self.isShowingScanner = false
+                }
             }
         }
         .alert("Pairing Error", isPresented: $showError) {
@@ -63,7 +65,7 @@ struct OnboardingView: View {
         }
     }
 
-    private func handleScan(result: String) {
+    @MainActor private func handleScan(result: String) async {
         // We need a struct to decode the JSON
         struct QRCodePayload: Codable {
             let baseURL: String
@@ -87,7 +89,7 @@ struct OnboardingView: View {
             }
 
             appData.settings.baseURL = payload.baseURL
-            try appData.saveAPIKey(payload.apiKey)
+            try await appData.saveAPIKey(payload.apiKey)
 
             // The main view will now update since AppData is an ObservableObject
             // and the root view should be observing it to switch away from onboarding.
