@@ -23,13 +23,6 @@ enum KeychainError: Error, LocalizedError {
     }
 }
 
-// Add this struct
-struct NetworkInfo {
-    let serverIP: String
-    let shareName: String
-    let targetDirectory: String?
-}
-
 struct CapturedImage: Identifiable, Codable {
     let id = UUID()
     var name: String
