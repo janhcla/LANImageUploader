@@ -368,7 +368,11 @@ struct SettingsView: View {
         } catch {
             await MainActor.run {
                 showValidationError = true
-                validationErrorMessage = "Invalid settings: \(error.localizedDescription)"
+                if let nsError = error as NSError? {
+                    validationErrorMessage = "Invalid settings: \(nsError.localizedDescription) (Domain: \(nsError.domain), Code: \(nsError.code))"
+                } else {
+                    validationErrorMessage = "Invalid settings: \(error.localizedDescription)"
+                }
             }
         }
     }
