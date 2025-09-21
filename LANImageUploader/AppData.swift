@@ -38,7 +38,22 @@ enum UploadStatus: Equatable {
     case idle
     case uploading(Double)
     case success
-    case failure(String)
+    case failure(UploadFailureDetail)
+}
+
+struct UploadFailureDetail: Equatable {
+    enum Action: Equatable {
+        case openSettings
+    }
+
+    let reason: String
+    let guidance: String
+    let action: Action?
+
+    var combinedMessage: String {
+        if guidance.isEmpty { return reason }
+        return "\(reason)\n\(guidance)"
+    }
 }
 
 class AppData: ObservableObject {
