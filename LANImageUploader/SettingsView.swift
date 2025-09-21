@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import AMSMB2
 import Combine
 import UIKit
 
@@ -25,8 +24,6 @@ struct SettingsView: View {
     @State private var isFirstSetup = true
     @State private var showAutoFillOption = false
     @State private var port: String = ""
-    @State private var showValidationError = false
-    @State private var validationErrorMessage = ""
     @State private var isDiscovering = false
     @State private var searchProgress = "Initializing..."
     @State private var showAutoFillConfirmation = false
@@ -88,11 +85,6 @@ struct SettingsView: View {
             Button("Leave Anyway") { /* Navigation handled by SwiftUI */ }
         } message: {
             Text("Leaving with empty settings will prevent uploads from working.")
-        }
-        .alert("Validation Error", isPresented: $showValidationError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(validationErrorMessage)
         }
         .alert("Reset Settings", isPresented: $showResetConfirmation) {
             Button("Cancel", role: .cancel) {}
@@ -310,26 +302,8 @@ struct SettingsView: View {
             return
         }
 
-        // Validate IP address
-        let ipComponents = serverIP.split(separator: ".")
-        guard ipComponents.count == 4, ipComponents.allSatisfy({ $0.allSatisfy(\.isNumber) }) else {
-            showError = true
-            errorMessage = "Please enter a valid IP address (e.g., 192.168.1.10)"
-            return
-        }
-
-        // Validate port if provided
-        let portNumber: Int?
-        if !port.isEmpty {
-            guard let number = Int(port), number > 0, number <= 65535 else {
-                showError = true
-                errorMessage = "Please enter a valid port number (1-65535)"
-                return
-            }
-            portNumber = number
-        } else {
-            portNumber = nil
-        }
+        // Convert optional port to an Int if possible (silently drop invalid input)
+        let portNumber = Int(port)
 
         // Normalize target directory (relative to the share)
         let normalizedTargetDir: String? = {
@@ -346,116 +320,29 @@ struct SettingsView: View {
             return path.isEmpty ? nil : path
         }()
 
-        // Test SMB connection
+        await MainActor.run {
+            appData.settings = ServerSettings(
+                serverIP: serverIP,
+                shareName: shareName,
+                targetDirectory: normalizedTargetDir,
+                username: username,
+                port: portNumber
+            )
+        }
+
         do {
-            var components = URLComponents()
-            components.scheme = "smb"
-            components.host = serverIP
-            if let p = portNumber { components.port = p }
-            guard let serverURL = components.url else {
-                throw NSError(domain: "SMBError", code: -10, userInfo: [NSLocalizedDescriptionKey: "Invalid server URL"])
-            }
-
-            guard let client = SMB2Manager(
-                url: serverURL,
-                credential: URLCredential(user: username, password: password, persistence: .forSession)
-            ) else {
-                throw NSError(domain: "SMBError", code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "Failed to create SMB client."])
-            }
-
-            // Step 1: Connect to the share
-            do {
-                try await client.connectShare(name: shareName)
-            } catch {
-                let mapped = mapSMBError(error, context: "Could not open share '\(shareName)'.")
-                throw mapped
-            }
-
-            // Step 2: If a subdirectory is specified, try to list it to confirm it exists
-            if let dir = normalizedTargetDir {
-                do {
-                    _ = try await client.contentsOfDirectory(atPath: dir)
-                } catch {
-                    let mapped = mapSMBError(error, context: "Could not access folder '\(dir)' inside share '\(shareName)'.")
-                    try? await client.disconnectShare()
-                    throw mapped
-                }
-            }
-
-            // Step 3: Disconnect
-            try await client.disconnectShare()
-
-            // Save settings if validation passes
+            try appData.savePassword(password)
             await MainActor.run {
-                appData.settings = ServerSettings(
-                    serverIP: serverIP,
-                    shareName: shareName,
-                    targetDirectory: normalizedTargetDir,
-                    username: username,
-                    port: portNumber
-                )
-                do {
-                    try appData.savePassword(password)
-                    showSuccess = true
-                    isFirstSetup = false
-                    showAutoFillOption = false
-                } catch {
-                    showError = true
-                    errorMessage = "Failed to save password: \(error.localizedDescription)"
-                }
+                showSuccess = true
+                isFirstSetup = false
+                showAutoFillOption = false
             }
         } catch {
             await MainActor.run {
-                showValidationError = true
-                if let nsError = error as NSError? {
-                    validationErrorMessage = friendlyMessage(for: nsError)
-                } else {
-                    validationErrorMessage = "Invalid settings: \(error.localizedDescription)"
-                }
+                showError = true
+                errorMessage = "Failed to save password: \(error.localizedDescription)"
             }
         }
-    }
-
-    // Map AMSMB2 and POSIX errors to user-friendly text
-    private func friendlyMessage(for error: NSError) -> String {
-        if error.domain == "AMSMB2ErrorDomain" {
-            let status = String(format: "0x%08X", error.code)
-            switch error.code {
-            case 0xC0000022:
-                return "Access denied: The account may not have permission to open this share or list the folder. Please recheck the username/password and permissions."
-            case 0xC000006D, 0xC000006A:
-                return "Authentication failed: Please verify the username and password."
-            case 0xC0000034, 0x00000002:
-                return "The specified folder was not found on the server."
-            case 0xC0000103:
-                return "The specified path exists but is not a directory."
-            default:
-                return "Server error (\(status)): \(error.localizedDescription)"
-            }
-        }
-        if error.domain == NSPOSIXErrorDomain {
-            let code32 = Int32(error.code)
-            switch code32 {
-            case EPERM:
-                return "Operation not permitted by the server. Ensure the account can access the share and list contents."
-            case ENOENT:
-                return "The specified folder does not exist on the server."
-            case EACCES:
-                return "Permission denied. Check that your user has access to this share/folder."
-            default:
-                return "System error (POSIX \(error.code)): \(error.localizedDescription)"
-            }
-        }
-        return "Invalid settings: \(error.localizedDescription) (Domain: \(error.domain), Code: \(error.code))"
-    }
-
-    private func mapSMBError(_ error: Error, context: String) -> NSError {
-        let ns = error as NSError
-        var userInfo = ns.userInfo
-        let base = userInfo[NSLocalizedDescriptionKey] as? String ?? ns.localizedDescription
-        userInfo[NSLocalizedDescriptionKey] = "\(context) \(base)"
-        return NSError(domain: ns.domain, code: ns.code, userInfo: userInfo)
     }
 
     func discardChanges() {
