@@ -310,10 +310,6 @@ struct StepItem: View {
                 .frame(maxWidth: .infinity, maxHeight: 150)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-//                .overlay(
-//                    RoundedRectangle(cornerRadius: 12)
-//                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-//                )
                 .onAppear {
                     print("Loading image: \(imageName) – Found: \(UIImage(named: imageName) != nil)")
                 }
@@ -506,12 +502,15 @@ struct NetworkSetupView: View {
         do {
             let portNumber = Int(port)
             discoveryProgress = "Searching for SMB servers..."
-                
+            // Use direct IP from existing settings if present; otherwise nil
+            let directIPFromSettings = appData.settings.serverIP.trimmingCharacters(in: .whitespacesAndNewlines)
+            let directIP = directIPFromSettings.isEmpty ? nil : directIPFromSettings
+
             let info = try await NetworkDiscovery.shared.retrieveNetworkInfo(
                 targetFolder: targetDirectory,
                 username: username,
                 password: password,
-                directIP: nil as String?,
+                directIP: directIP,
                 port: portNumber
             )
                 
