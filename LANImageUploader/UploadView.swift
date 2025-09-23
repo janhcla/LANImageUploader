@@ -317,8 +317,10 @@ struct UploadView: View {
             uploadTasks[image.id] = true
         }
 
+        var client: SMB2Manager?
+
         do {
-            guard let client = SMB2Manager(
+            guard let createdClient = SMB2Manager(
                 url: serverURL,
                 credential: URLCredential(
                     user: appData.settings.username,
@@ -332,8 +334,9 @@ struct UploadView: View {
                     userInfo: [NSLocalizedDescriptionKey: "Failed to initialise the SMB client for \(appData.settings.serverIP)."]
                 )
             }
+            client = createdClient
 
-            try await client.connectShare(name: appData.settings.shareName)
+            try await createdClient.connectShare(name: appData.settings.shareName)
 
             let targetDir = appData.settings.targetDirectory?.trimmingCharacters(in: .init(charactersIn: "/\\")) ?? ""
             let destinationPath = targetDir.isEmpty ? "\(image.name).jpg" : "\(targetDir)/\(image.name).jpg"
@@ -341,7 +344,7 @@ struct UploadView: View {
             if !overwrite {
                 let parentPath = targetDir.isEmpty ? "" : targetDir
                 do {
-                    let contents = try await client.contentsOfDirectory(atPath: parentPath)
+                    let contents = try await createdClient.contentsOfDirectory(atPath: parentPath)
                     if contents.contains(where: { $0.name == "\(image.name).jpg" }) {
                         await MainActor.run {
                             duplicateImage = image
@@ -349,7 +352,7 @@ struct UploadView: View {
                             uploadTasks.removeValue(forKey: image.id)
                             uploadStatuses[image.id] = .idle
                         }
-                        try? await client.disconnectShare()
+                        try? await createdClient.disconnectShare()
                         return
                     }
                 } catch {
@@ -359,7 +362,7 @@ struct UploadView: View {
 
             if !targetDir.isEmpty {
                 do {
-                    _ = try await client.contentsOfDirectory(atPath: targetDir)
+                    _ = try await createdClient.contentsOfDirectory(atPath: targetDir)
                 } catch {
                     throw NSError(
                         domain: "SMBError",
@@ -371,7 +374,7 @@ struct UploadView: View {
                 }
             }
 
-            try await client.write(data: imageData, toPath: destinationPath) { progressBytes in
+            try await createdClient.write(data: imageData, toPath: destinationPath) { progressBytes in
                 let totalSize = Double(imageData.count)
                 let progressFraction = totalSize > 0 ? Double(progressBytes) / totalSize : 0.0
                 DispatchQueue.main.async {
@@ -385,9 +388,11 @@ struct UploadView: View {
                 uploadTasks.removeValue(forKey: image.id)
             }
 
-            try? await client.disconnectShare()
+            try? await createdClient.disconnectShare()
         } catch {
-            try? await client.disconnectShare()
+            if let client {
+                try? await client.disconnectShare()
+            }
             let detail = detailForUploadError(error, image: image)
             await presentFailure(detail, for: image, clearTask: true)
         }
