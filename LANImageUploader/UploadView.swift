@@ -349,6 +349,7 @@ struct UploadView: View {
                             uploadTasks.removeValue(forKey: image.id)
                             uploadStatuses[image.id] = .idle
                         }
+                        try? await client.disconnectShare()
                         return
                     }
                 } catch {
@@ -384,8 +385,9 @@ struct UploadView: View {
                 uploadTasks.removeValue(forKey: image.id)
             }
 
-            try await client.disconnectShare()
+            try? await client.disconnectShare()
         } catch {
+            try? await client.disconnectShare()
             let detail = detailForUploadError(error, image: image)
             await presentFailure(detail, for: image, clearTask: true)
         }
@@ -473,6 +475,7 @@ struct UploadView: View {
             uploadStatuses[image.id] = .failure(detail)
             errorMessage = detail.combinedMessage
             showError = true
+            showSuccessBanner = false
         }
     }
 
