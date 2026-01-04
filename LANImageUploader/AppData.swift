@@ -92,6 +92,7 @@ class AppData: ObservableObject {
     @Published var ocrText: String = ""
     @Published var imageName: String = ""
     @Published var scanStatus: String = ""
+    @Published var connectionStatus: ConnectionStatus = .disconnected
 
     private let passwordKey = "serverPassword"
     private let settingsKey = "serverSettings"

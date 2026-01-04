@@ -206,6 +206,18 @@ struct SettingsView: View {
     var completeSetupView: some View {
         Group {
             Section("Server Configuration") {
+                if isDiscovering {
+                    VStack(spacing: 10) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text(searchProgress)
+                            .foregroundStyle(.gray)
+                            .font(.caption)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                }
+                
                 TextField("Server IP (e.g., 192.168.1.10)", text: $serverIP)
                     .textContentType(.URL)
                     .keyboardType(.numbersAndPunctuation)
@@ -267,7 +279,33 @@ struct SettingsView: View {
                 username: username,
                 password: password,
                 directIP: trimmedIP.isEmpty ? nil : trimmedIP,
-                port: portNumber
+                port: portNumber,
+                onStatus: { status in
+                    Task { @MainActor in
+                        appData.connectionStatus = status
+                        switch status {
+                        case .discovery(let state):
+                            switch state {
+                            case .subnetScan(let progress):
+                                searchProgress = "Scanning subnet (\(Int(progress * 100))%)..."
+                            case .bonjourSearch:
+                                searchProgress = "Searching via Bonjour..."
+                            case .resolving(let name):
+                                searchProgress = "Resolving \(name)..."
+                            }
+                        case .connecting(let host):
+                            searchProgress = "Connecting to \(host)..."
+                        case .authenticating:
+                            searchProgress = "Authenticating..."
+                        case .connected:
+                            searchProgress = "Connected!"
+                        case .failure(let reason):
+                            searchProgress = "Error: \(reason)"
+                        case .disconnected:
+                            searchProgress = "Ready"
+                        }
+                    }
+                }
             )
             
             await MainActor.run {

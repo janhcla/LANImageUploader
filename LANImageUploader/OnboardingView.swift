@@ -511,7 +511,33 @@ struct NetworkSetupView: View {
                 username: username,
                 password: password,
                 directIP: directIP,
-                port: portNumber
+                port: portNumber,
+                onStatus: { status in
+                    Task { @MainActor in
+                        appData.connectionStatus = status
+                        switch status {
+                        case .discovery(let state):
+                            switch state {
+                            case .subnetScan(let progress):
+                                discoveryProgress = "Scanning subnet (\(Int(progress * 100))%)..."
+                            case .bonjourSearch:
+                                discoveryProgress = "Searching via Bonjour..."
+                            case .resolving(let name):
+                                discoveryProgress = "Resolving \(name)..."
+                            }
+                        case .connecting(let host):
+                            discoveryProgress = "Connecting to \(host)..."
+                        case .authenticating:
+                            discoveryProgress = "Authenticating..."
+                        case .connected:
+                            discoveryProgress = "Connected!"
+                        case .failure(let reason):
+                            discoveryProgress = "Error: \(reason)"
+                        case .disconnected:
+                            discoveryProgress = "Ready"
+                        }
+                    }
+                }
             )
                 
             await MainActor.run {
