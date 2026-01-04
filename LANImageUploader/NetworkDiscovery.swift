@@ -26,105 +26,141 @@ final class NetworkDiscovery {
 
 // MARK: - Main Retrieval Function
 extension NetworkDiscovery {
-    internal func retrieveNetworkInfo(targetFolder: String, username: String, password: String, directIP: String? = nil, port: Int? = nil) async throws -> NetworkInfo {
+    internal func retrieveNetworkInfo(
+        targetFolder: String,
+        username: String,
+        password: String,
+        directIP: String? = nil,
+        port: Int? = nil,
+        onStatus: (@Sendable (ConnectionStatus) -> Void)? = nil
+    ) async throws -> NetworkInfo {
         logger.info("--- Starting retrieveNetworkInfo ---")
-        logger.debug("Target Folder: '\(targetFolder)', Username: '\(username)', DirectIP: \(directIP ?? "None"), Port: \(port?.description ?? "Default")")
         
-        // CHANGE: Remove 'await' as NetworkMonitor.shared.isConnected is not async
         guard NetworkMonitor.shared.isConnected else {
             logger.error("Network connection unavailable.")
-            throw NSError(domain: "NetworkDiscovery", code: -1,
+            let error = NSError(domain: "NetworkDiscovery", code: -1,
                          userInfo: [NSLocalizedDescriptionKey: "No network connection available. Please check your Wi-Fi connection."])
+            onStatus?(.failure(error.localizedDescription))
+            throw error
         }
         
-        // Check cache for direct IP
+        // 1. Direct Connection Attempt
         if let directIP = directIP, !directIP.isEmpty {
+            onStatus?(.connecting(directIP))
             if let cachedInfo = getCachedServer(directIP) {
                 logger.info("Using cached server information for \(directIP)")
+                onStatus?(.connected(cachedInfo))
                 return cachedInfo
             }
             
-            logger.info("Attempting direct connection to IP: \(directIP) with Port: \(port?.description ?? "Default")")
             do {
                 let networkInfo = try await attemptConnection(
                     ipAddress: directIP,
                     targetFolder: targetFolder,
                     username: username,
                     password: password,
-                    port: port
+                    port: port,
+                    onStatus: onStatus
                 )
-                logger.info("Successfully connected to direct IP: \(directIP)")
                 cacheServer(networkInfo)
+                onStatus?(.connected(networkInfo))
                 return networkInfo
             } catch {
                 logger.warning("Direct IP (\(directIP)) connection failed: \(error.localizedDescription). Falling back to discovery.")
             }
         }
         
-        // Start with fast subnet scan
+        // 2. Fast Subnet Scan
+        onStatus?(.discovery(.subnetScan(progress: 0.0)))
         logger.info("Starting fast subnet scan...")
-        let scanStartTime = Date()
         
-        if let foundIP = try await fastSubnetScan(batchSize: 25) {
-            let scanDuration = Date().timeIntervalSince(scanStartTime)
-            logger.info("Found server at IP \(foundIP) in \(String(format: "%.2f", scanDuration)) seconds")
-            
+        if let foundIP = try await fastSubnetScan(batchSize: 25, onProgress: { progress in
+            onStatus?(.discovery(.subnetScan(progress: progress)))
+        }) {
+            onStatus?(.connecting(foundIP))
             let networkInfo = try await attemptConnection(
                 ipAddress: foundIP,
                 targetFolder: targetFolder,
                 username: username,
                 password: password,
-                port: port
+                port: port,
+                onStatus: onStatus
             )
             cacheServer(networkInfo)
+            onStatus?(.connected(networkInfo))
             return networkInfo
         }
         
-        // Fall back to Bonjour discovery if fast scan fails
-        logger.info("Starting Bonjour discovery for SMB servers...")
-        do {
-            let services = try await discoverSMBServers(timeout: 5.0)
-            logger.info("Found \(services.count) SMB services")
-            
-            for service in services {
-                do {
-                    let serverIP = try await resolveService(service)
-                    logger.info("Attempting connection to discovered server: \(serverIP)")
-                    
-                    let networkInfo = try await attemptConnection(
-                        ipAddress: serverIP,
-                        targetFolder: targetFolder,
-                        username: username,
-                        password: password,
-                        port: port
-                    )
-                    logger.info("Successfully connected to discovered server: \(serverIP)")
-                    cacheServer(networkInfo)
-                    return networkInfo
-                } catch {
-                    logger.debug("Failed to connect to discovered server \(service.name): \(error.localizedDescription)")
+        // 3. Bonjour Discovery with Retry
+        onStatus?(.discovery(.bonjourSearch))
+        var retryCount = 0
+        let maxRetries = 2
+        
+        while retryCount <= maxRetries {
+            logger.info("Starting Bonjour discovery (attempt \(retryCount + 1))...")
+            do {
+                let services = try await discoverSMBServers(timeout: 5.0)
+                logger.info("Found \(services.count) SMB services")
+                
+                for service in services {
+                    onStatus?(.discovery(.resolving(service.name)))
+                    do {
+                        let serverIP = try await resolveService(service)
+                        onStatus?(.connecting(serverIP))
+                        
+                        let networkInfo = try await attemptConnection(
+                            ipAddress: serverIP,
+                            targetFolder: targetFolder,
+                            username: username,
+                            password: password,
+                            port: port,
+                            onStatus: onStatus
+                        )
+                        cacheServer(networkInfo)
+                        onStatus?(.connected(networkInfo))
+                        return networkInfo
+                    } catch {
+                        logger.debug("Failed to connect to discovered server \(service.name): \(error.localizedDescription)")
+                        continue
+                    }
+                }
+                
+                if services.isEmpty && retryCount < maxRetries {
+                    retryCount += 1
+                    logger.info("No services found, retrying Bonjour...")
+                    try await Task.sleep(nanoseconds: 1_000_000_000) // Wait 1s before retry
                     continue
                 }
+                
+                if services.isEmpty {
+                    let error = NSError(domain: "NetworkDiscovery", code: -2,
+                                userInfo: [NSLocalizedDescriptionKey: "No SMB servers found on the network. Please try using Direct IP."])
+                    onStatus?(.failure(error.localizedDescription))
+                    throw error
+                } else {
+                    let error = NSError(domain: "NetworkDiscovery", code: -3,
+                                userInfo: [NSLocalizedDescriptionKey: "Found servers but could not connect with provided credentials. Please verify username/password."])
+                    onStatus?(.failure(error.localizedDescription))
+                    throw error
+                }
+            } catch {
+                if retryCount < maxRetries {
+                    retryCount += 1
+                    continue
+                }
+                logger.error("Server discovery failed: \(error.localizedDescription)")
+                onStatus?(.failure(error.localizedDescription))
+                throw error
             }
-            
-            if services.isEmpty {
-                throw NSError(domain: "NetworkDiscovery", code: -2,
-                            userInfo: [NSLocalizedDescriptionKey: "No SMB servers found on the network. Please try using Direct IP."])
-            } else {
-                throw NSError(domain: "NetworkDiscovery", code: -3,
-                            userInfo: [NSLocalizedDescriptionKey: "Found servers but could not connect with provided credentials. Please verify username/password."])
-            }
-        } catch {
-            logger.error("Server discovery failed: \(error.localizedDescription)")
-            throw NSError(domain: "NetworkDiscovery", code: -4,
-                         userInfo: [NSLocalizedDescriptionKey: "Failed to discover servers: \(error.localizedDescription)"])
         }
+        
+        throw NSError(domain: "NetworkDiscovery", code: -4, userInfo: [NSLocalizedDescriptionKey: "Discovery exhausted all attempts."])
     }
 }
 
 // MARK: - Fast Subnet Scanning
 extension NetworkDiscovery {
-    private func fastSubnetScan(startIP: Int = 1, batchSize: Int = 25) async throws -> String? {
+    private func fastSubnetScan(startIP: Int = 1, batchSize: Int = 25, onProgress: (@Sendable (Double) -> Void)? = nil) async throws -> String? {
         let currentIP = await getCurrentDeviceIP() ?? "192.168.1.1"
         let subnet = currentIP.split(separator: ".").dropLast().joined(separator: ".")
         
@@ -133,6 +169,7 @@ extension NetworkDiscovery {
         
         while currentStart <= totalIPs {
             let endIP = min(currentStart + batchSize - 1, totalIPs)
+            onProgress?(Double(currentStart) / Double(totalIPs))
             
             if let foundIP = try await withThrowingTaskGroup(of: String?.self, body: { group -> String? in
                 for i in currentStart...endIP {
@@ -153,11 +190,13 @@ extension NetworkDiscovery {
                 }
                 return nil
             }) {
+                onProgress?(1.0)
                 return foundIP
             }
             
             currentStart += batchSize
         }
+        onProgress?(1.0)
         return nil
     }
 
@@ -413,8 +452,16 @@ extension NetworkDiscovery {
 
 // MARK: - Connection Logic
 extension NetworkDiscovery {
-    private func attemptConnection(ipAddress: String, targetFolder: String, username: String, password: String, port: Int? = nil) async throws -> NetworkInfo {
+    private func attemptConnection(
+        ipAddress: String,
+        targetFolder: String,
+        username: String,
+        password: String,
+        port: Int? = nil,
+        onStatus: (@Sendable (ConnectionStatus) -> Void)? = nil
+    ) async throws -> NetworkInfo {
         logger.info("Attempting SMB connection to Host/IP: \(ipAddress), Target Folder: '\(targetFolder)'")
+        onStatus?(.connecting(ipAddress))
 
         var components = URLComponents()
         components.scheme = "smb"
@@ -451,6 +498,7 @@ extension NetworkDiscovery {
         var shareEnumerationError: Error?
         do {
             logger.debug("Connecting to IPC$ on \(ipAddress) to list shares...")
+            onStatus?(.authenticating)
             try await client.connectShare(name: "IPC$")
             enumeratedShares = try await client.listShares()
             logger.info("Found shares on \(ipAddress): \(enumeratedShares.map { $0.name })")
@@ -500,6 +548,7 @@ extension NetworkDiscovery {
         var lastError: NSError?
         for candidate in candidates {
             do {
+                onStatus?(.connecting("Share: \(candidate.share)"))
                 try await client.connectShare(name: candidate.share)
                 logger.debug("Connected to share '\(candidate.share)' on \(ipAddress)")
 
@@ -508,7 +557,9 @@ extension NetworkDiscovery {
                         try await ensureDirectoryExists(directory, in: client, shareName: candidate.share)
                         try await client.disconnectShare()
                         logger.info("Validated share '\(candidate.share)' with directory '\(directory)'.")
-                        return NetworkInfo(serverIP: ipAddress, shareName: candidate.share, targetDirectory: directory)
+                        let info = NetworkInfo(serverIP: ipAddress, shareName: candidate.share, targetDirectory: directory)
+                        onStatus?(.connected(info))
+                        return info
                     } catch {
                         lastError = error as NSError
                         logger.debug("Directory validation failed for share '\(candidate.share)': \(error.localizedDescription)")
@@ -517,7 +568,9 @@ extension NetworkDiscovery {
                 } else {
                     try await client.disconnectShare()
                     logger.info("Validated share '\(candidate.share)' (no subdirectory required).")
-                    return NetworkInfo(serverIP: ipAddress, shareName: candidate.share, targetDirectory: nil)
+                    let info = NetworkInfo(serverIP: ipAddress, shareName: candidate.share, targetDirectory: nil)
+                    onStatus?(.connected(info) )
+                    return info
                 }
             } catch {
                 lastError = error as NSError
