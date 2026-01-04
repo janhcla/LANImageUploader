@@ -10,10 +10,36 @@ import Security
 import SwiftUI
 
 // Add this struct
-struct NetworkInfo {
+struct NetworkInfo: Equatable {
     let serverIP: String
     let shareName: String
     let targetDirectory: String?
+}
+
+/// Represents the granular state of the SMB connection process.
+enum ConnectionStatus: Equatable {
+    /// No active connection attempt.
+    case disconnected
+    /// Actively searching for servers via Bonjour or Subnet scan.
+    case discovery(DiscoveryState)
+    /// Connecting to a specific IP or Hostname.
+    case connecting(String)
+    /// Authenticating with the server.
+    case authenticating
+    /// Successfully connected and validated.
+    case connected(NetworkInfo)
+    /// Connection failed with a reason.
+    case failure(String)
+}
+
+/// Represents the specific sub-state of the discovery process.
+enum DiscoveryState: Equatable {
+    /// Scanning the local subnet for open port 445.
+    case subnetScan(progress: Double)
+    /// Browsing for _smb._tcp services via Bonjour.
+    case bonjourSearch
+    /// Resolving a Bonjour service name to an IP address.
+    case resolving(String)
 }
 
 struct CapturedImage: Identifiable, Codable {
