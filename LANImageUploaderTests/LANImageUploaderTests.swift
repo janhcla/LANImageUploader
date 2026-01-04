@@ -6,6 +6,7 @@
 //
 
 import Testing
+import Foundation
 @testable import LANImageUploader
 
 struct LANImageUploaderTests {
@@ -40,6 +41,38 @@ struct LANImageUploaderTests {
         
         let resolving = DiscoveryState.resolving("_smb._tcp.")
         #expect(resolving == .resolving("_smb._tcp."))
+    }
+
+    @Test func discoveryStatusReportingWorks() async throws {
+        // This test verifies that retrieveNetworkInfo reports status changes.
+        final class StatusCollector: @unchecked Sendable {
+            private let queue = DispatchQueue(label: "status.collector")
+            var statuses: [ConnectionStatus] = []
+            func add(_ status: ConnectionStatus) {
+                queue.sync { statuses.append(status) }
+            }
+            func get() -> [ConnectionStatus] {
+                queue.sync { statuses }
+            }
+        }
+        
+        let collector = StatusCollector()
+        
+        // We use invalid credentials to trigger a failure after discovery attempts
+        // but we mainly care about the intermediate statuses.
+        let _ = try? await NetworkDiscovery.shared.retrieveNetworkInfo(
+            targetFolder: "test",
+            username: "user",
+            password: "wrong_password",
+            onStatus: { status in
+                collector.add(status)
+            }
+        )
+        
+        let receivedStatuses = collector.get()
+        
+        // Check if we received any status (either discovery, connecting, or failure)
+        #expect(!receivedStatuses.isEmpty, "Should have received at least one status update")
     }
 
 }
