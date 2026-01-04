@@ -16,7 +16,7 @@ struct HelpGuideView: View {
             List {
                 Section("Server Setup") {
                     Text("Server IP: Enter your Windows server’s IP address, e.g., '192.168.1.100'. Find it using 'ipconfig' in Command Prompt on the server.")
-                    Text("Share Name: Enter the name of the shared folder on your server, e.g., 'PatientImages'. Set this up in Windows File Explorer under 'Share' settings.")
+                    Text("Share Name: Enter the name of the shared folder on your server, e.g., 'Images'. Set this up in Windows File Explorer under 'Share' settings.")
                     Text("Target Directory: Optional - Specify a subfolder within the share for uploads, e.g., 'Uploads'. Ensure it exists or will be created by the server.")
                     Text("Username and Password: Use your Windows credentials or a specific user account with access to the share. Contact your IT department if unsure.")
                 }

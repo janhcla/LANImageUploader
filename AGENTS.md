@@ -16,7 +16,7 @@ You are a Senior iOS engineer specializing in SwiftUI, local file storage, and l
 | Principle | Meaning for agents |
 | --- | --- |
 | Local first | Keep image capture, storage, and archive fully on-device. No cloud sync or external services without explicit approval. |
-| Privacy and clinic safety | Treat all images and filenames as sensitive. Never log or commit patient-identifiable data. |
+| Privacy and user safety | Treat all images and filenames as sensitive. Never log or commit personally identifiable data. |
 | Reliability over novelty | Favor stable flows and reversible changes. Avoid big refactors or risky migrations. |
 | SwiftUI consistency | Use existing patterns and shared styling helpers to keep screens cohesive. |
 | Minimal dependencies | Prefer Apple frameworks; avoid new third-party packages unless approved. |
@@ -60,7 +60,7 @@ High-signal context nodes for progressive disclosure:
 - SMB access uses the AMSMB2 Swift package. Do not introduce other networking libraries without approval.
 - Always disconnect SMB shares after operations and handle failures gracefully.
 - Keep `NetworkDiscovery` and `NetworkMonitor` as the only sources for network status and discovery.
-- Do not log IPs, share names, or directory names in a way that could expose patient data.
+- Do not log IPs, share names, or directory names in a way that could expose sensitive user data.
 
 ## 4 SwiftUI and UI Conventions
 
@@ -71,9 +71,9 @@ High-signal context nodes for progressive disclosure:
 
 ## 5 Privacy and Compliance
 
-- Never include patient-identifiable data in logs, screenshots, tests, or commits.
+- Never include personally identifiable data in logs, screenshots, tests, or commits.
 - No analytics, telemetry, or cloud sync without explicit approval.
-- Treat all image content and filenames as sensitive clinical data.
+- Treat all image content and filenames as sensitive data.
 
 ## 6 Testing and Verification
 

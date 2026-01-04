@@ -92,7 +92,7 @@ struct WelcomePage: View {
             Text("Welcome to ImageDrop!")
                 .font(.largeTitle)
                 .fontWeight(.bold)
-            Text("Your professional tool for documenting skin diseases and seeking teledermatologic guidance.")
+            Text("A simple and secure tool to capture images and upload them directly to your local network share.")
                 .font(.body)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
@@ -124,9 +124,9 @@ struct FeaturesPage: View {
                 .font(.title)
                 .fontWeight(.bold)
             VStack(alignment: .center, spacing: 20) {
-                FeatureItem(icon: "camera.fill", title: "Capture Images", description: "Take high-quality photos of skin conditions.")
+                FeatureItem(icon: "camera.fill", title: "Capture Images", description: "Take high-quality photos with your device camera.")
                 FeatureItem(icon: "photo.on.rectangle", title: "Manage Gallery", description: "View and organize your captured images.")
-                FeatureItem(icon: "arrow.up.circle", title: "Upload Securely", description: "Send images to a local server for consultation.")
+                FeatureItem(icon: "arrow.up.circle", title: "Upload Securely", description: "Send images to your local network share for storage.")
             }
             .padding(.horizontal, 30)
             .frame(maxWidth: 500)
@@ -206,7 +206,7 @@ struct OnboardingSettingsView: View {
                         Text("Port (optional)")
                             .foregroundStyle(.gray)
                     }
-                TextField("Share Name (e.g., PatientImages)", text: $shareName)
+                TextField("Share Name (e.g., Images)", text: $shareName)
                     .autocapitalization(.none)
                 TextField("Target Directory (e.g., Uploads)", text: $targetDirectory)
                     .autocapitalization(.none)
@@ -374,7 +374,7 @@ struct CompletionPage: View {
             Text("You're Ready!")
                 .font(.title)
                 .fontWeight(.bold)
-            Text("Start documenting skin conditions now. Set up server details in Settings if you haven't already.")
+            Text("Start capturing and uploading images now. Set up server details in Settings if you haven't already.")
                 .font(.body)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)

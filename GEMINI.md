@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-LANImageUploader (branded in-app as "ImageDrop") is a privacy-focused SwiftUI iOS application designed for clinical environments. Its primary function is to capture photos, manage them locally, and securely upload them to an SMB share on a local network (LAN). It operates on a "local-first" philosophy, ensuring no data is synced to the cloud without explicit configuration.
+LANImageUploader (branded in-app as "ImageDrop") is a privacy-focused SwiftUI iOS application designed for professional environments. Its primary function is to capture photos, manage them locally, and securely upload them to an SMB share on a local network (LAN). It operates on a "local-first" philosophy, ensuring no data is synced to the cloud without explicit configuration.
 
 ## Key Features
 
@@ -50,7 +50,7 @@ xcodebuild -scheme LANImageUploader -destination "platform=iOS Simulator,name=iP
 
 ## Development Conventions
 
-*   **Privacy First:** Treat all data as sensitive clinical data. No cloud sync. No logging of PII/PHI.
+*   **Privacy First:** Treat all data as sensitive data. No cloud sync. No logging of PII/PHI.
 *   **UI Consistency:** Use `AppBackground` and `ButtonStyles.swift` to maintain the "ImageDrop" look and feel.
 *   **Networking:** Use `AMSMB2` for SMB. Always disconnect shares after use.
 *   **Architecture:** Follow the patterns outlined in `AGENTS.md`. `AppData` is the core state container.
