@@ -1,7 +1,7 @@
 # Plan: Refine SMB Discovery and Connection
 
 ## Phase 1: Analysis & State Infrastructure
-- [ ] Task: Analyze existing `NetworkDiscovery.swift` and `AppData.swift` connection logic.
+- [x] Task: Analyze existing `NetworkDiscovery.swift` and `AppData.swift` connection logic. [f1c7eb9]
 - [ ] Task: Define a comprehensive `ConnectionStatus` enum to represent granular states.
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Analysis & State Infrastructure' (Protocol in workflow.md)
 
