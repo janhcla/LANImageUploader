@@ -8,11 +8,14 @@
 ## Phase 2: Discovery Refinement
 - [x] Task: Implement timeout handling and retry logic for Bonjour discovery in `NetworkDiscovery.swift`. [74e13a1]
 - [x] Task: Write unit tests for the discovery manager to verify service detection and removal. [74e13a1]
-- [ ] Task: Update the UI in `SettingsView` to show a progress indicator during discovery.
+- [x] Task: Update the UI in `SettingsView` to show a progress indicator during discovery. [66c96ed]
+- [ ] Task: Fix `NetworkMonitor` initialization race condition to prevent false "No Network" errors.
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Discovery Refinement' (Protocol in workflow.md)
 
-## Phase 3: Connection Feedback & Validation
-- [ ] Task: Enhance the SMB connection handshake in `AppData` to report granular state changes.
-- [ ] Task: Implement detailed error mapping from `AMSMB2` errors to user-friendly messages.
-- [ ] Task: Write unit tests for server settings validation and error mapping.
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Connection Feedback & Validation' (Protocol in workflow.md)
+## Phase 3: Interactive Discovery & Validation
+- [ ] Task: Implement detailed `ConnectionError` mapping (auth vs network).
+- [ ] Task: Extend `NetworkDiscovery` to support a "List Hosts" mode.
+- [ ] Task: Create `DiscoveryResultsView` to list hosts and shares for user selection.
+- [ ] Task: Integrate interactive discovery into `SettingsView` and `OnboardingView`.
+- [ ] Task: Write tests for the new discovery selection flow and error mapping.
+- [ ] Task: Conductor - User Manual Verification 'Phase 3: Interactive Discovery & Validation' (Protocol in workflow.md)
