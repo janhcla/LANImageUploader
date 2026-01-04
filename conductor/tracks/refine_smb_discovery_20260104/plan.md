@@ -2,7 +2,7 @@
 
 ## Phase 1: Analysis & State Infrastructure
 - [x] Task: Analyze existing `NetworkDiscovery.swift` and `AppData.swift` connection logic. [f1c7eb9]
-- [ ] Task: Define a comprehensive `ConnectionStatus` enum to represent granular states.
+- [x] Task: Define a comprehensive `ConnectionStatus` enum to represent granular states. [4c0be1a]
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Analysis & State Infrastructure' (Protocol in workflow.md)
 
 ## Phase 2: Discovery Refinement
