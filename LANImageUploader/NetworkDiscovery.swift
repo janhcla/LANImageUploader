@@ -36,8 +36,9 @@ extension NetworkDiscovery {
     ) async throws -> NetworkInfo {
         logger.info("--- Starting retrieveNetworkInfo ---")
         
-        guard NetworkMonitor.shared.isConnected else {
-            logger.error("Network connection unavailable.")
+        // Wait briefly for network monitor to be ready
+        if try await !NetworkMonitor.shared.waitForNetwork(timeout: 1.0) {
+            logger.error("Network connection unavailable (timed out waiting).")
             let error = NSError(domain: "NetworkDiscovery", code: -1,
                          userInfo: [NSLocalizedDescriptionKey: "No network connection available. Please check your Wi-Fi connection."])
             onStatus?(.failure(error.localizedDescription))
