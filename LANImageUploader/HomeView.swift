@@ -106,7 +106,7 @@ struct HomeView: View {
                         Spacer()
                     }
                 )
-                .navigationTitle("DermaSnap")
+                .navigationTitle("ImageDrop")
                 .toolbarColorScheme(colorScheme, for: .navigationBar)
                 .toolbarBackground(.hidden, for: .navigationBar)
         }

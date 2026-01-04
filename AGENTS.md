@@ -5,7 +5,7 @@ alwaysApply: true
 
 # AGENTS.md - LANImageUploader Codebase Playbook
 
-Welcome. This repository contains the LANImageUploader iOS app (branding in-app: DermaSnap). Unless a deeper directory ships its own AGENTS.md, these rules apply to the entire repo.
+Welcome. This repository contains the LANImageUploader iOS app (branding in-app: ImageDrop). Unless a deeper directory ships its own AGENTS.md, these rules apply to the entire repo.
 
 ## Role
 

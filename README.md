@@ -1,6 +1,6 @@
-# LANImageUploader (DermaSnap)
+# LANImageUploader (ImageDrop)
 
-LANImageUploader is a SwiftUI iOS app for capturing clinical photos, managing a local gallery, and uploading images to an SMB share on the local network. In-app branding appears as "DermaSnap".
+LANImageUploader is a SwiftUI iOS app for capturing clinical photos, managing a local gallery, and uploading images to an SMB share on the local network. In-app branding appears as "ImageDrop".
 
 ## Features
 

@@ -89,7 +89,7 @@ struct WelcomePage: View {
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
-            Text("Welcome to DermaSnap!")
+            Text("Welcome to ImageDrop!")
                 .font(.largeTitle)
                 .fontWeight(.bold)
             Text("Your professional tool for documenting skin diseases and seeking teledermatologic guidance.")
@@ -273,7 +273,7 @@ struct TutorialPage: View {
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
-            Text("How to Use DermaSnap")
+            Text("How to Use ImageDrop")
                 .font(.title)
                 .fontWeight(.bold)
             VStack(spacing: 20) {
@@ -384,7 +384,7 @@ struct CompletionPage: View {
                 .frame(width: 100, height: 100)
                 .foregroundStyle(.green)
             Spacer()
-            Button("Start Using DermaSnap") {
+            Button("Start Using ImageDrop") {
                 completeAction()
             }
             .frame(maxWidth: .infinity)

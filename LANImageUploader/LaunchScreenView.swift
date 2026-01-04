@@ -29,7 +29,7 @@ struct LaunchScreenView: View {
                     )
                 
                 // Fading-in app name
-                Text("DermaSnap")
+                Text("ImageDrop")
                     .font(.title)
                     .fontWeight(.bold)
                     .opacity(textOpacity) // Controlled by state
