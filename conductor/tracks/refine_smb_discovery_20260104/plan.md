@@ -5,12 +5,12 @@
 - [x] Task: Define a comprehensive `ConnectionStatus` enum to represent granular states. [4c0be1a]
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Analysis & State Infrastructure' (Protocol in workflow.md)
 
-## Phase 2: Discovery Refinement
+## Phase 2: Discovery Refinement [checkpoint: 6c8eb7d]
 - [x] Task: Implement timeout handling and retry logic for Bonjour discovery in `NetworkDiscovery.swift`. [74e13a1]
 - [x] Task: Write unit tests for the discovery manager to verify service detection and removal. [74e13a1]
 - [x] Task: Update the UI in `SettingsView` to show a progress indicator during discovery. [66c96ed]
 - [x] Task: Fix `NetworkMonitor` initialization race condition to prevent false "No Network" errors. [be7eb48]
-- [~] Task: Conductor - User Manual Verification 'Phase 2: Discovery Refinement' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Discovery Refinement' (Protocol in workflow.md)
 
 ## Phase 3: Interactive Discovery & Validation
 - [ ] Task: Implement detailed `ConnectionError` mapping (auth vs network).
