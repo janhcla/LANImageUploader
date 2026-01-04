@@ -1,9 +1,9 @@
 # Plan: Refine SMB Discovery and Connection
 
-## Phase 1: Analysis & State Infrastructure
+## Phase 1: Analysis & State Infrastructure [checkpoint: 68d1ed4]
 - [x] Task: Analyze existing `NetworkDiscovery.swift` and `AppData.swift` connection logic. [f1c7eb9]
 - [x] Task: Define a comprehensive `ConnectionStatus` enum to represent granular states. [4c0be1a]
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Analysis & State Infrastructure' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Analysis & State Infrastructure' (Protocol in workflow.md)
 
 ## Phase 2: Discovery Refinement
 - [ ] Task: Implement timeout handling and retry logic for Bonjour discovery in `NetworkDiscovery.swift`.
