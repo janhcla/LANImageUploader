@@ -9,6 +9,7 @@
     <key>NSBonjourServices</key>
     <array>
         <string>_smb._tcp</string>
+        <string>_microsoft-ds._tcp</string>
     </array>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>

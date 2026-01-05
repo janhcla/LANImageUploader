@@ -73,7 +73,7 @@ extension NetworkDiscovery {
         logger.info("--- Starting retrieveNetworkInfo ---")
         
         // Wait briefly for network monitor to be ready
-        if try await !NetworkMonitor.shared.waitForNetwork(timeout: 1.0) {
+        if try await !NetworkMonitor.shared.waitForNetwork(timeout: 3.0) {
             logger.error("Network connection unavailable (timed out waiting).")
             let error = ConnectionError.networkUnavailable
             onStatus?(.failure(error))
@@ -205,6 +205,10 @@ extension NetworkDiscovery {
         onStatus: (@Sendable (ConnectionStatus) -> Void)? = nil
     ) async throws -> [DiscoveredHost] {
         var hosts: [String: DiscoveredHost] = [:]
+
+        if try await !NetworkMonitor.shared.waitForNetwork(timeout: 3.0) {
+            throw ConnectionError.networkUnavailable
+        }
         
         // 1. Subnet Scan
         try Task.checkCancellation()
@@ -256,63 +260,160 @@ extension NetworkDiscovery {
             throw ConnectionError.unknown("Failed to create SMB client")
         }
         
+        let systemShares: Set<String> = ["IPC$", "ADMIN$", "C$", "D$", "E$", "PRINT$"]
+
+        func normalizeShares(_ shares: [(name: String, comment: String)]) -> [String] {
+            shares
+                .map { $0.name }
+                .filter { !systemShares.contains($0.uppercased()) }
+                .sorted()
+        }
+
         do {
             try await client.connectShare(name: "IPC$")
             let shares = try await client.listShares()
             try? await client.disconnectShare()
-            return shares.map { $0.name }.filter { !$0.hasSuffix("$") }.sorted()
+            return normalizeShares(shares)
         } catch {
-            throw mapToConnectionError(error)
+            try? await client.disconnectShare()
+            do {
+                let shares = try await client.listShares()
+                return normalizeShares(shares)
+            } catch {
+                throw mapToConnectionError(error)
+            }
         }
     }
 }
 
 // MARK: - Fast Subnet Scanning
 extension NetworkDiscovery {
-    private func fastSubnetScan(startIP: Int = 1, batchSize: Int = 25, onProgress: (@Sendable (Double) -> Void)? = nil) async throws -> [String] {
-        let currentIP = await getCurrentDeviceIP() ?? "192.168.1.1"
-        let subnet = currentIP.split(separator: ".").dropLast().joined(separator: ".")
-        
-        let totalIPs = 254
-        var currentStart = startIP
-        var foundIPs: [String] = []
-        
-        while currentStart <= totalIPs {
-            try Task.checkCancellation()
-            let endIP = min(currentStart + batchSize - 1, totalIPs)
-            onProgress?(Double(currentStart) / Double(totalIPs))
-            
-            let batchResults = try await withThrowingTaskGroup(of: String?.self, body: { group -> [String] in
-                for i in currentStart...endIP {
-                    group.addTask {
-                        let ip = "\(subnet).\(i)"
-                        if try await self.quickPortCheck(ip: ip, port: 445, timeout: 0.1) {
-                            return ip
-                        }
-                        return nil
-                    }
-                }
-                
-                var results: [String] = []
-                for try await result in group {
-                    if let ip = result {
-                        results.append(ip)
-                    }
-                }
-                return results
-            })
-            
-            foundIPs.append(contentsOf: batchResults)
-            currentStart += batchSize
+    nonisolated private func fastSubnetScan(
+        startIP: Int = 1,
+        endIP: Int = 254,
+        batchSize: Int = 25,
+        onProgress: (@Sendable (Double) -> Void)? = nil
+    ) async throws -> [String] {
+        let subnets = getLocalIPv4Subnets()
+        guard !subnets.isEmpty else {
+            onProgress?(1.0)
+            return []
         }
+
+        let totalIPs = max(1, subnets.count * max(0, endIP - startIP + 1))
+        var scannedIPs = 0
+        var foundIPs = Set<String>()
+
+        for subnet in subnets {
+            var currentStart = startIP
+            while currentStart <= endIP {
+                try Task.checkCancellation()
+                let end = min(currentStart + batchSize - 1, endIP)
+
+                let batchResults = try await withThrowingTaskGroup(of: String?.self, body: { group -> [String] in
+                    for i in currentStart...end {
+                        group.addTask {
+                            try Task.checkCancellation()
+                            let ip = "\(subnet).\(i)"
+                            let isOpen = await self.isSMBPortOpen(ip: ip, timeout: 0.25)
+                            return isOpen ? ip : nil
+                        }
+                    }
+
+                    var results: [String] = []
+                    for try await result in group {
+                        if let ip = result {
+                            results.append(ip)
+                        }
+                    }
+                    return results
+                })
+
+                foundIPs.formUnion(batchResults)
+                scannedIPs += (end - currentStart + 1)
+                onProgress?(Double(scannedIPs) / Double(totalIPs))
+                currentStart += batchSize
+            }
+        }
+
         onProgress?(1.0)
-        return foundIPs
+        return Array(foundIPs).sorted()
     }
 
-    private func quickPortCheck(ip: String, port: Int, timeout: TimeInterval) async throws -> Bool {
-        try await withCheckedThrowingContinuation { continuation in
+    nonisolated private func getLocalIPv4Subnets() -> [String] {
+        var ifaddr: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&ifaddr) == 0 else { return [] }
+        defer { freeifaddrs(ifaddr) }
+
+        var candidates: [(name: String, ip: String)] = []
+
+        var ptr = ifaddr
+        while ptr != nil {
+            defer { ptr = ptr?.pointee.ifa_next }
+
+            guard let interface = ptr?.pointee,
+                  let addr = interface.ifa_addr else { continue }
+
+            let flags = Int32(interface.ifa_flags)
+            if (flags & IFF_UP) == 0 || (flags & IFF_LOOPBACK) != 0 {
+                continue
+            }
+
+            guard addr.pointee.sa_family == UInt8(AF_INET) else { continue }
+
+            var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+            let result = getnameinfo(
+                addr,
+                socklen_t(addr.pointee.sa_len),
+                &hostname,
+                socklen_t(hostname.count),
+                nil,
+                0,
+                NI_NUMERICHOST
+            )
+            guard result == 0 else { continue }
+
+            let ip = String(cString: hostname)
+            guard !ip.hasPrefix("169.254."), !ip.hasPrefix("127.") else { continue }
+
+            let name = String(cString: interface.ifa_name)
+            candidates.append((name: name, ip: ip))
+        }
+
+        let ordered = candidates.sorted { lhs, rhs in
+            let lhsPreferred = lhs.name == "en0" || lhs.name == "en1"
+            let rhsPreferred = rhs.name == "en0" || rhs.name == "en1"
+            if lhsPreferred != rhsPreferred {
+                return lhsPreferred
+            }
+            return lhs.name < rhs.name
+        }
+
+        var seen = Set<String>()
+        var subnets: [String] = []
+        for candidate in ordered {
+            let parts = candidate.ip.split(separator: ".")
+            guard parts.count == 4 else { continue }
+            let subnet = parts.dropLast().joined(separator: ".")
+            if seen.insert(subnet).inserted {
+                subnets.append(subnet)
+            }
+        }
+
+        return subnets
+    }
+
+    nonisolated private func isSMBPortOpen(ip: String, timeout: TimeInterval) async -> Bool {
+        if await quickPortCheck(ip: ip, port: 445, timeout: timeout) {
+            return true
+        }
+        return await quickPortCheck(ip: ip, port: 139, timeout: timeout)
+    }
+
+    nonisolated private func quickPortCheck(ip: String, port: Int, timeout: TimeInterval) async -> Bool {
+        await withCheckedContinuation { continuation in
             let queue = DispatchQueue.global(qos: .userInitiated)
-            
+
             queue.async {
                 var addr = sockaddr_in()
                 addr.sin_family = sa_family_t(AF_INET)
@@ -321,74 +422,54 @@ extension NetworkDiscovery {
                     continuation.resume(returning: false)
                     return
                 }
-                
+
                 let sock = socket(AF_INET, SOCK_STREAM, 0)
                 guard sock != -1 else {
                     continuation.resume(returning: false)
                     return
                 }
-                
-                // CHANGE: Change var to let and handle fcntl result
+
                 let flags = fcntl(sock, F_GETFL, 0)
-                let setResult = fcntl(sock, F_SETFL, flags | O_NONBLOCK)
-                if setResult == -1 {
+                if flags == -1 || fcntl(sock, F_SETFL, flags | O_NONBLOCK) == -1 {
                     logger.error("Failed to set socket to non-blocking mode: \(errno)")
                     close(sock)
                     continuation.resume(returning: false)
                     return
                 }
-                
+
                 let result = withUnsafePointer(to: addr) {
                     $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                         connect(sock, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
                     }
                 }
-                
+
                 if result == 0 {
                     close(sock)
                     continuation.resume(returning: true)
                     return
                 }
-                
+
+                if errno != EINPROGRESS {
+                    close(sock)
+                    continuation.resume(returning: false)
+                    return
+                }
+
                 var fds = pollfd(fd: sock, events: Int16(POLLOUT), revents: 0)
                 let pollResult = poll(&fds, 1, Int32(timeout * 1000))
-                
-                close(sock)
-                continuation.resume(returning: pollResult == 1 && (fds.revents & Int16(POLLOUT)) != 0)
-            }
-        }
-    }
-    
-    private func getCurrentDeviceIP() async -> String? {
-        var address: String?
-        
-        var ifaddr: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&ifaddr) == 0 else { return nil }
-        defer { freeifaddrs(ifaddr) }
-        
-        var ptr = ifaddr
-        while ptr != nil {
-            defer { ptr = ptr?.pointee.ifa_next }
-            
-            let interface = ptr?.pointee
-            let addrFamily = interface?.ifa_addr.pointee.sa_family
-            
-            if addrFamily == UInt8(AF_INET) {
-                let name = String(cString: (interface?.ifa_name)!)
-                if name == "en0" || name == "en1" {
-                    var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
-                    getnameinfo(interface?.ifa_addr,
-                               socklen_t((interface?.ifa_addr.pointee.sa_len)!),
-                               &hostname,
-                               socklen_t(hostname.count),
-                               nil,
-                               0,
-                               NI_NUMERICHOST)
-                    address = String(cString: hostname)
+                if pollResult != 1 {
+                    close(sock)
+                    continuation.resume(returning: false)
+                    return
                 }
+
+                var socketError: Int32 = 0
+                var length = socklen_t(MemoryLayout<Int32>.size)
+                let socketResult = getsockopt(sock, SOL_SOCKET, SO_ERROR, &socketError, &length)
+                close(sock)
+                continuation.resume(returning: socketResult == 0 && socketError == 0)
             }
         }
-        return address
     }
 }
 
@@ -412,21 +493,57 @@ extension NetworkDiscovery {
 extension NetworkDiscovery {
     @MainActor
     func discoverSMBServers(timeout: TimeInterval) async throws -> [NetService] {
+        let serviceTypes = ["_smb._tcp", "_microsoft-ds._tcp"]
+        
+        return try await withThrowingTaskGroup(of: [NetService].self) { group in
+            for type in serviceTypes {
+                group.addTask {
+                    do {
+                        return try await self.discoverServices(ofType: type, timeout: timeout)
+                    } catch {
+                        // Log error but don't fail the entire group if one type fails
+                        logger.warning("Bonjour discovery failed for type \(type): \(error.localizedDescription)")
+                        return []
+                    }
+                }
+            }
+            
+            var allServices: [NetService] = []
+            for try await services in group {
+                allServices.append(contentsOf: services)
+            }
+            
+            // Deduplicate by name
+            var uniqueServices: [NetService] = []
+            var seenNames: Set<String> = []
+            
+            for service in allServices {
+                if !seenNames.contains(service.name) {
+                    seenNames.insert(service.name)
+                    uniqueServices.append(service)
+                }
+            }
+            
+            return uniqueServices.sorted { $0.name.lowercased() < $1.name.lowercased() }
+        }
+    }
+    
+    @MainActor
+    private func discoverServices(ofType type: String, timeout: TimeInterval) async throws -> [NetService] {
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[NetService], Error>) in
             let browser = NetServiceBrowser()
             var discoveredServices: [NetService] = []
-            // REMOVE: Unused syncQueue
             var didResume = false
             var attemptedConnections = Set<String>()
             
-            let finish: @Sendable (Result<[NetService], Error>) -> Void = { result in
+            let finish: (Result<[NetService], Error>) -> Void = { result in
                 Task { @MainActor in
                     guard !didResume else { return }
                     didResume = true
+                    browser.stop()
                     switch result {
                     case .success(let services):
-                        let sortedServices = services.sorted { $0.name.lowercased() < $1.name.lowercased() }
-                        continuation.resume(returning: sortedServices)
+                        continuation.resume(returning: services)
                     case .failure(let error):
                         continuation.resume(throwing: error)
                     }
@@ -434,12 +551,10 @@ extension NetworkDiscovery {
             }
             
             let delegate = BonjourDelegate(
-                // CHANGE: Remove unnecessary weak capture of browser
                 didFind: { service in
                     Task { @MainActor in
                         guard !attemptedConnections.contains(service.name) else { return }
                         attemptedConnections.insert(service.name)
-                        service.resolve(withTimeout: 2.0)
                         discoveredServices.append(service)
                     }
                 },
@@ -462,28 +577,27 @@ extension NetworkDiscovery {
             )
             
             objc_setAssociatedObject(browser, "delegate", delegate, .OBJC_ASSOCIATION_RETAIN)
-            
             browser.delegate = delegate
             
-            let serviceTypes = ["_smb._tcp.", "_microsoft-ds._tcp."]
-            for serviceType in serviceTypes {
-                browser.searchForServices(ofType: serviceType, inDomain: "local.")
-            }
-            
             browser.schedule(in: .main, forMode: .common)
+            browser.searchForServices(ofType: type, inDomain: "local.")
             
+            // Short timeout check
             let shortTimeout = min(timeout * 0.5, 2.0)
             Task { @MainActor in
                 try await Task.sleep(nanoseconds: UInt64(shortTimeout * 1_000_000_000))
-                if !discoveredServices.isEmpty {
+                if !discoveredServices.isEmpty && !didResume {
                     finish(.success(discoveredServices))
                 }
             }
             
+            // Full timeout check
             Task { @MainActor in
                 try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
                 browser.stop()
-                finish(.success(discoveredServices))
+                if !didResume {
+                    finish(.success(discoveredServices))
+                }
             }
         }
     }
@@ -865,7 +979,9 @@ struct DiscoveryResultsView: View {
                                 if discoveredHosts.isEmpty && !isLoading {
                                     Text("No servers found. Make sure you are on the same Wi-Fi.")
                                         .foregroundColor(.secondary)
-                                } else {
+                                }
+                                
+                                else {
                                     ForEach(discoveredHosts) { host in
                                         Button {
                                             fetchShares(for: host)
@@ -1044,4 +1160,3 @@ struct DiscoveryResultsView: View {
     DiscoveryResultsView(username: "", password: "", port: nil, onSelect: { _ in })
         .environmentObject(AppData())
 }
-
