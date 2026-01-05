@@ -18,38 +18,44 @@ final class NetworkMonitor: @unchecked Sendable {
     private let queue = DispatchQueue(label: "NetworkMonitor")
     
     @MainActor
-    var isConnected: Bool = false {
-        didSet {
-            print("Network connection state changed to: \(isConnected)")
-            // Post notification when network state changes
-            NotificationCenter.default.post(name: .networkStatusChanged, object: nil)
-        }
-    }
+    private(set) var isConnected: Bool = false
     
     private init() {
         self.monitor = NWPathMonitor()
-        
-        // Initialize with current path status
-        let initialPath = monitor.currentPath
-        Task { @MainActor in
-            self.isConnected = initialPath.status == .satisfied
-        }
         
         monitor.pathUpdateHandler = { [weak self] path in
             print("Path update received - Status: \(path.status)")
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
-                self.isConnected = path.status == .satisfied
-                self.checkCurrentStatus()
+                self.updateConnectionStatus(isConnected: path.status == .satisfied)
             }
         }
         
         monitor.start(queue: queue)
-        print("NetworkMonitor initialized - Initial connected: \(initialPath.status == .satisfied)")
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            let initialConnected = self.monitor.currentPath.status == .satisfied
+            self.updateConnectionStatus(isConnected: initialConnected)
+            print("NetworkMonitor initialized - Initial connected: \(initialConnected)")
+        }
+    }
+
+    @MainActor
+    private func updateConnectionStatus(isConnected newValue: Bool) {
+        guard isConnected != newValue else { return }
+        isConnected = newValue
+        print("Network connection state changed to: \(isConnected)")
+        // Post notification when network state changes
+        NotificationCenter.default.post(name: .networkStatusChanged, object: nil)
     }
     
     @MainActor
     func waitForNetwork(timeout: TimeInterval = 10.0) async throws -> Bool {
+        if monitor.currentPath.status == .satisfied {
+            updateConnectionStatus(isConnected: true)
+            return true
+        }
+
         // If already connected, return immediately
         if self.isConnected { return true }
         
@@ -86,7 +92,8 @@ final class NetworkMonitor: @unchecked Sendable {
             ) { [weak self] _ in
                 Task { @MainActor [weak self] in
                     guard let self = self else { return }
-                    if self.isConnected {
+                    if self.monitor.currentPath.status == .satisfied {
+                        self.updateConnectionStatus(isConnected: true)
                         timeoutTask.cancel()
                         safelyResume(with: true)
                     }
@@ -96,7 +103,8 @@ final class NetworkMonitor: @unchecked Sendable {
             // Check current status again
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
-                if self.isConnected {
+                if self.monitor.currentPath.status == .satisfied {
+                    self.updateConnectionStatus(isConnected: true)
                     timeoutTask.cancel()
                     safelyResume(with: true)
                 }
@@ -112,7 +120,7 @@ final class NetworkMonitor: @unchecked Sendable {
     func checkCurrentStatus() {
         let path = monitor.currentPath
         print("Current path status: \(path.status)")
-        self.isConnected = path.status == .satisfied
+        updateConnectionStatus(isConnected: path.status == .satisfied)
     }
 }
 
