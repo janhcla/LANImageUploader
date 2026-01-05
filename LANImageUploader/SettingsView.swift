@@ -32,6 +32,8 @@ struct SettingsView: View {
     @State private var showDirectIPPrompt = false
     @State private var isKeyboardVisible = false
     @State private var directIPInput = ""
+    @State private var discoveryTask: Task<Void, Never>? = nil
+    @State private var showDiscoveryResults = false
 
     var isSetupComplete: Bool {
         !appData.settings.serverIP.isEmpty && !appData.settings.shareName.isEmpty &&
@@ -101,7 +103,7 @@ struct SettingsView: View {
             Button("Connect") {
                 if !directIPInput.isEmpty {
                     serverIP = directIPInput
-                    Task { await startAutoFill() }
+                    startAutoFill()
                 }
                 directIPInput = ""
             }
@@ -138,18 +140,6 @@ struct SettingsView: View {
     var firstSetupView: some View {
         Group {
             Section("First Setup") {
-                if isDiscovering {
-                    VStack(spacing: 10) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text(searchProgress)
-                            .foregroundStyle(.gray)
-                            .font(.caption)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                }
-                
                 Text("Enter your credentials and target folder. Then choose 'Auto-Fill' to detect your SMB server automatically, or select 'Try Direct IP' if you already know the server's IP address. Note: Sometimes 'Auto-Fill' cannot exctract the server info automatically. This app stores your password in a secure keychain.")
                     .font(.caption)
                     .foregroundStyle(.gray)
@@ -163,11 +153,28 @@ struct SettingsView: View {
                     .keyboardType(.numberPad)
             }
             Section {
-                Button("Auto-Fill Network Info") {
-                    Task { await startAutoFill() }
+                if isDiscovering {
+                    HStack(spacing: 15) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text(searchProgress)
+                            .foregroundStyle(.blue)
+                            .font(.caption)
+                        Spacer()
+                        Button("Cancel") {
+                            stopAutoFill()
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.red)
+                    }
+                    .padding(.vertical, 4)
                 }
-                .disabled(!canAutoFill || isDiscovering)
-                .foregroundStyle(canAutoFill && !isDiscovering ? .blue : .gray)
+
+                Button("Browse Network for Servers") {
+                    showDiscoveryResults = true
+                }
+                .disabled(!canAutoFill)
+                .foregroundStyle(canAutoFill ? .blue : .gray)
                 
                 Button("Try Direct IP") {
                     showDirectIPPrompt = true
@@ -176,11 +183,25 @@ struct SettingsView: View {
                 .foregroundStyle(canAutoFill && !isDiscovering ? .blue : .gray)
                 
                 Button("Switch to Manual Setup") {
+                    stopAutoFill()
                     isFirstSetup = false
                 }
                 .foregroundStyle(.blue)
-                .disabled(isDiscovering)
             }
+        }
+        .sheet(isPresented: $showDiscoveryResults) {
+            DiscoveryResultsView(
+                username: username,
+                password: password,
+                port: Int(port),
+                onSelect: { info in
+                    serverIP = info.serverIP
+                    shareName = info.shareName
+                    isFirstSetup = false
+                    showSuccess = true
+                }
+            )
+            .environmentObject(appData)
         }
         .alert("Confirm Auto-Fill", isPresented: $showAutoFillConfirmation) {
             Button("Cancel", role: .cancel) {
@@ -207,15 +228,20 @@ struct SettingsView: View {
         Group {
             Section("Server Configuration") {
                 if isDiscovering {
-                    VStack(spacing: 10) {
+                    HStack(spacing: 15) {
                         ProgressView()
                             .controlSize(.small)
                         Text(searchProgress)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(.blue)
                             .font(.caption)
+                        Spacer()
+                        Button("Cancel") {
+                            stopAutoFill()
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.red)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 4)
                 }
                 
                 TextField("Server IP (e.g., 192.168.1.10)", text: $serverIP)
@@ -259,13 +285,28 @@ struct SettingsView: View {
         }
     }
 
-    private func startAutoFill() async {
+    private func stopAutoFill() {
+        discoveryTask?.cancel()
+        discoveryTask = nil
+        isDiscovering = false
+        searchProgress = "Ready"
+    }
+
+    private func startAutoFill() {
+        discoveryTask?.cancel()
+        discoveryTask = Task {
+            await performAutoFill()
+        }
+    }
+
+    private func performAutoFill() async {
         isDiscovering = true
         searchProgress = "Checking network connection..."
         
         defer {
             Task { @MainActor in
                 isDiscovering = false
+                discoveryTask = nil
             }
         }
         
@@ -282,6 +323,7 @@ struct SettingsView: View {
                 port: portNumber,
                 onStatus: { status in
                     Task { @MainActor in
+                        guard !Task.isCancelled else { return }
                         appData.connectionStatus = status
                         switch status {
                         case .discovery(let state):
@@ -299,8 +341,8 @@ struct SettingsView: View {
                             searchProgress = "Authenticating..."
                         case .connected:
                             searchProgress = "Connected!"
-                        case .failure(let reason):
-                            searchProgress = "Error: \(reason)"
+                        case .failure(let error):
+                            searchProgress = "Error: \(error.localizedDescription)"
                         case .disconnected:
                             searchProgress = "Ready"
                         }
@@ -308,14 +350,20 @@ struct SettingsView: View {
                 }
             )
             
+            if Task.isCancelled { return }
+            
             await MainActor.run {
                 tempNetworkInfo = info
                 showAutoFillConfirmation = true
             }
+        } catch is CancellationError {
+            // Cancelled
         } catch {
-            await MainActor.run {
-                showError = true
-                errorMessage = "Failed to retrieve network info: \(error.localizedDescription)"
+            if !Task.isCancelled {
+                await MainActor.run {
+                    showError = true
+                    errorMessage = "Failed to retrieve network info: \(error.localizedDescription)"
+                }
             }
         }
     }

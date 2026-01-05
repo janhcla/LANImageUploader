@@ -10,9 +10,45 @@ import Network   // Required for NetService, NetServiceBrowser, NWPathMonitor
 import OSLog     // Use unified logging system
 import AMSMB2    // Required for SMB functionality
 import Darwin
+import SwiftUI
 
 // Logger for this specific file/module
 private let logger = Logger(subsystem: Bundle.main.bundleIdentifier!, category: "NetworkDiscovery")
+
+public enum ConnectionError: LocalizedError, Equatable, Sendable {
+    case authenticationFailed
+    case hostNotFound(String)
+    case shareNotFound(String)
+    case folderNotFound(String)
+    case timeout
+    case cancelled
+    case networkUnavailable
+    case noHostsFound
+    case unknown(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .authenticationFailed:
+            return "Authentication failed. Please check your username and password."
+        case .hostNotFound(let host):
+            return "Host '\(host)' could not be found."
+        case .shareNotFound(let share):
+            return "Share '\(share)' does not exist on the server."
+        case .folderNotFound(let folder):
+            return "Folder '\(folder)' could not be found."
+        case .timeout:
+            return "Connection timed out."
+        case .cancelled:
+            return "Connection cancelled by user."
+        case .networkUnavailable:
+            return "No network connection available."
+        case .noHostsFound:
+            return "No SMB servers found on the network."
+        case .unknown(let message):
+            return "An unknown error occurred: \(message)"
+        }
+    }
+}
 
 // MARK: - Main Class Definition
 @MainActor
@@ -39,9 +75,8 @@ extension NetworkDiscovery {
         // Wait briefly for network monitor to be ready
         if try await !NetworkMonitor.shared.waitForNetwork(timeout: 1.0) {
             logger.error("Network connection unavailable (timed out waiting).")
-            let error = NSError(domain: "NetworkDiscovery", code: -1,
-                         userInfo: [NSLocalizedDescriptionKey: "No network connection available. Please check your Wi-Fi connection."])
-            onStatus?(.failure(error.localizedDescription))
+            let error = ConnectionError.networkUnavailable
+            onStatus?(.failure(error))
             throw error
         }
         
@@ -72,12 +107,15 @@ extension NetworkDiscovery {
         }
         
         // 2. Fast Subnet Scan
+        try Task.checkCancellation()
         onStatus?(.discovery(.subnetScan(progress: 0.0)))
         logger.info("Starting fast subnet scan...")
         
-        if let foundIP = try await fastSubnetScan(batchSize: 25, onProgress: { progress in
+        let foundIPs = try await fastSubnetScan(batchSize: 25, onProgress: { progress in
             onStatus?(.discovery(.subnetScan(progress: progress)))
-        }) {
+        })
+        
+        if let foundIP = foundIPs.first {
             onStatus?(.connecting(foundIP))
             let networkInfo = try await attemptConnection(
                 ipAddress: foundIP,
@@ -93,17 +131,20 @@ extension NetworkDiscovery {
         }
         
         // 3. Bonjour Discovery with Retry
+        try Task.checkCancellation()
         onStatus?(.discovery(.bonjourSearch))
         var retryCount = 0
         let maxRetries = 2
         
         while retryCount <= maxRetries {
+            try Task.checkCancellation()
             logger.info("Starting Bonjour discovery (attempt \(retryCount + 1))...")
             do {
                 let services = try await discoverSMBServers(timeout: 5.0)
                 logger.info("Found \(services.count) SMB services")
                 
                 for service in services {
+                    try Task.checkCancellation()
                     onStatus?(.discovery(.resolving(service.name)))
                     do {
                         let serverIP = try await resolveService(service)
@@ -134,14 +175,12 @@ extension NetworkDiscovery {
                 }
                 
                 if services.isEmpty {
-                    let error = NSError(domain: "NetworkDiscovery", code: -2,
-                                userInfo: [NSLocalizedDescriptionKey: "No SMB servers found on the network. Please try using Direct IP."])
-                    onStatus?(.failure(error.localizedDescription))
+                    let error = ConnectionError.noHostsFound
+                    onStatus?(.failure(error))
                     throw error
                 } else {
-                    let error = NSError(domain: "NetworkDiscovery", code: -3,
-                                userInfo: [NSLocalizedDescriptionKey: "Found servers but could not connect with provided credentials. Please verify username/password."])
-                    onStatus?(.failure(error.localizedDescription))
+                    let error = ConnectionError.authenticationFailed // Most likely reason if we found servers but couldn't connect
+                    onStatus?(.failure(error))
                     throw error
                 }
             } catch {
@@ -150,29 +189,100 @@ extension NetworkDiscovery {
                     continue
                 }
                 logger.error("Server discovery failed: \(error.localizedDescription)")
-                onStatus?(.failure(error.localizedDescription))
-                throw error
+                let finalError = mapToConnectionError(error)
+                onStatus?(.failure(finalError))
+                throw finalError
             }
         }
         
-        throw NSError(domain: "NetworkDiscovery", code: -4, userInfo: [NSLocalizedDescriptionKey: "Discovery exhausted all attempts."])
+        throw ConnectionError.timeout
+    }
+}
+
+// MARK: - Interactive Discovery
+extension NetworkDiscovery {
+    internal func discoverAvailableHosts(
+        onStatus: (@Sendable (ConnectionStatus) -> Void)? = nil
+    ) async throws -> [DiscoveredHost] {
+        var hosts: [String: DiscoveredHost] = [:]
+        
+        // 1. Subnet Scan
+        try Task.checkCancellation()
+        onStatus?(.discovery(.subnetScan(progress: 0.0)))
+        let ips = try await fastSubnetScan(onProgress: { progress in
+            onStatus?(.discovery(.subnetScan(progress: progress)))
+        })
+        for ip in ips {
+            hosts[ip] = DiscoveredHost(id: ip, name: nil)
+        }
+        
+        // 2. Bonjour
+        try Task.checkCancellation()
+        onStatus?(.discovery(.bonjourSearch))
+        let services = try await discoverSMBServers(timeout: 5.0)
+        for service in services {
+            try Task.checkCancellation()
+            onStatus?(.discovery(.resolving(service.name)))
+            if let ip = try? await resolveService(service) {
+                hosts[ip] = DiscoveredHost(id: ip, name: service.name)
+            }
+        }
+        
+        if hosts.isEmpty {
+            throw ConnectionError.noHostsFound
+        }
+        
+        return Array(hosts.values).sorted { 
+            ($0.name ?? $0.id).lowercased() < ($1.name ?? $1.id).lowercased()
+        }
+    }
+
+    internal func listAvailableShares(
+        ipAddress: String,
+        username: String,
+        password: String,
+        port: Int? = nil
+    ) async throws -> [String] {
+        var components = URLComponents()
+        components.scheme = "smb"
+        components.host = ipAddress
+        if let port = port { components.port = port }
+        guard let serverURL = components.url else { throw ConnectionError.hostNotFound(ipAddress) }
+        
+        guard let client = SMB2Manager(
+            url: serverURL,
+            credential: URLCredential(user: username, password: password, persistence: .forSession)
+        ) else {
+            throw ConnectionError.unknown("Failed to create SMB client")
+        }
+        
+        do {
+            try await client.connectShare(name: "IPC$")
+            let shares = try await client.listShares()
+            try? await client.disconnectShare()
+            return shares.map { $0.name }.filter { !$0.hasSuffix("$") }.sorted()
+        } catch {
+            throw mapToConnectionError(error)
+        }
     }
 }
 
 // MARK: - Fast Subnet Scanning
 extension NetworkDiscovery {
-    private func fastSubnetScan(startIP: Int = 1, batchSize: Int = 25, onProgress: (@Sendable (Double) -> Void)? = nil) async throws -> String? {
+    private func fastSubnetScan(startIP: Int = 1, batchSize: Int = 25, onProgress: (@Sendable (Double) -> Void)? = nil) async throws -> [String] {
         let currentIP = await getCurrentDeviceIP() ?? "192.168.1.1"
         let subnet = currentIP.split(separator: ".").dropLast().joined(separator: ".")
         
         let totalIPs = 254
         var currentStart = startIP
+        var foundIPs: [String] = []
         
         while currentStart <= totalIPs {
+            try Task.checkCancellation()
             let endIP = min(currentStart + batchSize - 1, totalIPs)
             onProgress?(Double(currentStart) / Double(totalIPs))
             
-            if let foundIP = try await withThrowingTaskGroup(of: String?.self, body: { group -> String? in
+            let batchResults = try await withThrowingTaskGroup(of: String?.self, body: { group -> [String] in
                 for i in currentStart...endIP {
                     group.addTask {
                         let ip = "\(subnet).\(i)"
@@ -183,22 +293,20 @@ extension NetworkDiscovery {
                     }
                 }
                 
+                var results: [String] = []
                 for try await result in group {
                     if let ip = result {
-                        group.cancelAll()
-                        return ip
+                        results.append(ip)
                     }
                 }
-                return nil
-            }) {
-                onProgress?(1.0)
-                return foundIP
-            }
+                return results
+            })
             
+            foundIPs.append(contentsOf: batchResults)
             currentStart += batchSize
         }
         onProgress?(1.0)
-        return nil
+        return foundIPs
     }
 
     private func quickPortCheck(ip: String, port: Int, timeout: TimeInterval) async throws -> Bool {
@@ -453,6 +561,34 @@ extension NetworkDiscovery {
 
 // MARK: - Connection Logic
 extension NetworkDiscovery {
+    private func mapToConnectionError(_ error: Error) -> ConnectionError {
+        if error is CancellationError {
+            return .cancelled
+        }
+        if let connError = error as? ConnectionError {
+            return connError
+        }
+        
+        let nsError = error as NSError
+        
+        // Handle AMSMB2 / libsmb2 errors
+        // POSIX EPERM (1) or EACCES (13) often mean auth failure or permission denied
+        if nsError.domain == NSPOSIXErrorDomain {
+            if nsError.code == 1 || nsError.code == 13 { // EPERM, EACCES
+                return .authenticationFailed
+            }
+            if nsError.code == 60 { // ETIMEDOUT
+                return .timeout
+            }
+        }
+        
+        if nsError.localizedDescription.localizedCaseInsensitiveContains("timed out") {
+            return .timeout
+        }
+        
+        return .unknown(error.localizedDescription)
+    }
+
     private func attemptConnection(
         ipAddress: String,
         targetFolder: String,
@@ -473,7 +609,7 @@ extension NetworkDiscovery {
         }
         guard let serverURL = components.url else {
             logger.critical("Failed to create URL for host: \(ipAddress)")
-            throw NSError(domain: "NetworkDiscovery", code: -15, userInfo: [NSLocalizedDescriptionKey: "Invalid server address: \(ipAddress)"])
+            throw ConnectionError.hostNotFound(ipAddress)
         }
 
         logger.debug("Connecting to URL: \(serverURL.absoluteString)")
@@ -483,8 +619,7 @@ extension NetworkDiscovery {
             credential: URLCredential(user: username, password: password, persistence: .forSession)
         ) else {
             logger.error("Failed to create SMB2Manager instance for \(serverURL.absoluteString)")
-            throw NSError(domain: "NetworkDiscovery", code: -5,
-                          userInfo: [NSLocalizedDescriptionKey: "Failed to create SMB client instance."])
+            throw ConnectionError.unknown("Failed to create SMB client instance.")
         }
 
         let normalizedTarget = targetFolder
@@ -492,7 +627,7 @@ extension NetworkDiscovery {
             .trimmingCharacters(in: CharacterSet(charactersIn: "/\\"))
         guard !normalizedTarget.isEmpty else {
             logger.error("Target folder name cannot be empty or just slashes.")
-            throw NSError(domain: "NetworkDiscovery", code: -17, userInfo: [NSLocalizedDescriptionKey: "Target folder name is invalid."])
+            throw ConnectionError.folderNotFound("Target folder name is invalid.")
         }
 
         var enumeratedShares: [(name: String, comment: String)] = []
@@ -546,7 +681,7 @@ extension NetworkDiscovery {
         }
         addCandidate(share: normalizedTarget, directory: nil)
 
-        var lastError: NSError?
+        var lastError: Error?
         for candidate in candidates {
             do {
                 onStatus?(.connecting("Share: \(candidate.share)"))
@@ -562,7 +697,7 @@ extension NetworkDiscovery {
                         onStatus?(.connected(info))
                         return info
                     } catch {
-                        lastError = error as NSError
+                        lastError = error
                         logger.debug("Directory validation failed for share '\(candidate.share)': \(error.localizedDescription)")
                         try? await client.disconnectShare()
                     }
@@ -574,7 +709,7 @@ extension NetworkDiscovery {
                     return info
                 }
             } catch {
-                lastError = error as NSError
+                lastError = error
                 logger.debug("Failed to connect to share '\(candidate.share)': \(error.localizedDescription)")
                 try? await client.disconnectShare()
             }
@@ -582,21 +717,16 @@ extension NetworkDiscovery {
 
         if let shareEnumerationError = shareEnumerationError, enumeratedShares.isEmpty {
             logger.error("Share enumeration failed on \(ipAddress): \(shareEnumerationError.localizedDescription)")
-            throw NSError(
-                domain: "NetworkDiscovery",
-                code: -12,
-                userInfo: [NSLocalizedDescriptionKey: "Connected to server \(ipAddress) but could not list shares: \(shareEnumerationError.localizedDescription). Provide the share name manually or ensure the account can browse shares."]
-            )
+            throw mapToConnectionError(shareEnumerationError)
         }
 
         if let lastError = lastError {
             logger.error("Failed to validate target '\(normalizedTarget)' on \(ipAddress): \(lastError.localizedDescription)")
-            throw lastError
+            throw mapToConnectionError(lastError)
         }
 
         logger.error("Target folder '\(normalizedTarget)' not found as an accessible directory within any share on server \(ipAddress)")
-        throw NSError(domain: "NetworkDiscovery", code: -6,
-                      userInfo: [NSLocalizedDescriptionKey: "Target folder '\(normalizedTarget)' not found in any accessible share on server \(ipAddress). Check the name and permissions."])
+        throw ConnectionError.folderNotFound(normalizedTarget)
     }
 
     private func ensureDirectoryExists(_ path: String, in client: SMB2Manager, shareName: String) async throws {
@@ -606,11 +736,9 @@ extension NetworkDiscovery {
             if nsError.domain == NSPOSIXErrorDomain {
                 switch nsError.code {
                 case Int(ENOENT):
-                    throw NSError(domain: "NetworkDiscovery", code: -6,
-                                  userInfo: [NSLocalizedDescriptionKey: "Folder '\(path)' was not found in share '\(shareName)'."])
+                    throw ConnectionError.folderNotFound(path)
                 case Int(EACCES):
-                    throw NSError(domain: "NetworkDiscovery", code: -11,
-                                  userInfo: [NSLocalizedDescriptionKey: "Permission denied while accessing folder '\(path)' in share '\(shareName)'."])
+                    throw ConnectionError.authenticationFailed
                 default:
                     throw nsError
                 }
@@ -618,11 +746,9 @@ extension NetworkDiscovery {
             if nsError.domain == "AMSMB2ErrorDomain" {
                 switch nsError.code {
                 case 0x00000002, 0xC0000034:
-                    throw NSError(domain: "NetworkDiscovery", code: -6,
-                                  userInfo: [NSLocalizedDescriptionKey: "Folder '\(path)' was not found in share '\(shareName)'."])
+                    throw ConnectionError.folderNotFound(path)
                 case 0xC0000103:
-                    throw NSError(domain: "NetworkDiscovery", code: -13,
-                                  userInfo: [NSLocalizedDescriptionKey: "The path '\(path)' exists in share '\(shareName)' but is not a directory."])
+                    throw ConnectionError.folderNotFound("Path exists but is not a directory")
                 default:
                     throw nsError
                 }
@@ -689,5 +815,233 @@ private class BonjourResolveDelegate: NSObject, NetServiceDelegate {
         didFail(NSError(domain: "NetworkDiscovery", code: -9,
                        userInfo: [NSLocalizedDescriptionKey: "Failed to resolve service: \(errorDict)"]))
     }
+}
+
+struct DiscoveryResultsView: View {
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var appData: AppData
+    
+    let username: String
+    let password: String
+    let port: Int?
+    let onSelect: (NetworkInfo) -> Void
+    
+    @State private var discoveredHosts: [DiscoveredHost] = []
+    @State private var discoveredShares: [String] = []
+    @State private var selectedHost: DiscoveredHost? = nil
+    @State private var isLoading = false
+    @State private var statusMessage = "Initializing..."
+    @State private var errorMessage: String? = nil
+    @State private var discoveryTask: Task<Void, Never>? = nil
+    
+    var body: some View {
+        NavigationStack {
+            VStack {
+                if let error = errorMessage {
+                    VStack(spacing: 15) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.largeTitle)
+                            .foregroundColor(.orange)
+                        Text(error)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                        Button("Retry") {
+                            startHostDiscovery()
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    .padding()
+                } else if isLoading && discoveredHosts.isEmpty {
+                    VStack(spacing: 20) {
+                        ProgressView()
+                            .controlSize(.large)
+                        Text(statusMessage)
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    List {
+                        if selectedHost == nil {
+                            Section("Available Servers") {
+                                if discoveredHosts.isEmpty && !isLoading {
+                                    Text("No servers found. Make sure you are on the same Wi-Fi.")
+                                        .foregroundColor(.secondary)
+                                } else {
+                                    ForEach(discoveredHosts) { host in
+                                        Button {
+                                            fetchShares(for: host)
+                                        } label: {
+                                            HStack {
+                                                VStack(alignment: .leading) {
+                                                    Text(host.name ?? "Unknown Server")
+                                                        .font(.headline)
+                                                    Text(host.id)
+                                                        .font(.subheadline)
+                                                        .foregroundColor(.secondary)
+                                                }
+                                                Spacer()
+                                                if isLoading && selectedHost?.id == host.id {
+                                                    ProgressView()
+                                                } else {
+                                                    Image(systemName: "chevron.right")
+                                                        .foregroundColor(.secondary)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            Section {
+                                Button {
+                                    selectedHost = nil
+                                    discoveredShares = []
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "arrow.left")
+                                        Text("Back to Servers")
+                                    }
+                                }
+                                .foregroundColor(.blue)
+                            }
+                            
+                            Section("Shares on \(selectedHost?.displayName ?? "")") {
+                                if isLoading {
+                                    HStack {
+                                        ProgressView()
+                                            .padding(.trailing, 10)
+                                        Text("Listing shares...")
+                                    }
+                                } else if discoveredShares.isEmpty {
+                                    Text("No accessible shares found. Check credentials or permissions.")
+                                        .foregroundColor(.secondary)
+                                } else {
+                                    ForEach(discoveredShares, id: \.self) { share in
+                                        Button {
+                                            selectShare(share)
+                                        } label: {
+                                            HStack {
+                                                Text(share)
+                                                Spacer()
+                                                Image(systemName: "checkmark.circle")
+                                                    .foregroundColor(.blue)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                }
+            }
+            .navigationTitle(selectedHost == nil ? "Discovered Servers" : "Choose Share")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        discoveryTask?.cancel()
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                startHostDiscovery()
+            }
+            .onDisappear {
+                discoveryTask?.cancel()
+            }
+        }
+    }
+    
+    private func startHostDiscovery() {
+        errorMessage = nil
+        discoveredHosts = []
+        isLoading = true
+        
+        discoveryTask?.cancel()
+        discoveryTask = Task {
+            do {
+                let hosts = try await NetworkDiscovery.shared.discoverAvailableHosts(onStatus: { status in
+                    Task { @MainActor in
+                        updateStatus(status)
+                    }
+                })
+                
+                if !Task.isCancelled {
+                    await MainActor.run {
+                        self.discoveredHosts = hosts
+                        self.isLoading = false
+                    }
+                }
+            } catch {
+                if !Task.isCancelled {
+                    await MainActor.run {
+                        self.errorMessage = error.localizedDescription
+                        self.isLoading = false
+                    }
+                }
+            }
+        }
+    }
+    
+    private func updateStatus(_ status: ConnectionStatus) {
+        switch status {
+        case .discovery(let state):
+            switch state {
+            case .subnetScan(let progress):
+                statusMessage = "Scanning network (\(Int(progress * 100))%)..."
+            case .bonjourSearch:
+                statusMessage = "Searching for servers..."
+            case .resolving(let name):
+                statusMessage = "Identifying \(name)..."
+            }
+        default:
+            break
+        }
+    }
+    
+    private func fetchShares(for host: DiscoveredHost) {
+        selectedHost = host
+        isLoading = true
+        discoveredShares = []
+        errorMessage = nil
+        
+        Task {
+            do {
+                let shares = try await NetworkDiscovery.shared.listAvailableShares(
+                    ipAddress: host.id,
+                    username: username,
+                    password: password,
+                    port: port
+                )
+                
+                if !Task.isCancelled {
+                    await MainActor.run {
+                        self.discoveredShares = shares
+                        self.isLoading = false
+                    }
+                }
+            } catch {
+                if !Task.isCancelled {
+                    await MainActor.run {
+                        self.errorMessage = "Failed to list shares: \(error.localizedDescription)"
+                        self.isLoading = false
+                    }
+                }
+            }
+        }
+    }
+    
+    private func selectShare(_ share: String) {
+        guard let host = selectedHost else { return }
+        let info = NetworkInfo(serverIP: host.id, shareName: share, targetDirectory: nil)
+        onSelect(info)
+        dismiss()
+    }
+}
+
+#Preview {
+    DiscoveryResultsView(username: "", password: "", port: nil, onSelect: { _ in })
+        .environmentObject(AppData())
 }
 

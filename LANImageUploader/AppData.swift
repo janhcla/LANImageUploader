@@ -16,6 +16,18 @@ struct NetworkInfo: Equatable {
     let targetDirectory: String?
 }
 
+struct DiscoveredHost: Identifiable, Equatable {
+    let id: String // IP Address
+    let name: String? // Hostname/Bonjour name
+    
+    var displayName: String {
+        if let name = name {
+            return "\(name) (\(id))"
+        }
+        return id
+    }
+}
+
 /// Represents the granular state of the SMB connection process.
 enum ConnectionStatus: Equatable {
     /// No active connection attempt.
@@ -29,7 +41,7 @@ enum ConnectionStatus: Equatable {
     /// Successfully connected and validated.
     case connected(NetworkInfo)
     /// Connection failed with a reason.
-    case failure(String)
+    case failure(ConnectionError)
 }
 
 /// Represents the specific sub-state of the discovery process.

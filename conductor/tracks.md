@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [ ] Track: Refine SMB Discovery and Connection
+## [~] Track: Refine SMB Discovery and Connection
 *Link: [./conductor/tracks/refine_smb_discovery_20260104/](./conductor/tracks/refine_smb_discovery_20260104/)*

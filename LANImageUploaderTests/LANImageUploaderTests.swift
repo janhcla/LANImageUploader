@@ -33,6 +33,13 @@ struct LANImageUploaderTests {
         } else {
              #expect(Bool(false), "Expected connecting state")
         }
+        
+        let failureStatus = ConnectionStatus.failure(.timeout)
+        if case .failure(let error) = failureStatus {
+            #expect(error == .timeout)
+        } else {
+            #expect(Bool(false), "Expected failure state")
+        }
     }
     
     @Test func discoveryStateEnumExists() async throws {
@@ -73,6 +80,22 @@ struct LANImageUploaderTests {
         
         // Check if we received any status (either discovery, connecting, or failure)
         #expect(!receivedStatuses.isEmpty, "Should have received at least one status update")
+    }
+
+    @Test func waitForNetworkReturnsTrueInitially() async throws {
+        // This test ensures waitForNetwork doesn't block indefinitely on simulator
+        // where network should be available.
+        let result = try await NetworkMonitor.shared.waitForNetwork(timeout: 2.0)
+        #expect(result == true)
+    }
+
+    @Test func connectionErrorMappingExists() async throws {
+        // This test verifies that we have a custom error type for detailed mapping
+        let authError = ConnectionError.authenticationFailed
+        #expect(authError.localizedDescription.contains("password"))
+        
+        let hostError = ConnectionError.hostNotFound("192.168.1.1")
+        #expect(hostError.localizedDescription.contains("192.168.1.1"))
     }
 
 }

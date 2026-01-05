@@ -12,10 +12,9 @@
 - [x] Task: Fix `NetworkMonitor` initialization race condition to prevent false "No Network" errors. [be7eb48]
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Discovery Refinement' (Protocol in workflow.md)
 
-## Phase 3: Interactive Discovery & Validation
-- [ ] Task: Implement detailed `ConnectionError` mapping (auth vs network).
-- [ ] Task: Extend `NetworkDiscovery` to support a "List Hosts" mode.
-- [ ] Task: Create `DiscoveryResultsView` to list hosts and shares for user selection.
-- [ ] Task: Integrate interactive discovery into `SettingsView` and `OnboardingView`.
-- [ ] Task: Write tests for the new discovery selection flow and error mapping.
+## Phase 3: Interactive Discovery & Validation [checkpoint: pending]
+- [x] Task: Implement detailed `ConnectionError` mapping (auth vs network). [0518ca2]
+- [x] Task: Extend `NetworkDiscovery` for "List Hosts" mode.
+- [x] Task: Create `DiscoveryResultsView` UI (list hosts, then shares).
+- [x] Task: Integrate into `SettingsView` and `OnboardingView`.
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Interactive Discovery & Validation' (Protocol in workflow.md)

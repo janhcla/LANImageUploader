@@ -412,9 +412,18 @@ struct NetworkSetupView: View {
     @State private var networkInfo: NetworkInfo?
     @State private var isDiscovering = false
     @State private var discoveryProgress = "Initializing..."
+    @State private var discoveryTask: Task<Void, Never>? = nil
+    @State private var showDiscoveryResults = false
 
     var canAutoFill: Bool {
         !targetDirectory.isEmpty && !username.isEmpty && !password.isEmpty
+    }
+
+    private func stopAutoFill() {
+        discoveryTask?.cancel()
+        discoveryTask = nil
+        isDiscovering = false
+        discoveryProgress = "Ready"
     }
 
     var body: some View {
@@ -430,15 +439,20 @@ struct NetworkSetupView: View {
                 .padding(.horizontal)
             Form {
                 if isDiscovering {
-                    VStack(spacing: 10) {
+                    HStack(spacing: 15) {
                         ProgressView()
                             .controlSize(.small)
                         Text(discoveryProgress)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(.blue)
                             .font(.caption)
+                        Spacer()
+                        Button("Cancel") {
+                            stopAutoFill()
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.red)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 4)
                 }
                 
                 TextField("Target Directory (e.g., MediaCapture)", text: $targetDirectory)
@@ -452,8 +466,8 @@ struct NetworkSetupView: View {
             }
             .frame(maxHeight: 200)
             
-            Button("Auto-Fill and Save") {
-                Task { await autoFillNetworkInfo() }
+            Button("Browse & Auto-Fill") {
+                showDiscoveryResults = true
             }
             .frame(maxWidth: .infinity)
             .padding()
@@ -468,6 +482,18 @@ struct NetworkSetupView: View {
             }
             .foregroundStyle(.gray)
             Spacer()
+        }
+        .sheet(isPresented: $showDiscoveryResults) {
+            DiscoveryResultsView(
+                username: username,
+                password: password,
+                port: Int(port),
+                onSelect: { info in
+                    networkInfo = info
+                    showSuccess = true
+                }
+            )
+            .environmentObject(appData)
         }
         .alert("Settings Incomplete", isPresented: $showWarning) {
             Button("Set Up Now", role: .cancel) {}
@@ -489,13 +515,21 @@ struct NetworkSetupView: View {
         }
     }
 
-    private func autoFillNetworkInfo() async {
+    private func autoFillNetworkInfo() {
+        discoveryTask?.cancel()
+        discoveryTask = Task {
+            await performAutoFill()
+        }
+    }
+
+    private func performAutoFill() async {
         isDiscovering = true
         discoveryProgress = "Checking network connection..."
         
         defer {
             Task { @MainActor in
                 isDiscovering = false
+                discoveryTask = nil
             }
         }
         
@@ -514,6 +548,7 @@ struct NetworkSetupView: View {
                 port: portNumber,
                 onStatus: { status in
                     Task { @MainActor in
+                        guard !Task.isCancelled else { return }
                         appData.connectionStatus = status
                         switch status {
                         case .discovery(let state):
@@ -531,23 +566,29 @@ struct NetworkSetupView: View {
                             discoveryProgress = "Authenticating..."
                         case .connected:
                             discoveryProgress = "Connected!"
-                        case .failure(let reason):
-                            discoveryProgress = "Error: \(reason)"
+                        case .failure(let error):
+                            discoveryProgress = "Failed: \(error.localizedDescription)"
                         case .disconnected:
                             discoveryProgress = "Ready"
                         }
                     }
                 }
             )
+            
+            if Task.isCancelled { return }
                 
             await MainActor.run {
                 networkInfo = info
                 showSuccess = true
             }
+        } catch is CancellationError {
+            // Cancelled
         } catch {
-            await MainActor.run {
-                showError = true
-                errorMessage = "Failed to retrieve network info: \(error.localizedDescription)"
+            if !Task.isCancelled {
+                await MainActor.run {
+                    showError = true
+                    errorMessage = "Failed to retrieve network info: \(error.localizedDescription)"
+                }
             }
         }
     }
