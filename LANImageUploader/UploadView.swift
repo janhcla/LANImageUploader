@@ -302,7 +302,7 @@ struct UploadView: View {
             }
         } catch {
             if let uploadError = error as? ImageUploadService.UploadError {
-                if case .custom(let code) = uploadError, code == "already_exists" {
+                if case .fileAlreadyExists = uploadError {
                     await MainActor.run {
                         duplicateImage = image
                         showDuplicatePrompt = true
@@ -320,53 +320,15 @@ struct UploadView: View {
 
     private func detailForUploadError(_ error: Error, image: CapturedImage) -> UploadFailureDetail {
         if let uploadError = error as? ImageUploadService.UploadError {
-            switch uploadError {
-            case .fileUnreadable:
-                return UploadFailureDetail(
-                    reason: "The image file could not be read.",
-                    guidance: "Remove this item from the queue and capture it again before retrying.",
-                    action: nil
-                )
-            case .dataPreparationFailed:
-                return UploadFailureDetail(
-                    reason: "Unable to prepare the image for upload.",
-                    guidance: "Try removing the image from the queue and capturing it again.",
-                    action: nil
-                )
-            case .passwordMissing:
-                return UploadFailureDetail(
-                    reason: "Your server password is missing.",
-                    guidance: "Open Settings and enter the correct SMB password, then try the upload again.",
-                    action: .openSettings
-                )
-            case .invalidServerURL:
-                return UploadFailureDetail(
-                    reason: "The server address looks invalid.",
-                    guidance: "Double-check the IP address in Settings and correct it if needed.",
-                    action: .openSettings
-                )
-            case .clientInitializationFailed(let host):
-                return UploadFailureDetail(
-                    reason: "Failed to initialise the SMB client for \(host).",
-                    guidance: "Review the server settings and your network connection, then retry the upload.",
-                    action: .openSettings
-                )
-            case .directoryNotFound(let dir):
-                return UploadFailureDetail(
-                    reason: "Target directory '\(dir)' does not exist on the server.",
-                    guidance: "Update the target directory in Settings so it matches an existing folder on the server.",
-                    action: .openSettings
-                )
-            case .smbError(let msg), .custom(let msg):
-                // Fall back to existing string parsing for SMB errors
-                return detailForGenericError(msg, image: image)
-            }
+            return UploadFailureDetail(
+                reason: uploadError.errorDescription ?? "Unknown upload error",
+                guidance: uploadError.guidance,
+                action: uploadError.action
+            )
         }
         
-        return detailForGenericError(error.localizedDescription, image: image)
-    }
-
-    private func detailForGenericError(_ description: String, image: CapturedImage) -> UploadFailureDetail {
+        // Fallback for non-typed errors (should be rare after refactoring)
+        let description = error.localizedDescription
         let lowerDescription = description.lowercased()
 
         if lowerDescription.contains("logon failure") || lowerDescription.contains("access denied") {
