@@ -16,6 +16,6 @@
 - [x] Task: Identify and refactor any remaining direct `.shared` service calls in Views to use the instances provided by `AppData` (where appropriate). [0103bcf]
 - [~] Task: Conductor - User Manual Verification 'Phase 3: Wire Dependencies at App Entry Point' (Protocol in workflow.md)
 
-## Phase 4: Final Integration and Parity Check
+## Phase 4: Final Integration and Parity Check [checkpoint: dc92308]
 - [~] Task: Verify the build and perform a manual end-to-end smoke test (Capture -> Gallery -> Archive -> Upload).
 - [x] Task: Conductor - User Manual Verification 'Phase 4: Final Integration and Parity Check' (Protocol in workflow.md)
