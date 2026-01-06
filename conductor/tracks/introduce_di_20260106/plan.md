@@ -1,6 +1,6 @@
 # Plan: Introduce Dependency Injection and Service Protocols
 
-## Phase 1: Define Service Abstractions
+## Phase 1: Define Service Abstractions [checkpoint: 2bf8d5f]
 - [x] Task: Create protocols for `FileServiceProtocol`, `ImageUploadServiceProtocol`, and `NetworkDiscoveryProtocol`. [e7927ef]
 - [x] Task: Update `FileService`, `ImageUploadService`, and `NetworkDiscovery` to conform to these protocols. [70ad9cd]
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Define Service Abstractions' (Protocol in workflow.md)
