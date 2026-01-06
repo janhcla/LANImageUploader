@@ -81,13 +81,10 @@ struct CameraView: View {
         dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
         let timestamp = dateFormatter.string(from: Date())
         let fileName = "IMG_\(timestamp).jpg"
-        let imagesFolderURL = appData.documentsDirectory.appendingPathComponent("images")
+        
         do {
-            try FileManager.default.createDirectory(
-                at: imagesFolderURL, withIntermediateDirectories: true)
-            let fileURL = imagesFolderURL.appendingPathComponent(fileName)
             if let data = image.jpegData(compressionQuality: 0.8) {
-                try data.write(to: fileURL)
+                let fileURL = try FileService.shared.saveImage(data, fileName: fileName)
                 let captured = CapturedImage(
                     name: fileName.removingSuffix(".jpg"), fileURL: fileURL)
                 appData.images.append(captured)

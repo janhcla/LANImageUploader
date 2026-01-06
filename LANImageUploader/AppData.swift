@@ -108,8 +108,6 @@ class AppData: ObservableObject {
 
     private let passwordKey = "serverPassword"
     private let settingsKey = "serverSettings"
-    private let fileManager = FileManager.default
-    internal let documentsDirectory: URL  // Changed from `private` to `internal`
 
     // Add function to clear naming data
     func clearNamingData() {
@@ -118,7 +116,6 @@ class AppData: ObservableObject {
     }
 
     init() {
-        documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
         self.settings = ServerSettings(
             serverIP: "", shareName: "", targetDirectory: nil, username: "")
         if let savedSettings = loadSettingsFromUserDefaults() {
@@ -128,31 +125,12 @@ class AppData: ObservableObject {
 
     // Save images to a dated folder
     func saveImagesToDatedFolder(for date: Date = Date()) {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        let dateString = formatter.string(from: date)
-        let datedFolderURL = documentsDirectory.appendingPathComponent(dateString)
-
-        var savedCount = 0
-        var alreadySavedCount = 0
-
         do {
-            try fileManager.createDirectory(at: datedFolderURL, withIntermediateDirectories: true)
-            for image in images {
-                let destinationURL = datedFolderURL.appendingPathComponent(
-                    image.fileURL.lastPathComponent)
-                if !fileManager.fileExists(atPath: destinationURL.path) {
-                    try fileManager.copyItem(at: image.fileURL, to: destinationURL)
-                    savedCount += 1
-                } else {
-                    alreadySavedCount += 1
-                }
-            }
+            let (savedCount, alreadySavedCount) = try FileService.shared.archiveImages(images, for: date)
 
             // Update scan status based on results
             if savedCount > 0 && alreadySavedCount > 0 {
-                scanStatus =
-                    "\(savedCount) images saved to archive. \(alreadySavedCount) images were already saved."
+                scanStatus = "\(savedCount) images saved to archive. \(alreadySavedCount) images were already saved."
             } else if savedCount > 0 {
                 scanStatus = "\(savedCount) images saved to archive."
             } else if alreadySavedCount > 0 {
@@ -160,41 +138,19 @@ class AppData: ObservableObject {
             } else {
                 scanStatus = "No images to save."
             }
-
-            print(
-                "Images saved to \(datedFolderURL.path): \(savedCount) new, \(alreadySavedCount) already existed"
-            )
         } catch {
             scanStatus = "Failed to save images: \(error.localizedDescription)"
-            print("Failed to save images: \(error.localizedDescription)")
         }
     }
 
     // Get list of archived dates
     func getArchivedDates() -> [String] {
-        do {
-            let folders = try fileManager.contentsOfDirectory(atPath: documentsDirectory.path)
-            return folders.filter {
-                $0.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil
-            }
-            .sorted(by: >)
-        } catch {
-            print("Failed to get archived dates: \(error)")
-            return []
-        }
+        FileService.shared.getArchivedDates()
     }
 
     // Get image URLs for a specific date
     func getImagesForDate(_ dateString: String) -> [URL] {
-        let datedFolderURL = documentsDirectory.appendingPathComponent(dateString)
-        do {
-            let files = try fileManager.contentsOfDirectory(
-                at: datedFolderURL, includingPropertiesForKeys: nil)
-            return files.filter { ["jpg", "png"].contains($0.pathExtension.lowercased()) }
-        } catch {
-            print("Failed to get images for \(dateString): \(error)")
-            return []
-        }
+        FileService.shared.getImagesForDate(dateString)
     }
 
     func savePassword(_ password: String) throws {

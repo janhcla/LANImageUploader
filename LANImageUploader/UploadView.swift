@@ -253,7 +253,7 @@ struct UploadView: View {
 
     func clearAndDeleteAllImages() {
         for image in appData.images {
-            try? FileManager.default.removeItem(at: image.fileURL)
+            try? FileService.shared.removeItem(at: image.fileURL)
         }
         appData.images.removeAll()
         uploadStatuses.removeAll()

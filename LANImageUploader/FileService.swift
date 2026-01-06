@@ -52,4 +52,61 @@ final class FileService {
     func contentsOfDirectory(atPath path: String) throws -> [String] {
         try fileManager.contentsOfDirectory(atPath: path)
     }
+
+    /// Saves a list of images to a dated folder in the Documents directory.
+    func archiveImages(_ images: [CapturedImage], for date: Date = Date()) throws -> (saved: Int, existing: Int) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let dateString = formatter.string(from: date)
+        let datedFolderURL = documentsDirectory.appendingPathComponent(dateString)
+
+        var savedCount = 0
+        var alreadySavedCount = 0
+
+        try createDirectory(at: datedFolderURL)
+        for image in images {
+            let destinationURL = datedFolderURL.appendingPathComponent(image.fileURL.lastPathComponent)
+            if !fileManager.fileExists(atPath: destinationURL.path) {
+                try fileManager.copyItem(at: image.fileURL, to: destinationURL)
+                savedCount += 1
+            } else {
+                alreadySavedCount += 1
+            }
+        }
+        
+        return (savedCount, alreadySavedCount)
+    }
+
+    /// Gets a list of archived date strings (YYYY-MM-DD).
+    func getArchivedDates() -> [String] {
+        do {
+            let folders = try fileManager.contentsOfDirectory(atPath: documentsDirectory.path)
+            return folders.filter {
+                $0.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil
+            }
+            .sorted(by: >)
+        } catch {
+            return []
+        }
+    }
+
+    /// Gets image URLs for a specific archived date.
+    func getImagesForDate(_ dateString: String) -> [URL] {
+        let datedFolderURL = documentsDirectory.appendingPathComponent(dateString)
+        do {
+            let files = try fileManager.contentsOfDirectory(at: datedFolderURL, includingPropertiesForKeys: nil)
+            return files.filter { ["jpg", "png"].contains($0.pathExtension.lowercased()) }
+        } catch {
+            return []
+        }
+    }
+
+    /// Saves image data to the 'images' folder and returns its URL.
+    func saveImage(_ data: Data, fileName: String) throws -> URL {
+        let imagesFolderURL = documentsDirectory.appendingPathComponent("images")
+        try createDirectory(at: imagesFolderURL)
+        let fileURL = imagesFolderURL.appendingPathComponent(fileName)
+        try data.write(to: fileURL)
+        return fileURL
+    }
 }
