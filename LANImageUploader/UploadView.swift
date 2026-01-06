@@ -327,46 +327,8 @@ struct UploadView: View {
             )
         }
         
-        // Fallback for non-typed errors (should be rare after refactoring)
-        let description = error.localizedDescription
-        let lowerDescription = description.lowercased()
-
-        if lowerDescription.contains("logon failure") || lowerDescription.contains("access denied") {
-            return UploadFailureDetail(
-                reason: "The server rejected the username or password.",
-                guidance: "Open Settings and verify the credentials before trying again.",
-                action: .openSettings
-            )
-        }
-
-        if lowerDescription.contains("bad network name") || lowerDescription.contains("tree connect failed") {
-            return UploadFailureDetail(
-                reason: "The share '\(appData.settings.shareName)' could not be reached.",
-                guidance: "Make sure the share name is correct in Settings and that it is accessible from this network.",
-                action: .openSettings
-            )
-        }
-
-        if lowerDescription.contains("no such file") || lowerDescription.contains("not found") || lowerDescription.contains("does not exist") {
-            return UploadFailureDetail(
-                reason: description,
-                guidance: "Confirm the share and optional target directory exist on the server, then update Settings if needed.",
-                action: .openSettings
-            )
-        }
-
-        if lowerDescription.contains("timed out") || lowerDescription.contains("timeout") ||
-            lowerDescription.contains("could not connect") || lowerDescription.contains("host is down") ||
-            lowerDescription.contains("network is unreachable") {
-            return UploadFailureDetail(
-                reason: "Cannot reach the server at \(appData.settings.serverIP).",
-                guidance: "Check that both devices are on the same network and that the server is powered on.",
-                action: nil
-            )
-        }
-
         return UploadFailureDetail(
-            reason: "Upload failed: \(description)",
+            reason: "Upload failed: \(error.localizedDescription)",
             guidance: "Review the server settings and your network connection, then retry the upload.",
             action: .openSettings
         )
