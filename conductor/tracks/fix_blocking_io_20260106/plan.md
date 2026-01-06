@@ -15,5 +15,5 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Update UI and AppState for Async I/O' (Protocol in workflow.md)
 
 ## Phase 4: Final Verification and Smoke Test
-- [ ] Task: Build the project and perform a manual sanity check.
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Final Verification and Smoke Test' (Protocol in workflow.md)
+- [x] Task: Build the project and perform a manual sanity check. [de8df19]
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Final Verification and Smoke Test' (Protocol in workflow.md)
