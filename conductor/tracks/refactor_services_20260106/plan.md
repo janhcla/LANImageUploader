@@ -15,7 +15,7 @@
 - [x] Task: Update `UploadView` to interact solely with the service and `AppData` status. [54b0dd9]
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Refactoring Upload Logic' (Protocol in workflow.md)
 
-## Phase 4: Final Cleanup and Integration
+## Phase 4: Final Cleanup and Integration [checkpoint: 320abd2]
 - [~] Task: Remove redundant I/O methods and imports from `AppData` and Views.
 - [x] Task: Perform a full end-to-end manual test of the Capture -> Gallery -> Archive -> Upload flow. [f16805f]
 - [x] Task: Conductor - User Manual Verification 'Phase 4: Final Cleanup and Integration' (Protocol in workflow.md)
