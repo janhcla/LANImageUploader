@@ -43,4 +43,8 @@ actor FileActor {
     func contentsOfDirectory(atPath path: String) throws -> [String] {
         try fileManager.contentsOfDirectory(atPath: path)
     }
+    
+    func write(data: Data, to url: URL) throws {
+        try data.write(to: url)
+    }
 }
