@@ -11,6 +11,6 @@
 - [x] Task: Update `ArchiveView.swift` to use `Constants.UserDefaults` and `Constants.Notifications`. [40261c7]
 - [~] Task: Conductor - User Manual Verification 'Phase 2: Refactor Codebase to Use Constants' (Protocol in workflow.md)
 
-## Phase 3: Final Verification
+## Phase 3: Final Verification [checkpoint: 1749f43]
 - [x] Task: Perform a final build and quick sanity check to ensure no regressions. [40261c7]
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Final Verification' (Protocol in workflow.md)
