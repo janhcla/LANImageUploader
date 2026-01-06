@@ -11,9 +11,9 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Refactoring Gallery and Archive Logic' (Protocol in workflow.md)
 
 ## Phase 3: Refactoring Upload Logic
-- [ ] Task: Relocate SMB connection and upload logic from `UploadView` to `ImageUploadService`.
-- [ ] Task: Update `UploadView` to interact solely with the service and `AppData` status.
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Refactoring Upload Logic' (Protocol in workflow.md)
+- [x] Task: Relocate SMB connection and upload logic from `UploadView` to `ImageUploadService`. [54b0dd9]
+- [x] Task: Update `UploadView` to interact solely with the service and `AppData` status. [54b0dd9]
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Refactoring Upload Logic' (Protocol in workflow.md)
 
 ## Phase 4: Final Cleanup and Integration
 - [ ] Task: Remove redundant I/O methods and imports from `AppData` and Views.
