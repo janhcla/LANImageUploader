@@ -15,6 +15,6 @@
 - [x] Task: Remove `detailForGenericError` and all string-parsing code. [7bc1996]
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Update UploadView and UI' (Protocol in workflow.md)
 
-## Phase 4: Final Verification
+## Phase 4: Final Verification [checkpoint: 57401e2]
 - [x] Task: Build the project and perform manual verification of common error states. [7bc1996]
 - [x] Task: Conductor - User Manual Verification 'Phase 4: Final Verification' (Protocol in workflow.md)
