@@ -43,8 +43,9 @@
 		                                A1F11E652D68B563001D57FD /* FileServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E622D68B563001D57FD /* FileServiceProtocol.swift */; };
 		                                A1F11E662D68B563001D57FD /* ImageUploadServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E632D68B563001D57FD /* ImageUploadServiceProtocol.swift */; };
 		                                                A1F11E672D68B563001D57FD /* NetworkDiscoveryProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E642D68B563001D57FD /* NetworkDiscoveryProtocol.swift */; };
-		                                                A1F11E692D68B563001D57FD /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E682D68B563001D57FD /* Constants.swift */; };
-		                                /* End PBXBuildFile section *//* Begin PBXContainerItemProxy section */
+		                                                                A1F11E692D68B563001D57FD /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E682D68B563001D57FD /* Constants.swift */; };
+		                                                                A1F11E6B2D68B563001D57FD /* FileActor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E6A2D68B563001D57FD /* FileActor.swift */; };
+		                                                /* End PBXBuildFile section *//* Begin PBXContainerItemProxy section */
 		8EC4E84D2D68B564001D57FD /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 8EC4E8342D68B563001D57FD /* Project object */;
@@ -114,8 +115,9 @@
 		                                A1F11E622D68B563001D57FD /* FileServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/FileServiceProtocol.swift; sourceTree = "<group>"; };
 		                                A1F11E632D68B563001D57FD /* ImageUploadServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/ImageUploadServiceProtocol.swift; sourceTree = "<group>"; };
 		                                                A1F11E642D68B563001D57FD /* NetworkDiscoveryProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/NetworkDiscoveryProtocol.swift; sourceTree = "<group>"; };
-		                                                A1F11E682D68B563001D57FD /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
-		                                /* End PBXFileReference section *//* Begin PBXFrameworksBuildPhase section */
+		                                                                A1F11E682D68B563001D57FD /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		                                                                A1F11E6A2D68B563001D57FD /* FileActor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/FileActor.swift; sourceTree = "<group>"; };
+		                                                /* End PBXFileReference section *//* Begin PBXFrameworksBuildPhase section */
 		8EC4E8392D68B563001D57FD /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -183,8 +185,9 @@
 				                                                                A1F11E622D68B563001D57FD /* FileServiceProtocol.swift */,
 				                                                                A1F11E632D68B563001D57FD /* ImageUploadServiceProtocol.swift */,
 				                                                                                                A1F11E642D68B563001D57FD /* NetworkDiscoveryProtocol.swift */,
-				                                                                                                A1F11E682D68B563001D57FD /* Constants.swift */,
-				                                                                                                3DB36FDF2D98046E003D8E4A /* Preview Content */,			);
+				                                                                                                                                A1F11E682D68B563001D57FD /* Constants.swift */,
+				                                                                                                                                A1F11E6A2D68B563001D57FD /* FileActor.swift */,
+				                                                                                                                                3DB36FDF2D98046E003D8E4A /* Preview Content */,			);
 			path = LANImageUploader;
 			sourceTree = "<group>";
 		};
@@ -404,8 +407,9 @@
 				                                                                A1F11E652D68B563001D57FD /* FileServiceProtocol.swift in Sources */,
 				                                                                A1F11E662D68B563001D57FD /* ImageUploadServiceProtocol.swift in Sources */,
 				                                                                                                A1F11E672D68B563001D57FD /* NetworkDiscoveryProtocol.swift in Sources */,
-				                                                                                                A1F11E692D68B563001D57FD /* Constants.swift in Sources */,
-				                                                                                        );			runOnlyForDeploymentPostprocessing = 0;
+				                                                                                                                                A1F11E692D68B563001D57FD /* Constants.swift in Sources */,
+				                                                                                                                                A1F11E6B2D68B563001D57FD /* FileActor.swift in Sources */,
+				                                                                                                                        );			runOnlyForDeploymentPostprocessing = 0;
 		};
 		8EC4E8482D68B564001D57FD /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
