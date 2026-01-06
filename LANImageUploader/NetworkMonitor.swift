@@ -46,7 +46,7 @@ final class NetworkMonitor: @unchecked Sendable {
         isConnected = newValue
         print("Network connection state changed to: \(isConnected)")
         // Post notification when network state changes
-        NotificationCenter.default.post(name: Constants.Notifications.networkStatusChanged, object: nil)
+        NotificationCenter.default.post(name:.networkStatusChanged, object: nil)
     }
     
     @MainActor
@@ -86,7 +86,7 @@ final class NetworkMonitor: @unchecked Sendable {
             
             // Now create the observer
             observer = NotificationCenter.default.addObserver(
-                forName: Constants.Notifications.networkStatusChanged,
+                forName:.networkStatusChanged,
                 object: nil,
                 queue: .main
             ) { [weak self] _ in

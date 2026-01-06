@@ -8,7 +8,10 @@
 import Foundation
 import Network
 
-protocol NetworkDiscoveryProtocol: MainActor {
+@MainActor
+protocol NetworkDiscoveryProtocol: Sendable {
+    var networkMonitor: NetworkMonitor { get }
+    
     func retrieveNetworkInfo(
         targetFolder: String,
         username: String,

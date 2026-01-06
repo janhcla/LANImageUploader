@@ -113,8 +113,10 @@ struct LANImageUploaderApp: App {
         task.expirationHandler = {
             print("Task expired before completion")
         }
-        appData.saveImagesToDatedFolder()
-        task.setTaskCompleted(success: true)
+        Task {
+            await appData.saveImagesToDatedFolder()
+            task.setTaskCompleted(success: true)
+        }
     }
 
     private func scheduleDailyImageSave() {

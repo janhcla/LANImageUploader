@@ -137,33 +137,37 @@ class AppData: ObservableObject {
     }
 
     // Save images to a dated folder
-    func saveImagesToDatedFolder(for date: Date = Date()) {
+    func saveImagesToDatedFolder(for date: Date = Date()) async {
         do {
-            let (savedCount, alreadySavedCount) = try fileService.archiveImages(images, for: date)
+            let (savedCount, alreadySavedCount) = try await fileService.archiveImages(images, for: date)
 
             // Update scan status based on results
-            if savedCount > 0 && alreadySavedCount > 0 {
-                scanStatus = "\(savedCount) images saved to archive. \(alreadySavedCount) images were already saved."
-            } else if savedCount > 0 {
-                scanStatus = "\(savedCount) images saved to archive."
-            } else if alreadySavedCount > 0 {
-                scanStatus = "All images were already saved to archive."
-            } else {
-                scanStatus = "No images to save."
+            await MainActor.run {
+                if savedCount > 0 && alreadySavedCount > 0 {
+                    scanStatus = "\(savedCount) images saved to archive. \(alreadySavedCount) images were already saved."
+                } else if savedCount > 0 {
+                    scanStatus = "\(savedCount) images saved to archive."
+                } else if alreadySavedCount > 0 {
+                    scanStatus = "All images were already saved to archive."
+                } else {
+                    scanStatus = "No images to save."
+                }
             }
         } catch {
-            scanStatus = "Failed to save images: \(error.localizedDescription)"
+            await MainActor.run {
+                scanStatus = "Failed to save images: \(error.localizedDescription)"
+            }
         }
     }
 
     // Get list of archived dates
-    func getArchivedDates() -> [String] {
-        fileService.getArchivedDates()
+    func getArchivedDates() async -> [String] {
+        await fileService.getArchivedDates()
     }
 
     // Get image URLs for a specific date
-    func getImagesForDate(_ dateString: String) -> [URL] {
-        fileService.getImagesForDate(dateString)
+    func getImagesForDate(_ dateString: String) async -> [URL] {
+        await fileService.getImagesForDate(dateString)
     }
 
     func savePassword(_ password: String) throws {

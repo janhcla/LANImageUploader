@@ -51,7 +51,9 @@ struct CameraView: View {
                 }
                 .onChange(of: capturedImage) {
                     if let image = capturedImage {
-                        saveImage(image: image)
+                        Task {
+                            await saveImage(image: image)
+                        }
                         capturedImage = nil
                         UINotificationFeedbackGenerator().notificationOccurred(.success)
                     }
@@ -76,7 +78,7 @@ struct CameraView: View {
         }
     }
 
-    func saveImage(image: UIImage) {
+    func saveImage(image: UIImage) async {
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
         let timestamp = dateFormatter.string(from: Date())
@@ -84,19 +86,23 @@ struct CameraView: View {
         
         do {
             if let data = image.jpegData(compressionQuality: 0.8) {
-                let fileURL = try appData.fileService.saveImage(data, fileName: fileName)
+                let fileURL = try await appData.fileService.saveImage(data, fileName: fileName)
                 let captured = CapturedImage(
                     name: fileName.removingSuffix(".jpg"), fileURL: fileURL)
-                appData.images.append(captured)
+                await MainActor.run {
+                    appData.images.append(captured)
+                }
             }
         } catch {
-            showError = true
-            errorMessage = "Failed to save image: \(error.localizedDescription)"
+            await MainActor.run {
+                showError = true
+                errorMessage = "Failed to save image: \(error.localizedDescription)"
+            }
         }
     }
 }
 
 #Preview {
     CameraView()
-        .environmentObject(AppData())
+        .environmentObject(AppData.preview)
 }

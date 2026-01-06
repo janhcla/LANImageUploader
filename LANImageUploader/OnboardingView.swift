@@ -625,5 +625,5 @@ struct NetworkSetupView: View {
 
 #Preview {
     OnboardingView()
-        .environmentObject(AppData())
+        .environmentObject(AppData.preview)
 }

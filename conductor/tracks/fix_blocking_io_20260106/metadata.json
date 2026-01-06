@@ -1,0 +1,8 @@
+{
+  "track_id": "fix_blocking_io_20260106",
+  "type": "refactor",
+  "status": "new",
+  "created_at": "2026-01-06T21:25:00Z",
+  "updated_at": "2026-01-06T21:25:00Z",
+  "description": "Fix Blocking I/O by moving file operations to background actors."
+}

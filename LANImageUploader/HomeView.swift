@@ -141,5 +141,5 @@ struct HomeView: View {
 
 #Preview {
     HomeView()
-        .environmentObject(AppData())
+        .environmentObject(AppData.preview)
 }

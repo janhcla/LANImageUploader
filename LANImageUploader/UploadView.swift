@@ -141,7 +141,9 @@ struct UploadView: View {
                 .safeAreaInset(edge: .bottom) {
                     if areAllUploadsSuccessful {
                         Button("Clear queue & delete all images", role: .destructive) {
-                            clearAndDeleteAllImages()
+                            Task {
+                                await clearAndDeleteAllImages()
+                            }
                         }
                         .frame(maxWidth: .infinity)
                         .padding()
@@ -250,16 +252,18 @@ struct UploadView: View {
         }
     }
 
-    func clearAndDeleteAllImages() {
+    func clearAndDeleteAllImages() async {
         for image in appData.images {
-            try? appData.fileService.removeItem(at: image.fileURL)
+            try? await appData.fileService.removeItem(at: image.fileURL)
         }
-        appData.images.removeAll()
-        uploadStatuses.removeAll()
-        uploadTasks.removeAll()
-        areAllUploadsSuccessful = false
-        appData.clearNamingData()
-        showClearSuccess = true
+        await MainActor.run {
+            appData.images.removeAll()
+            uploadStatuses.removeAll()
+            uploadTasks.removeAll()
+            areAllUploadsSuccessful = false
+            appData.clearNamingData()
+            showClearSuccess = true
+        }
     }
 
     func uploadImage(_ image: CapturedImage, overwrite: Bool = false) async {
@@ -455,5 +459,5 @@ struct SuccessBanner: View {
 
 #Preview {
     UploadView()
-        .environmentObject(AppData())
+        .environmentObject(AppData.preview)
 }

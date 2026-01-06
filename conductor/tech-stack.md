@@ -17,3 +17,6 @@
 
 ## Architecture
 - **Single Source of Truth:** `AppData` (ObservableObject) injected via `.environmentObject` manages global app state.
+- **Service Layer:** Dedicated services (`FileService`, `ImageUploadService`, `NetworkDiscovery`) encapsulate I/O and networking logic.
+- **Dependency Injection:** Services are abstracted via protocols (`FileServiceProtocol`, etc.) and injected into `AppData` via constructor injection to enable unit testing and decoupling.
+- **Centralized Constants:** A project-wide `Constants` namespace ensures type-safe access to UserDefaults keys, Keychain accounts, Notification names, and background task identifiers.

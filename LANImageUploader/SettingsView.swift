@@ -493,5 +493,5 @@ extension View {
 
 #Preview {
     SettingsView()
-        .environmentObject(AppData())
+        .environmentObject(AppData.preview)
 }

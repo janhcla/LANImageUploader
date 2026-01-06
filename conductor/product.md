@@ -14,3 +14,4 @@ LANImageUploader is a privacy-focused SwiftUI iOS app for capturing professional
 - **Professional Image Capture:** High-quality camera integration with immediate local storage in the app's secure container.
 - **Local Gallery Management:** Comprehensive on-device management including renaming, batch renaming, and deletion of captured images.
 - **SMB Upload Engine:** Reliable transfer of queued images to configured SMB shares, supporting professional-grade networking requirements.
+- **Network Discovery:** Interactive discovery of SMB servers and shares via Bonjour and subnet scanning, providing real-time status and robust error guidance.

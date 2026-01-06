@@ -1163,5 +1163,5 @@ struct DiscoveryResultsView: View {
 
 #Preview {
     DiscoveryResultsView(username: "", password: "", port: nil, onSelect: { _ in })
-        .environmentObject(AppData())
+        .environmentObject(AppData.preview)
 }
