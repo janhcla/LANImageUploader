@@ -16,6 +16,6 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Refactoring Upload Logic' (Protocol in workflow.md)
 
 ## Phase 4: Final Cleanup and Integration
-- [ ] Task: Remove redundant I/O methods and imports from `AppData` and Views.
-- [ ] Task: Perform a full end-to-end manual test of the Capture -> Gallery -> Archive -> Upload flow.
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Final Cleanup and Integration' (Protocol in workflow.md)
+- [~] Task: Remove redundant I/O methods and imports from `AppData` and Views.
+- [x] Task: Perform a full end-to-end manual test of the Capture -> Gallery -> Archive -> Upload flow. [f16805f]
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Final Cleanup and Integration' (Protocol in workflow.md)
