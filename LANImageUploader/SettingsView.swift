@@ -19,7 +19,6 @@ struct SettingsView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showSuccess = false
-    @State private var showHelpGuide = false
     @State private var showWarning = false
     @State private var isFirstSetup = true
     @State private var showAutoFillOption = false
@@ -33,7 +32,19 @@ struct SettingsView: View {
     @State private var isKeyboardVisible = false
     @State private var directIPInput = ""
     @State private var discoveryTask: Task<Void, Never>? = nil
-    @State private var showDiscoveryResults = false
+    @State private var activeSheet: SettingsSheet? = nil
+
+    private enum SettingsSheet: Identifiable {
+        case helpGuide
+        case discovery
+
+        var id: Int {
+            switch self {
+            case .helpGuide: return 0
+            case .discovery: return 1
+            }
+        }
+    }
 
     var isSetupComplete: Bool {
         !appData.settings.serverIP.isEmpty && !appData.settings.shareName.isEmpty &&
@@ -68,7 +79,7 @@ struct SettingsView: View {
         .navigationTitle("Settings")
         .toolbar {
             ToolbarItem(placement: .automatic) {
-                Button("Help") { showHelpGuide = true }
+                Button("Help") { activeSheet = .helpGuide }
             }
         }
         .onAppear(perform: loadSettings)
@@ -110,9 +121,6 @@ struct SettingsView: View {
         } message: {
             Text("Enter the IP address of your SMB server.\n\nYou can typically find this in your router's connected devices list or by checking the server's network settings.")
         }
-        .sheet(isPresented: $showHelpGuide) {
-            HelpGuideView()
-        }
         .onReceive(Publishers.keyboardVisibility) { isVisible in
             isKeyboardVisible = isVisible
         }
@@ -133,6 +141,25 @@ struct SettingsView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 5)
+            }
+        }
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .helpGuide:
+                HelpGuideView()
+            case .discovery:
+                DiscoveryResultsView(
+                    username: username,
+                    password: password,
+                    port: Int(port),
+                    onSelect: { info in
+                        serverIP = info.serverIP
+                        shareName = info.shareName
+                        isFirstSetup = false
+                        showSuccess = true
+                    }
+                )
+                .environmentObject(appData)
             }
         }
     }
@@ -171,7 +198,7 @@ struct SettingsView: View {
                 }
 
                 Button("Browse Network for Servers") {
-                    showDiscoveryResults = true
+                    activeSheet = .discovery
                 }
                 .disabled(!canAutoFill)
                 .foregroundStyle(canAutoFill ? .blue : .gray)
@@ -188,20 +215,6 @@ struct SettingsView: View {
                 }
                 .foregroundStyle(.blue)
             }
-        }
-        .sheet(isPresented: $showDiscoveryResults) {
-            DiscoveryResultsView(
-                username: username,
-                password: password,
-                port: Int(port),
-                onSelect: { info in
-                    serverIP = info.serverIP
-                    shareName = info.shareName
-                    isFirstSetup = false
-                    showSuccess = true
-                }
-            )
-            .environmentObject(appData)
         }
         .alert("Confirm Auto-Fill", isPresented: $showAutoFillConfirmation) {
             Button("Cancel", role: .cancel) {

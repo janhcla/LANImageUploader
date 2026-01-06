@@ -27,6 +27,8 @@ struct LANImageUploaderApp: App {
     @State private var isShowingLaunchScreen = true
 
     init() {
+        _ = NetworkMonitor.shared
+
         // Register the background task without 'weak' for struct (value type)
         BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.janhagenclausen.LANImageUploader.dailyImageSave", using: nil) { [self] task in
             handleAppRefreshTask(task: task as! BGAppRefreshTask)
