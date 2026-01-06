@@ -5,14 +5,14 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Background Actor Implementation' (Protocol in workflow.md)
 
 ## Phase 2: Refactor FileService for Asynchronous Operations
-- [ ] Task: Update `FileServiceProtocol` to make heavy I/O methods `async`.
-- [ ] Task: Update `FileService` implementation to use `FileActor` for archiving, saving, and deleting.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Refactor FileService for Asynchronous Operations' (Protocol in workflow.md)
+- [x] Task: Update `FileServiceProtocol` to make heavy I/O methods `async`. [7b9e10d]
+- [x] Task: Update `FileService` implementation to use `FileActor` for archiving, saving, and deleting. [7b9e10d]
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Refactor FileService for Asynchronous Operations' (Protocol in workflow.md)
 
 ## Phase 3: Update UI and AppState for Async I/O
-- [ ] Task: Refactor `AppData.saveImagesToDatedFolder` to use `await`.
-- [ ] Task: Update `GalleryView` and `ArchiveView` to wrap file operations in asynchronous `Task` blocks.
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Update UI and AppState for Async I/O' (Protocol in workflow.md)
+- [x] Task: Refactor `AppData.saveImagesToDatedFolder` to use `await`. [7b9e10d]
+- [x] Task: Update `GalleryView` and `ArchiveView` to wrap file operations in asynchronous `Task` blocks. [7b9e10d]
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Update UI and AppState for Async I/O' (Protocol in workflow.md)
 
 ## Phase 4: Final Verification and Smoke Test
 - [ ] Task: Build the project and perform a manual sanity check.
