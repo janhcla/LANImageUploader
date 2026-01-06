@@ -264,30 +264,6 @@ struct UploadView: View {
     }
 
     func uploadImage(_ image: CapturedImage, overwrite: Bool = false) async {
-        guard let originalImage = UIImage(contentsOfFile: image.fileURL.path) else {
-            await presentFailure(
-                UploadFailureDetail(
-                    reason: "The image file could not be read.",
-                    guidance: "Remove this item from the queue and capture it again before retrying.",
-                    action: nil
-                ),
-                for: image
-            )
-            return
-        }
-
-        guard let imageData = originalImage.jpegData(compressionQuality: 1.0) else {
-            await presentFailure(
-                UploadFailureDetail(
-                    reason: "Unable to prepare the image for upload.",
-                    guidance: "Try removing the image from the queue and capturing it again.",
-                    action: nil
-                ),
-                for: image
-            )
-            return
-        }
-
         guard let password = appData.getPassword() else {
             await presentFailure(
                 UploadFailureDetail(
@@ -300,124 +276,95 @@ struct UploadView: View {
             return
         }
 
-        guard let serverURL = URL(string: "smb://\(appData.settings.serverIP)") else {
-            await presentFailure(
-                UploadFailureDetail(
-                    reason: "The server address looks invalid.",
-                    guidance: "Double-check the IP address in Settings and correct it if needed.",
-                    action: .openSettings
-                ),
-                for: image
-            )
-            return
-        }
-
         await MainActor.run {
             uploadStatuses[image.id] = .uploading(0)
             uploadTasks[image.id] = true
         }
 
-        var client: SMB2Manager?
-
         do {
-            guard let createdClient = SMB2Manager(
-                url: serverURL,
-                credential: URLCredential(
-                    user: appData.settings.username,
-                    password: password,
-                    persistence: .forSession
-                )
-            ) else {
-                throw NSError(
-                    domain: "UploadView",
-                    code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "Failed to initialise the SMB client for \(appData.settings.serverIP)."]
-                )
-            }
-            client = createdClient
-
-            try await createdClient.connectShare(name: appData.settings.shareName)
-
-            let targetDir = appData.settings.targetDirectory?.trimmingCharacters(in: .init(charactersIn: "/\\")) ?? ""
-            let destinationPath = targetDir.isEmpty ? "\(image.name).jpg" : "\(targetDir)/\(image.name).jpg"
-
-            if !overwrite {
-                let parentPath = targetDir.isEmpty ? "" : targetDir
-                do {
-                    let contents = try await createdClient.contentsOfDirectory(atPath: parentPath)
-                    if contents.contains(where: { $0.name == "\(image.name).jpg" }) {
-                        await MainActor.run {
-                            duplicateImage = image
-                            showDuplicatePrompt = true
-                            uploadTasks.removeValue(forKey: image.id)
-                            uploadStatuses[image.id] = .idle
-                        }
-                        try? await createdClient.disconnectShare()
-                        return
-                    }
-                } catch {
-                    // If parentPath doesn't exist, we'll handle it below
-                }
-            }
-
-            if !targetDir.isEmpty {
-                do {
-                    _ = try await createdClient.contentsOfDirectory(atPath: targetDir)
-                } catch {
-                    throw NSError(
-                        domain: "SMBError",
-                        code: -4,
-                        userInfo: [
-                            NSLocalizedDescriptionKey: "Target directory '\(targetDir)' does not exist on the server."
-                        ]
-                    )
-                }
-            }
-
-            try await createdClient.write(data: imageData, toPath: destinationPath) { progressBytes in
-                let totalSize = Double(imageData.count)
-                let progressFraction = totalSize > 0 ? Double(progressBytes) / totalSize : 0.0
+            try await ImageUploadService.shared.upload(
+                image: image,
+                settings: appData.settings,
+                password: password,
+                overwrite: overwrite
+            ) { progress in
                 DispatchQueue.main.async {
-                    uploadStatuses[image.id] = .uploading(progressFraction)
+                    uploadStatuses[image.id] = .uploading(progress)
                 }
-                return true
             }
 
             await MainActor.run {
                 uploadStatuses[image.id] = .success
                 uploadTasks.removeValue(forKey: image.id)
             }
-
-            try? await createdClient.disconnectShare()
         } catch {
-            if let client {
-                try? await client.disconnectShare()
+            if let uploadError = error as? ImageUploadService.UploadError {
+                if case .custom(let code) = uploadError, code == "already_exists" {
+                    await MainActor.run {
+                        duplicateImage = image
+                        showDuplicatePrompt = true
+                        uploadTasks.removeValue(forKey: image.id)
+                        uploadStatuses[image.id] = .idle
+                    }
+                    return
+                }
             }
+            
             let detail = detailForUploadError(error, image: image)
             await presentFailure(detail, for: image, clearTask: true)
         }
     }
 
     private func detailForUploadError(_ error: Error, image: CapturedImage) -> UploadFailureDetail {
-        let nsError = error as NSError
-        let description = nsError.localizedDescription
+        if let uploadError = error as? ImageUploadService.UploadError {
+            switch uploadError {
+            case .fileUnreadable:
+                return UploadFailureDetail(
+                    reason: "The image file could not be read.",
+                    guidance: "Remove this item from the queue and capture it again before retrying.",
+                    action: nil
+                )
+            case .dataPreparationFailed:
+                return UploadFailureDetail(
+                    reason: "Unable to prepare the image for upload.",
+                    guidance: "Try removing the image from the queue and capturing it again.",
+                    action: nil
+                )
+            case .passwordMissing:
+                return UploadFailureDetail(
+                    reason: "Your server password is missing.",
+                    guidance: "Open Settings and enter the correct SMB password, then try the upload again.",
+                    action: .openSettings
+                )
+            case .invalidServerURL:
+                return UploadFailureDetail(
+                    reason: "The server address looks invalid.",
+                    guidance: "Double-check the IP address in Settings and correct it if needed.",
+                    action: .openSettings
+                )
+            case .clientInitializationFailed(let host):
+                return UploadFailureDetail(
+                    reason: "Failed to initialise the SMB client for \(host).",
+                    guidance: "Review the server settings and your network connection, then retry the upload.",
+                    action: .openSettings
+                )
+            case .directoryNotFound(let dir):
+                return UploadFailureDetail(
+                    reason: "Target directory '\(dir)' does not exist on the server.",
+                    guidance: "Update the target directory in Settings so it matches an existing folder on the server.",
+                    action: .openSettings
+                )
+            case .smbError(let msg), .custom(let msg):
+                // Fall back to existing string parsing for SMB errors
+                return detailForGenericError(msg, image: image)
+            }
+        }
+        
+        return detailForGenericError(error.localizedDescription, image: image)
+    }
+
+    private func detailForGenericError(_ description: String, image: CapturedImage) -> UploadFailureDetail {
         let lowerDescription = description.lowercased()
-
-        if lowerDescription.contains("already exists") {
-            return UploadFailureDetail(
-                reason: "File '\(image.name).jpg' already exists on the server.",
-                guidance: "Choose Rename or Overwrite when prompted before retrying the upload.",
-                action: nil
-            )
-        }
-
-        if nsError.domain == "SMBError" {
-            return UploadFailureDetail(
-                reason: description,
-                guidance: "Update the target directory in Settings so it matches an existing folder on the server.",
-                action: .openSettings
-            )
-        }
 
         if lowerDescription.contains("logon failure") || lowerDescription.contains("access denied") {
             return UploadFailureDetail(
@@ -449,14 +396,6 @@ struct UploadView: View {
             return UploadFailureDetail(
                 reason: "Cannot reach the server at \(appData.settings.serverIP).",
                 guidance: "Check that both devices are on the same network and that the server is powered on.",
-                action: nil
-            )
-        }
-
-        if nsError.domain == NSURLErrorDomain {
-            return UploadFailureDetail(
-                reason: "Network error (code \(nsError.code)).",
-                guidance: "Check your Wi-Fi connection and server availability, then try again.",
                 action: nil
             )
         }
