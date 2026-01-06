@@ -5,7 +5,6 @@
 //  Created by Jan Hagen Clausen on 21/02/2025.
 //
 
-import AMSMB2
 import SwiftUI
 
 struct UploadView: View {
