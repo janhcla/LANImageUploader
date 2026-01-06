@@ -8,7 +8,7 @@
 ## Phase 2: Refactoring Gallery and Archive Logic
 - [x] Task: Migrate archiving and saving logic from `AppData` to `FileService`. [c48fe23]
 - [x] Task: Refactor `GalleryView` to use `FileService` for deletion and renaming. [c48fe23]
-- [~] Task: Conductor - User Manual Verification 'Phase 2: Refactoring Gallery and Archive Logic' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Refactoring Gallery and Archive Logic' (Protocol in workflow.md)
 
 ## Phase 3: Refactoring Upload Logic
 - [ ] Task: Relocate SMB connection and upload logic from `UploadView` to `ImageUploadService`.
