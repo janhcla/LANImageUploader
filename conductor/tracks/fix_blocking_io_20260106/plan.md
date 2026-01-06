@@ -4,7 +4,7 @@
 - [x] Task: Create `LANImageUploader/Services/FileActor.swift` to handle low-level I/O on a background thread. [ab44b56]
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Background Actor Implementation' (Protocol in workflow.md)
 
-## Phase 2: Refactor FileService for Asynchronous Operations
+## Phase 2: Refactor FileService for Asynchronous Operations [checkpoint: a3d5bf6]
 - [x] Task: Update `FileServiceProtocol` to make heavy I/O methods `async`. [7b9e10d]
 - [x] Task: Update `FileService` implementation to use `FileActor` for archiving, saving, and deleting. [7b9e10d]
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Refactor FileService for Asynchronous Operations' (Protocol in workflow.md)
