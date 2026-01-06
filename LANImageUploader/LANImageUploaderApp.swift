@@ -134,7 +134,15 @@ struct LANImageUploaderApp: App {
             try BGTaskScheduler.shared.submit(request)
             print("Scheduled daily image save for \(request.earliestBeginDate?.description ?? "unknown")")
         } catch {
-            print("Failed to schedule daily image save: \(error)")
+            if let bgError = error as? BGTaskScheduler.Error, bgError.code == .unavailable {
+                #if targetEnvironment(simulator)
+                print("Background task scheduling is unavailable on Simulator. This is expected.")
+                #else
+                print("Failed to schedule daily image save: Background tasks unavailable.")
+                #endif
+            } else {
+                print("Failed to schedule daily image save: \(error)")
+            }
         }
     }
 }
