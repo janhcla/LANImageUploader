@@ -5,7 +5,7 @@
 - [x] Task: Add user-facing guidance properties to `UploadError`. [ab44b56]
 - [~] Task: Conductor - User Manual Verification 'Phase 1: Error Type Enhancement' (Protocol in workflow.md)
 
-## Phase 2: Refactor Mapping Logic
+## Phase 2: Refactor Mapping Logic [checkpoint: 4229b95]
 - [x] Task: Implement a robust `mapUnderlyingError` function in `ImageUploadService` that checks `NSError` domains (`NSPOSIXErrorDomain`, `NSURLErrorDomain`, `AMSMB2ErrorDomain`) and codes. [1e015e8]
 - [x] Task: Update `ImageUploadService.upload` to use this mapping for all caught exceptions. [1e015e8]
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Refactor Mapping Logic' (Protocol in workflow.md)
