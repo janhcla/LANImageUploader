@@ -10,7 +10,7 @@ import AMSMB2
 import UIKit
 
 /// Service responsible for uploading images to an SMB share.
-final class ImageUploadService {
+final class ImageUploadService: ImageUploadServiceProtocol {
     static let shared = ImageUploadService()
     
     private init() {}

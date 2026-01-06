@@ -8,7 +8,7 @@
 import Foundation
 
 /// Service responsible for all local file system operations.
-final class FileService {
+final class FileService: FileServiceProtocol {
     static let shared = FileService()
     private let fileManager = FileManager.default
     

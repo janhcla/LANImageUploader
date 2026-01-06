@@ -52,7 +52,7 @@ public enum ConnectionError: LocalizedError, Equatable, Sendable {
 
 // MARK: - Main Class Definition
 @MainActor
-final class NetworkDiscovery {
+final class NetworkDiscovery: NetworkDiscoveryProtocol {
     static let shared = NetworkDiscovery()
     private init() {}
     
