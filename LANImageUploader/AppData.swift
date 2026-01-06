@@ -108,14 +108,21 @@ class AppData: ObservableObject {
 
     private let passwordKey = "serverPassword"
     private let settingsKey = "serverSettings"
+    
+    // Injected Services
+    internal let fileService: FileServiceProtocol
+    internal let uploadService: ImageUploadServiceProtocol
+    internal let discoveryService: NetworkDiscoveryProtocol
 
-    // Add function to clear naming data
-    func clearNamingData() {
-        imageName = ""
-        ocrText = ""
-    }
-
-    init() {
+    init(
+        fileService: FileServiceProtocol,
+        uploadService: ImageUploadServiceProtocol,
+        discoveryService: NetworkDiscoveryProtocol
+    ) {
+        self.fileService = fileService
+        self.uploadService = uploadService
+        self.discoveryService = discoveryService
+        
         self.settings = ServerSettings(
             serverIP: "", shareName: "", targetDirectory: nil, username: "")
         if let savedSettings = loadSettingsFromUserDefaults() {
@@ -123,10 +130,16 @@ class AppData: ObservableObject {
         }
     }
 
+    // Add function to clear naming data
+    func clearNamingData() {
+        imageName = ""
+        ocrText = ""
+    }
+
     // Save images to a dated folder
     func saveImagesToDatedFolder(for date: Date = Date()) {
         do {
-            let (savedCount, alreadySavedCount) = try FileService.shared.archiveImages(images, for: date)
+            let (savedCount, alreadySavedCount) = try fileService.archiveImages(images, for: date)
 
             // Update scan status based on results
             if savedCount > 0 && alreadySavedCount > 0 {
@@ -145,12 +158,12 @@ class AppData: ObservableObject {
 
     // Get list of archived dates
     func getArchivedDates() -> [String] {
-        FileService.shared.getArchivedDates()
+        fileService.getArchivedDates()
     }
 
     // Get image URLs for a specific date
     func getImagesForDate(_ dateString: String) -> [URL] {
-        FileService.shared.getImagesForDate(dateString)
+        fileService.getImagesForDate(dateString)
     }
 
     func savePassword(_ password: String) throws {
