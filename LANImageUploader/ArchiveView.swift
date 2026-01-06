@@ -234,14 +234,14 @@ struct ArchiveView: View {
 
         // Save to UserDefaults
         if let encoded = try? JSONEncoder().encode(customArchiveNames) {
-            UserDefaults.standard.set(encoded, forKey: "archiveCustomNames")
+            UserDefaults.standard.set(encoded, forKey: Constants.UserDefaults.archiveCustomNames)
         }
 
         dateToRename = ""
     }
 
     private func loadCustomArchiveNames() {
-        if let savedData = UserDefaults.standard.data(forKey: "archiveCustomNames"),
+        if let savedData = UserDefaults.standard.data(forKey: Constants.UserDefaults.archiveCustomNames),
             let decoded = try? JSONDecoder().decode([String: String].self, from: savedData)
         {
             customArchiveNames = decoded
@@ -441,7 +441,7 @@ struct ArchivedImagesView: View {
 
                     // Set up notification observer for deleted images
                     NotificationCenter.default.addObserver(
-                        forName: Notification.Name("ArchivedImageDeleted"),
+                        forName: Notification.Name(Constants.Notifications.archivedImageDeleted),
                         object: nil,
                         queue: .main
                     ) { notification in
@@ -741,7 +741,7 @@ struct FullscreenArchivedImageView: View {
             }
 
             NotificationCenter.default.post(
-                name: Notification.Name("ArchivedImageDeleted"), object: imageURL)
+                name: Notification.Name(Constants.Notifications.archivedImageDeleted), object: imageURL)
 
             dismiss()
         } catch {
@@ -757,5 +757,5 @@ struct FullscreenArchivedImageView: View {
 
 #Preview {
     ArchiveView()
-        .environmentObject(AppData())
+        .environmentObject(AppData.preview)
 }

@@ -21,7 +21,7 @@ class ClearBackgroundHostingController<Content: View>: UIHostingController<Conte
 
 @main
 struct LANImageUploaderApp: App {
-    @AppStorage("onboardingCompleted") var onboardingCompleted: Bool = false
+    @AppStorage(Constants.UserDefaults.onboardingCompleted) var onboardingCompleted: Bool = false
     @StateObject private var appData: AppData
     @Environment(\.scenePhase) private var scenePhase
     @State private var isShowingLaunchScreen = true
@@ -40,7 +40,7 @@ struct LANImageUploaderApp: App {
         _ = NetworkMonitor.shared
 
         // Register the background task without 'weak' for struct (value type)
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.janhagenclausen.LANImageUploader.dailyImageSave", using: nil) { [self] task in
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: Constants.BackgroundTasks.dailyImageSave, using: nil) { [self] task in
             handleAppRefreshTask(task: task as! BGAppRefreshTask)
         }
         print("Onboarding completed state at launch: \(onboardingCompleted)")
@@ -118,7 +118,7 @@ struct LANImageUploaderApp: App {
     }
 
     private func scheduleDailyImageSave() {
-        let request = BGAppRefreshTaskRequest(identifier: "com.janhagenclausen.LANImageUploader.dailyImageSave")
+        let request = BGAppRefreshTaskRequest(identifier: Constants.BackgroundTasks.dailyImageSave)
         let calendar = Calendar.current
         var components = calendar.dateComponents([.year, .month, .day], from: Date())
         components.hour = 0

@@ -38,10 +38,13 @@
 		8E0F16122D6B5F5200843EEC /* AMSMB2 in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 8E0F16102D6B5F2700843EEC /* AMSMB2 */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		8E4693D02D6FAA9200C537C9 /* VisionKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E4693CF2D6FAA9200C537C9 /* VisionKit.framework */; };
 		                8E4693D22D6FAA9F00C537C9 /* Vision.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E4693D12D6FAA9F00C537C9 /* Vision.framework */; };
-		                A1F11E5F2D68B563001D57FD /* FileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E5E2D68B563001D57FD /* FileService.swift */; };
-		                A1F11E612D68B563001D57FD /* ImageUploadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E602D68B563001D57FD /* ImageUploadService.swift */; };
-		/* End PBXBuildFile section */
-/* Begin PBXContainerItemProxy section */
+		                                A1F11E5F2D68B563001D57FD /* FileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E5E2D68B563001D57FD /* FileService.swift */; };
+		                                A1F11E612D68B563001D57FD /* ImageUploadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E602D68B563001D57FD /* ImageUploadService.swift */; };
+		                                A1F11E652D68B563001D57FD /* FileServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E622D68B563001D57FD /* FileServiceProtocol.swift */; };
+		                                A1F11E662D68B563001D57FD /* ImageUploadServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E632D68B563001D57FD /* ImageUploadServiceProtocol.swift */; };
+		                                                A1F11E672D68B563001D57FD /* NetworkDiscoveryProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E642D68B563001D57FD /* NetworkDiscoveryProtocol.swift */; };
+		                                                A1F11E692D68B563001D57FD /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E682D68B563001D57FD /* Constants.swift */; };
+		                                /* End PBXBuildFile section *//* Begin PBXContainerItemProxy section */
 		8EC4E84D2D68B564001D57FD /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 8EC4E8342D68B563001D57FD /* Project object */;
@@ -106,10 +109,13 @@
 		8EC4E83C2D68B563001D57FD /* LANImageUploader.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LANImageUploader.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8EC4E84C2D68B564001D57FD /* LANImageUploaderTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LANImageUploaderTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		                8EC4E8562D68B564001D57FD /* LANImageUploaderUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LANImageUploaderUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		                A1F11E5E2D68B563001D57FD /* FileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileService.swift; sourceTree = "<group>"; };
-		                A1F11E602D68B563001D57FD /* ImageUploadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageUploadService.swift; sourceTree = "<group>"; };
-		/* End PBXFileReference section */
-/* Begin PBXFrameworksBuildPhase section */
+		                                A1F11E5E2D68B563001D57FD /* FileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileService.swift; sourceTree = "<group>"; };
+		                                A1F11E602D68B563001D57FD /* ImageUploadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageUploadService.swift; sourceTree = "<group>"; };
+		                                A1F11E622D68B563001D57FD /* FileServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/FileServiceProtocol.swift; sourceTree = "<group>"; };
+		                                A1F11E632D68B563001D57FD /* ImageUploadServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/ImageUploadServiceProtocol.swift; sourceTree = "<group>"; };
+		                                                A1F11E642D68B563001D57FD /* NetworkDiscoveryProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/NetworkDiscoveryProtocol.swift; sourceTree = "<group>"; };
+		                                                A1F11E682D68B563001D57FD /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		                                /* End PBXFileReference section *//* Begin PBXFrameworksBuildPhase section */
 		8EC4E8392D68B563001D57FD /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -172,9 +178,13 @@
 				3DB36FF52D98046E003D8E4A /* SettingsView.swift */,
 				3DB36FF62D98046E003D8E4A /* UploadView.swift */,
 				                                3DB36FF72D98046E003D8E4A /* Utilities.swift */,
-				                                A1F11E5E2D68B563001D57FD /* FileService.swift */,
-				                                A1F11E602D68B563001D57FD /* ImageUploadService.swift */,
-				                                3DB36FDF2D98046E003D8E4A /* Preview Content */,			);
+				                                                                A1F11E5E2D68B563001D57FD /* FileService.swift */,
+				                                                                A1F11E602D68B563001D57FD /* ImageUploadService.swift */,
+				                                                                A1F11E622D68B563001D57FD /* FileServiceProtocol.swift */,
+				                                                                A1F11E632D68B563001D57FD /* ImageUploadServiceProtocol.swift */,
+				                                                                                                A1F11E642D68B563001D57FD /* NetworkDiscoveryProtocol.swift */,
+				                                                                                                A1F11E682D68B563001D57FD /* Constants.swift */,
+				                                                                                                3DB36FDF2D98046E003D8E4A /* Preview Content */,			);
 			path = LANImageUploader;
 			sourceTree = "<group>";
 		};
@@ -389,9 +399,13 @@
 				3DB3700F2D98046E003D8E4A /* NetworkMonitor.swift in Sources */,
 				3DB370102D98046E003D8E4A /* ImageRowView.swift in Sources */,
 				                                3DB370112D98046E003D8E4A /* SettingsView.swift in Sources */,
-				                                A1F11E5F2D68B563001D57FD /* FileService.swift in Sources */,
-				                                A1F11E612D68B563001D57FD /* ImageUploadService.swift in Sources */,
-				                        );			runOnlyForDeploymentPostprocessing = 0;
+				                                                                A1F11E5F2D68B563001D57FD /* FileService.swift in Sources */,
+				                                                                A1F11E612D68B563001D57FD /* ImageUploadService.swift in Sources */,
+				                                                                A1F11E652D68B563001D57FD /* FileServiceProtocol.swift in Sources */,
+				                                                                A1F11E662D68B563001D57FD /* ImageUploadServiceProtocol.swift in Sources */,
+				                                                                                                A1F11E672D68B563001D57FD /* NetworkDiscoveryProtocol.swift in Sources */,
+				                                                                                                A1F11E692D68B563001D57FD /* Constants.swift in Sources */,
+				                                                                                        );			runOnlyForDeploymentPostprocessing = 0;
 		};
 		8EC4E8482D68B564001D57FD /* Sources */ = {
 			isa = PBXSourcesBuildPhase;

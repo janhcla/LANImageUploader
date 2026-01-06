@@ -106,8 +106,8 @@ class AppData: ObservableObject {
     @Published var scanStatus: String = ""
     @Published var connectionStatus: ConnectionStatus = .disconnected
 
-    private let passwordKey = "serverPassword"
-    private let settingsKey = "serverSettings"
+    private let passwordKey = Constants.Keychain.serverPassword
+    private let settingsKey = Constants.UserDefaults.serverSettings
     
     // Injected Services
     internal let fileService: FileServiceProtocol
@@ -208,5 +208,15 @@ class AppData: ObservableObject {
             return try? decoder.decode(ServerSettings.self, from: savedData)
         }
         return nil
+    }
+}
+
+extension AppData {
+    static var preview: AppData {
+        AppData(
+            fileService: FileService.shared,
+            uploadService: ImageUploadService.shared,
+            discoveryService: NetworkDiscovery.shared
+        )
     }
 }
