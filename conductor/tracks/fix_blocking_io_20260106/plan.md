@@ -9,7 +9,7 @@
 - [x] Task: Update `FileService` implementation to use `FileActor` for archiving, saving, and deleting. [7b9e10d]
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Refactor FileService for Asynchronous Operations' (Protocol in workflow.md)
 
-## Phase 3: Update UI and AppState for Async I/O
+## Phase 3: Update UI and AppState for Async I/O [checkpoint: de8df19]
 - [x] Task: Refactor `AppData.saveImagesToDatedFolder` to use `await`. [7b9e10d]
 - [x] Task: Update `GalleryView` and `ArchiveView` to wrap file operations in asynchronous `Task` blocks. [7b9e10d]
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Update UI and AppState for Async I/O' (Protocol in workflow.md)
