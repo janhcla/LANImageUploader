@@ -237,14 +237,14 @@ struct GalleryView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         let dateString = formatter.string(from: Date())
-        let datedFolderURL = FileService.shared.documentsDirectory.appendingPathComponent(dateString)
+        let datedFolderURL = appData.fileService.documentsDirectory.appendingPathComponent(dateString)
 
         do {
-            try FileService.shared.createDirectory(at: datedFolderURL)
+            try appData.fileService.createDirectory(at: datedFolderURL)
             let destinationURL = datedFolderURL.appendingPathComponent(image.fileURL.lastPathComponent)
 
             // Check if the image already exists in the archive
-            if FileService.shared.fileExists(at: destinationURL) {
+            if appData.fileService.fileExists(at: destinationURL) {
                 // Show warning that image is already saved
                 showSaveConfirmation = true
                 DispatchQueue.main.async {
@@ -254,7 +254,7 @@ struct GalleryView: View {
                 return
             }
 
-            try FileService.shared.copyItem(at: image.fileURL, to: destinationURL)
+            try appData.fileService.copyItem(at: image.fileURL, to: destinationURL)
             print("Single image saved to \(datedFolderURL.path)")
 
             // Show success message
@@ -308,7 +308,7 @@ struct GalleryView: View {
     func batchDeleteImages() {
         appData.images.removeAll { image in
             if selectedImages.contains(image.id) {
-                try? FileService.shared.removeItem(at: image.fileURL)
+                try? appData.fileService.removeItem(at: image.fileURL)
                 return true
             }
             return false

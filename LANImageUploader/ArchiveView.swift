@@ -254,10 +254,10 @@ struct ArchiveView: View {
 
         for date in selectedDates {
             let images = appData.getImagesForDate(date)
-            let imagesFolderURL = FileService.shared.documentsDirectory.appendingPathComponent("images")
+            let imagesFolderURL = appData.fileService.documentsDirectory.appendingPathComponent("images")
 
             do {
-                try FileService.shared.createDirectory(at: imagesFolderURL)
+                try appData.fileService.createDirectory(at: imagesFolderURL)
 
                 for imageURL in images {
                     let destinationURL = imagesFolderURL.appendingPathComponent(
@@ -266,10 +266,10 @@ struct ArchiveView: View {
                     // Check if this image is already in our app's images array
                     if !appData.images.contains(where: { $0.fileURL == destinationURL }) {
                         // If file exists on disk but not in app's array, it's a leftover file - clean it up
-                        try? FileService.shared.removeItem(at: destinationURL)
+                        try? appData.fileService.removeItem(at: destinationURL)
 
                         // Copy from archive to gallery
-                        try FileService.shared.copyItem(at: imageURL, to: destinationURL)
+                        try appData.fileService.copyItem(at: imageURL, to: destinationURL)
                         let capturedImage = CapturedImage(
                             name: imageURL.deletingPathExtension().lastPathComponent,
                             fileURL: destinationURL)
@@ -295,9 +295,9 @@ struct ArchiveView: View {
 
     private func deleteSelectedArchives() {
         for date in selectedDates {
-            let archiveURL = FileService.shared.documentsDirectory.appendingPathComponent(date)
+            let archiveURL = appData.fileService.documentsDirectory.appendingPathComponent(date)
             do {
-                try FileService.shared.removeItem(at: archiveURL)
+                try appData.fileService.removeItem(at: archiveURL)
                 print("Deleted archive: \(archiveURL.path)")
 
                 // Also remove custom name if it exists
@@ -319,9 +319,9 @@ struct ArchiveView: View {
     private func deleteAllArchives() {
         let archives = appData.getArchivedDates()
         for archive in archives {
-            let archiveURL = FileService.shared.documentsDirectory.appendingPathComponent(archive)
+            let archiveURL = appData.fileService.documentsDirectory.appendingPathComponent(archive)
             do {
-                try FileService.shared.removeItem(at: archiveURL)
+                try appData.fileService.removeItem(at: archiveURL)
                 print("Deleted archive: \(archiveURL.path)")
 
                 // Also remove custom name
@@ -508,17 +508,17 @@ struct ArchivedImagesView: View {
     }
 
     private func restoreImages(_ imageURLs: [URL]) {
-        let imagesFolderURL = FileService.shared.documentsDirectory.appendingPathComponent("images")
+        let imagesFolderURL = appData.fileService.documentsDirectory.appendingPathComponent("images")
         var canRestore = true
         var restoredCount = 0
 
         do {
-            try FileService.shared.createDirectory(at: imagesFolderURL)
+            try appData.fileService.createDirectory(at: imagesFolderURL)
             for imageURL in imageURLs {
                 let destinationURL = imagesFolderURL.appendingPathComponent(
                     imageURL.lastPathComponent)
                 if !appData.images.contains(where: { $0.fileURL == destinationURL }) {
-                    try FileService.shared.copyItem(at: imageURL, to: destinationURL)
+                    try appData.fileService.copyItem(at: imageURL, to: destinationURL)
                     let capturedImage = CapturedImage(
                         name: imageURL.deletingPathExtension().lastPathComponent,
                         fileURL: destinationURL)
@@ -538,12 +538,12 @@ struct ArchivedImagesView: View {
     }
 
     private func deleteSelectedImages() {
-        let dateFolder = FileService.shared.documentsDirectory.appendingPathComponent(date)
+        let dateFolder = appData.fileService.documentsDirectory.appendingPathComponent(date)
 
         // Delete selected images
         for imageURL in selectedImages {
             do {
-                try FileService.shared.removeItem(at: imageURL)
+                try appData.fileService.removeItem(at: imageURL)
                 print("Deleted image: \(imageURL.path)")
             } catch {
                 print("Failed to delete image: \(error)")
@@ -552,14 +552,14 @@ struct ArchivedImagesView: View {
 
         // Check if the archive folder is now empty
         do {
-            let remainingFiles = try FileService.shared.contentsOfDirectory(at: dateFolder)
+            let remainingFiles = try appData.fileService.contentsOfDirectory(at: dateFolder)
             let imageFiles = remainingFiles.filter {
                 ["jpg", "png"].contains($0.pathExtension.lowercased())
             }
 
             // If no images left in the folder, delete the archive folder
             if imageFiles.isEmpty {
-                try FileService.shared.removeItem(at: dateFolder)
+                try appData.fileService.removeItem(at: dateFolder)
                 print("Deleted empty archive folder: \(date)")
                 // Dismiss the view since the archive folder no longer exists
                 dismiss()
@@ -699,15 +699,15 @@ struct FullscreenArchivedImageView: View {
     }
 
     private func restoreImage() {
-        let imagesFolderURL = FileService.shared.documentsDirectory.appendingPathComponent("images")
+        let imagesFolderURL = appData.fileService.documentsDirectory.appendingPathComponent("images")
         do {
-            try FileService.shared.createDirectory(at: imagesFolderURL)
+            try appData.fileService.createDirectory(at: imagesFolderURL)
             let destinationURL = imagesFolderURL.appendingPathComponent(imageURL.lastPathComponent)
 
             if !appData.images.contains(where: { $0.fileURL == destinationURL }) {
-                try? FileService.shared.removeItem(at: destinationURL)
+                try? appData.fileService.removeItem(at: destinationURL)
 
-                try FileService.shared.copyItem(at: imageURL, to: destinationURL)
+                try appData.fileService.copyItem(at: imageURL, to: destinationURL)
                 let capturedImage = CapturedImage(
                     name: imageURL.deletingPathExtension().lastPathComponent,
                     fileURL: destinationURL)
@@ -727,16 +727,16 @@ struct FullscreenArchivedImageView: View {
         let archiveFolderName = archiveFolder.lastPathComponent
 
         do {
-            try FileService.shared.removeItem(at: imageURL)
+            try appData.fileService.removeItem(at: imageURL)
             print("Deleted image: \(imageURL.path)")
 
-            let contents = try FileService.shared.contentsOfDirectory(at: archiveFolder)
+            let contents = try appData.fileService.contentsOfDirectory(at: archiveFolder)
             let imageFiles = contents.filter {
                 ["jpg", "png"].contains($0.pathExtension.lowercased())
             }
 
             if imageFiles.isEmpty {
-                try FileService.shared.removeItem(at: archiveFolder)
+                try appData.fileService.removeItem(at: archiveFolder)
                 print("Deleted empty archive: \(archiveFolderName)")
             }
 

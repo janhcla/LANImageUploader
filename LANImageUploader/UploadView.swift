@@ -252,7 +252,7 @@ struct UploadView: View {
 
     func clearAndDeleteAllImages() {
         for image in appData.images {
-            try? FileService.shared.removeItem(at: image.fileURL)
+            try? appData.fileService.removeItem(at: image.fileURL)
         }
         appData.images.removeAll()
         uploadStatuses.removeAll()
@@ -281,7 +281,7 @@ struct UploadView: View {
         }
 
         do {
-            try await ImageUploadService.shared.upload(
+            try await appData.uploadService.upload(
                 image: image,
                 settings: appData.settings,
                 password: password,

@@ -540,7 +540,7 @@ struct NetworkSetupView: View {
             let directIPFromSettings = appData.settings.serverIP.trimmingCharacters(in: .whitespacesAndNewlines)
             let directIP = directIPFromSettings.isEmpty ? nil : directIPFromSettings
 
-            let info = try await NetworkDiscovery.shared.retrieveNetworkInfo(
+            let info = try await appData.discoveryService.retrieveNetworkInfo(
                 targetFolder: targetDirectory,
                 username: username,
                 password: password,

@@ -84,7 +84,7 @@ struct CameraView: View {
         
         do {
             if let data = image.jpegData(compressionQuality: 0.8) {
-                let fileURL = try FileService.shared.saveImage(data, fileName: fileName)
+                let fileURL = try appData.fileService.saveImage(data, fileName: fileName)
                 let captured = CapturedImage(
                     name: fileName.removingSuffix(".jpg"), fileURL: fileURL)
                 appData.images.append(captured)

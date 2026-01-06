@@ -22,11 +22,21 @@ class ClearBackgroundHostingController<Content: View>: UIHostingController<Conte
 @main
 struct LANImageUploaderApp: App {
     @AppStorage("onboardingCompleted") var onboardingCompleted: Bool = false
-    @StateObject private var appData = AppData()
+    @StateObject private var appData: AppData
     @Environment(\.scenePhase) private var scenePhase
     @State private var isShowingLaunchScreen = true
 
     init() {
+        let fileService = FileService.shared
+        let uploadService = ImageUploadService.shared
+        let discoveryService = NetworkDiscovery.shared
+        
+        _appData = StateObject(wrappedValue: AppData(
+            fileService: fileService,
+            uploadService: uploadService,
+            discoveryService: discoveryService
+        ))
+
         _ = NetworkMonitor.shared
 
         // Register the background task without 'weak' for struct (value type)

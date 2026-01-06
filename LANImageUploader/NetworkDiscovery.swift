@@ -53,8 +53,13 @@ public enum ConnectionError: LocalizedError, Equatable, Sendable {
 // MARK: - Main Class Definition
 @MainActor
 final class NetworkDiscovery: NetworkDiscoveryProtocol {
-    static let shared = NetworkDiscovery()
-    private init() {}
+    static let shared = NetworkDiscovery(networkMonitor: .shared)
+    
+    let networkMonitor: NetworkMonitor
+    
+    init(networkMonitor: NetworkMonitor) {
+        self.networkMonitor = networkMonitor
+    }
     
     private var discoveredServersCache: [String: (timestamp: Date, info: NetworkInfo)] = [:]
     private let cacheDuration: TimeInterval = 300
@@ -73,7 +78,7 @@ extension NetworkDiscovery {
         logger.info("--- Starting retrieveNetworkInfo ---")
         
         // Wait briefly for network monitor to be ready
-        if try await !NetworkMonitor.shared.waitForNetwork(timeout: 3.0) {
+        if try await !networkMonitor.waitForNetwork(timeout: 3.0) {
             logger.error("Network connection unavailable (timed out waiting).")
             let error = ConnectionError.networkUnavailable
             onStatus?(.failure(error))
@@ -206,7 +211,7 @@ extension NetworkDiscovery {
     ) async throws -> [DiscoveredHost] {
         var hosts: [String: DiscoveredHost] = [:]
 
-        if try await !NetworkMonitor.shared.waitForNetwork(timeout: 3.0) {
+        if try await !networkMonitor.waitForNetwork(timeout: 3.0) {
             throw ConnectionError.networkUnavailable
         }
         
@@ -1077,7 +1082,7 @@ struct DiscoveryResultsView: View {
         discoveryTask?.cancel()
         discoveryTask = Task {
             do {
-                let hosts = try await NetworkDiscovery.shared.discoverAvailableHosts(onStatus: { status in
+                let hosts = try await appData.discoveryService.discoverAvailableHosts(onStatus: { status in
                     Task { @MainActor in
                         updateStatus(status)
                     }
@@ -1124,7 +1129,7 @@ struct DiscoveryResultsView: View {
         
         Task {
             do {
-                let shares = try await NetworkDiscovery.shared.listAvailableShares(
+                let shares = try await appData.discoveryService.listAvailableShares(
                     ipAddress: host.id,
                     username: username,
                     password: password,
