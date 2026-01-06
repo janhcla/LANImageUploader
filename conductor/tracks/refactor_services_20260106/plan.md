@@ -1,6 +1,6 @@
 # Plan: Refactor Architecture - Extract Logic to Services
 
-## Phase 1: Service Layer Infrastructure
+## Phase 1: Service Layer Infrastructure [checkpoint: 3d9df12]
 - [x] Task: Implement `FileService` to handle all local `FileManager` operations. [70c1f8d]
 - [x] Task: Implement `ImageUploadService` to encapsulate SMB networking logic. [450b27d]
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Service Layer Infrastructure' (Protocol in workflow.md)
