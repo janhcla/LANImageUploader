@@ -1,0 +1,8 @@
+{
+  "track_id": "fix_bg_scheduler_simulator_20260106",
+  "type": "fix",
+  "status": "new",
+  "created_at": "2026-01-06T22:15:00Z",
+  "updated_at": "2026-01-06T22:15:00Z",
+  "description": "Fix BGTaskScheduler error on Simulator by suppressing schedule failure logs when unavailable."
+}
