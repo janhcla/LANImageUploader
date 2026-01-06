@@ -1,6 +1,6 @@
 # Plan: Fix Blocking I/O
 
-## Phase 1: Background Actor Implementation
+## Phase 1: Background Actor Implementation [checkpoint: 3df87c3]
 - [x] Task: Create `LANImageUploader/Services/FileActor.swift` to handle low-level I/O on a background thread. [ab44b56]
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Background Actor Implementation' (Protocol in workflow.md)
 
