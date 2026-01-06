@@ -1,0 +1,21 @@
+# Plan: Refactor Architecture - Extract Logic to Services
+
+## Phase 1: Service Layer Infrastructure
+- [x] Task: Implement `FileService` to handle all local `FileManager` operations. [70c1f8d]
+- [x] Task: Implement `ImageUploadService` to encapsulate SMB networking logic. [450b27d]
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Service Layer Infrastructure' (Protocol in workflow.md)
+
+## Phase 2: Refactoring Gallery and Archive Logic
+- [ ] Task: Migrate archiving and saving logic from `AppData` to `FileService`.
+- [ ] Task: Refactor `GalleryView` to use `FileService` for deletion and renaming.
+- [ ] Task: Conductor - User Manual Verification 'Phase 2: Refactoring Gallery and Archive Logic' (Protocol in workflow.md)
+
+## Phase 3: Refactoring Upload Logic
+- [ ] Task: Relocate SMB connection and upload logic from `UploadView` to `ImageUploadService`.
+- [ ] Task: Update `UploadView` to interact solely with the service and `AppData` status.
+- [ ] Task: Conductor - User Manual Verification 'Phase 3: Refactoring Upload Logic' (Protocol in workflow.md)
+
+## Phase 4: Final Cleanup and Integration
+- [ ] Task: Remove redundant I/O methods and imports from `AppData` and Views.
+- [ ] Task: Perform a full end-to-end manual test of the Capture -> Gallery -> Archive -> Upload flow.
+- [ ] Task: Conductor - User Manual Verification 'Phase 4: Final Cleanup and Integration' (Protocol in workflow.md)
