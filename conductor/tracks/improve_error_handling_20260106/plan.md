@@ -16,5 +16,5 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 3: Update UploadView and UI' (Protocol in workflow.md)
 
 ## Phase 4: Final Verification
-- [ ] Task: Build the project and perform manual verification of common error states.
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Final Verification' (Protocol in workflow.md)
+- [x] Task: Build the project and perform manual verification of common error states. [7bc1996]
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Final Verification' (Protocol in workflow.md)
