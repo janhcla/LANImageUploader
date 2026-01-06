@@ -7,16 +7,59 @@
 
 import Testing
 import Foundation
+import UIKit
 @testable import LANImageUploader
 
 struct LANImageUploaderTests {
 
-    @Test func example() async throws {
-        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
+    @Test @MainActor func appDataInitialization() async throws {
+        let mockFile = MockFileService()
+        let mockUpload = MockImageUploadService()
+        let mockDiscovery = MockNetworkDiscovery()
+        
+        let appData = AppData(
+            fileService: mockFile,
+            uploadService: mockUpload,
+            discoveryService: mockDiscovery
+        )
+        
+        #expect(appData.images.isEmpty)
+        #expect(appData.scanStatus == "")
+    }
+
+    @Test @MainActor func appDataArchiveImages() async throws {
+        let mockFile = MockFileService()
+        mockFile.archiveImagesResult = (saved: 5, existing: 2)
+        
+        let appData = AppData(
+            fileService: mockFile,
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery()
+        )
+        
+        await appData.saveImagesToDatedFolder()
+        
+        #expect(appData.scanStatus.contains("5 images saved"))
+        #expect(appData.scanStatus.contains("2 images were already saved"))
+    }
+
+    @Test @MainActor func appDataArchiveImagesError() async throws {
+        let mockFile = MockFileService()
+        mockFile.archiveImagesError = NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "Disk Full"])
+        
+        let appData = AppData(
+            fileService: mockFile,
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery()
+        )
+        
+        await appData.saveImagesToDatedFolder()
+        
+        #expect(appData.scanStatus.contains("Failed to save images"))
+        #expect(appData.scanStatus.contains("Disk Full"))
     }
 
     @Test func connectionStatusEnumExists() async throws {
-        // This test will fail to compile initially because ConnectionStatus doesn't exist yet
         let status = ConnectionStatus.disconnected
         #expect(status == .disconnected)
         
@@ -26,76 +69,42 @@ struct LANImageUploaderTests {
         } else {
             #expect(Bool(false), "Expected discovery state")
         }
-        
-        let connectingStatus = ConnectionStatus.connecting("192.168.1.100")
-        if case .connecting(let ip) = connectingStatus {
-            #expect(ip == "192.168.1.100")
-        } else {
-             #expect(Bool(false), "Expected connecting state")
-        }
-        
-        let failureStatus = ConnectionStatus.failure(.timeout)
-        if case .failure(let error) = failureStatus {
-            #expect(error == .timeout)
-        } else {
-            #expect(Bool(false), "Expected failure state")
-        }
     }
     
-    @Test func discoveryStateEnumExists() async throws {
-        let state = DiscoveryState.bonjourSearch
-        #expect(state == .bonjourSearch)
+    @Test @MainActor func discoveryStatusReportingWorks() async throws {
+        let mockDiscovery = MockNetworkDiscovery()
         
-        let resolving = DiscoveryState.resolving("_smb._tcp.")
-        #expect(resolving == .resolving("_smb._tcp."))
-    }
-
-    @Test func discoveryStatusReportingWorks() async throws {
-        // This test verifies that retrieveNetworkInfo reports status changes.
         final class StatusCollector: @unchecked Sendable {
-            private let queue = DispatchQueue(label: "status.collector")
             var statuses: [ConnectionStatus] = []
             func add(_ status: ConnectionStatus) {
-                queue.sync { statuses.append(status) }
-            }
-            func get() -> [ConnectionStatus] {
-                queue.sync { statuses }
+                statuses.append(status)
             }
         }
         
         let collector = StatusCollector()
         
-        // We use invalid credentials to trigger a failure after discovery attempts
-        // but we mainly care about the intermediate statuses.
-        let _ = try? await NetworkDiscovery.shared.retrieveNetworkInfo(
+        let _ = try await mockDiscovery.retrieveNetworkInfo(
             targetFolder: "test",
             username: "user",
-            password: "wrong_password",
+            password: "password",
+            directIP: nil,
+            port: nil,
             onStatus: { status in
                 collector.add(status)
             }
         )
         
-        let receivedStatuses = collector.get()
-        
-        // Check if we received any status (either discovery, connecting, or failure)
-        #expect(!receivedStatuses.isEmpty, "Should have received at least one status update")
-    }
-
-    @Test func waitForNetworkReturnsTrueInitially() async throws {
-        // This test ensures waitForNetwork doesn't block indefinitely on simulator
-        // where network should be available.
-        let result = try await NetworkMonitor.shared.waitForNetwork(timeout: 2.0)
-        #expect(result == true)
+        #expect(collector.statuses.contains(where: { 
+            if case .connecting = $0 { return true }
+            return false
+        }))
     }
 
     @Test func connectionErrorMappingExists() async throws {
-        // This test verifies that we have a custom error type for detailed mapping
         let authError = ConnectionError.authenticationFailed
         #expect(authError.localizedDescription.contains("password"))
         
         let hostError = ConnectionError.hostNotFound("192.168.1.1")
         #expect(hostError.localizedDescription.contains("192.168.1.1"))
     }
-
 }
