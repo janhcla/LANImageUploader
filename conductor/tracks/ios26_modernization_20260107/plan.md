@@ -24,7 +24,7 @@ Focus: Updating the capture interface with modern feedback and iOS 26 aesthetics
     - [x] Sub-task: Integrate fluid animations for focus and exposure feedback.
 - [x] **Task 3: Conductor - User Manual Verification 'Phase 2: Camera' (Protocol in workflow.md)**
 
-## Phase 3: Enhanced Gallery & Batch Management
+## Phase 3: Enhanced Gallery & Batch Management [checkpoint: fdc1acc]
 Focus: Streamlining image management with a robust multi-select experience.
 
 - [x] **Task 1: Implement Multi-Select and Batch Logic**
@@ -36,7 +36,7 @@ Focus: Streamlining image management with a robust multi-select experience.
 - [x] **Task 3: Modernize Gallery Grid and Sheets**
     - [x] Sub-task: Update `ImageRowView` and `GalleryView` containers with Liquid Glass aesthetics.
     - [x] Sub-task: Modernize `NamingSheet` and `ArchiveView` for the new design language.
-- [ ] **Task 4: Conductor - User Manual Verification 'Phase 3: Gallery' (Protocol in workflow.md)**
+- [x] **Task 4: Conductor - User Manual Verification 'Phase 3: Gallery' (Protocol in workflow.md)**
 
 ## Phase 4: Animations, Hero Transitions & Polishing
 Focus: Adding the "delightful" layers of fluid transitions and micro-interactions.
