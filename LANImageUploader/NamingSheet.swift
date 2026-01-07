@@ -105,16 +105,22 @@ struct OCRCameraView: UIViewControllerRepresentable {
     let height: CGFloat
 
     func makeUIViewController(context: Context) -> DataScannerViewController {
-        let dataScanner = DataScannerViewController(recognizedDataTypes: [.text()], isHighlightingEnabled: true)
+        let dataScanner = DataScannerViewController(
+            recognizedDataTypes: [.text()],
+            qualityLevel: .balanced, // Balance speed and accuracy
+            recognizesMultipleItems: false, // Focus on single item
+            isHighFrameRateTrackingEnabled: true, // Smoother tracking
+            isHighlightingEnabled: true
+        )
         dataScanner.delegate = context.coordinator
         return dataScanner
     }
 
     func updateUIViewController(_ uiViewController: DataScannerViewController, context: Context) {
         do {
-            if isScanning {
+            if isScanning && !uiViewController.isScanning {
                 try uiViewController.startScanning()
-            } else {
+            } else if !isScanning && uiViewController.isScanning {
                 uiViewController.stopScanning()
             }
         } catch {
@@ -129,6 +135,10 @@ struct OCRCameraView: UIViewControllerRepresentable {
     class Coordinator: NSObject, DataScannerViewControllerDelegate {
         private let appData: AppData
         private var isScanning: Binding<Bool>
+        private var lastScanTime: Date = Date()
+        private var stableText: String?
+        private var stabilityCounter = 0
+        private let stabilityThreshold = 2 // Require 2 consistent frames for stability
 
         init(appData: AppData, isScanning: Binding<Bool>) {
             self.appData = appData
@@ -137,34 +147,67 @@ struct OCRCameraView: UIViewControllerRepresentable {
         }
 
         func dataScanner(_ dataScanner: DataScannerViewController, didTapOn item: RecognizedItem) {
-            if case .text(let textItem) = item {
-                let text = textItem.transcript
-                DispatchQueue.main.async {
-                    self.appData.imageName = text
-                    self.appData.hapticService.playNotification(type: .success)
-                    withAnimation {
-                        self.isScanning.wrappedValue = false
-                    }
-                }
-            }
+            handleItem(item, force: true)
         }
 
         func dataScanner(_ dataScanner: DataScannerViewController, didAdd addedItems: [RecognizedItem], didRemove removedItems: [RecognizedItem]) {
-            handleItems(addedItems)
-        }
-
-        func dataScanner(_ dataScanner: DataScannerViewController, didUpdate updatedItems: [RecognizedItem]) {
-            handleItems(updatedItems)
+            if let firstItem = addedItems.first {
+                handleItem(firstItem)
+            }
         }
         
-        private func handleItems(_ items: [RecognizedItem]) {
-            for item in items {
-                if case .text(let textItem) = item {
-                    let text = textItem.transcript
-                    DispatchQueue.main.async {
-                        self.appData.imageName = text
-                        // We don't auto-dismiss here to allow user to pick another one if it's wrong
-                        // But we could play a very subtle haptic
+        func dataScanner(_ dataScanner: DataScannerViewController, didUpdate updatedItems: [RecognizedItem]) {
+            if let firstItem = updatedItems.first {
+                handleItem(firstItem)
+            }
+        }
+        
+        private func handleItem(_ item: RecognizedItem, force: Bool = false) {
+            if case .text(let textItem) = item {
+                let text = textItem.transcript
+                
+                guard OCRValidator.isValid(text) else { 
+                    stabilityCounter = 0
+                    return 
+                }
+                
+                if force {
+                    capture(text)
+                    return
+                }
+                
+                // Stability check: if the text matches the previous stable candidate, increment counter
+                if text == stableText {
+                    stabilityCounter += 1
+                } else {
+                    stableText = text
+                    stabilityCounter = 1 // Reset counter for new candidate
+                }
+                
+                // Only capture if we meet the stability threshold to avoid jittery/partial reads
+                guard stabilityCounter >= stabilityThreshold else { return }
+                
+                // Debounce time check (optional secondary throttle)
+                let now = Date()
+                guard now.timeIntervalSince(lastScanTime) > 0.3 else { return }
+                lastScanTime = now
+                
+                capture(text)
+            }
+        }
+        
+        private func capture(_ text: String) {
+            DispatchQueue.main.async {
+                // Haptic feedback
+                self.appData.hapticService.playNotification(type: .success)
+                
+                // Update text field
+                self.appData.imageName = text
+                
+                // Brief freeze for verification before dismissing
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    withAnimation {
+                        self.isScanning.wrappedValue = false
                     }
                 }
             }

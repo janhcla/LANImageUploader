@@ -5,12 +5,12 @@ This plan outlines the steps to optimize the text recognition feature in the "Na
 ## Phase 1: Core OCR Optimization & Logic
 Focus: Improving text detection reliability and implementing the auto-capture logic.
 
-- [ ] **Task 1: Optimize DataScanner Configuration**
-    - [ ] Sub-task: Write unit tests for text validation logic (e.g., filtering out short/invalid strings).
-    - [ ] Sub-task: Update `OCRCameraView` to use continuous scanning with high-confidence thresholds.
-- [ ] **Task 2: Implement Auto-Capture and Confidence Logic**
-    - [ ] Sub-task: Modify the `Coordinator` to automatically select the first valid text item without requiring a user tap.
-    - [ ] Sub-task: Implement a debouncing or "stable match" timer to ensure the detected text is clear before capturing.
+- [x] **Task 1: Optimize DataScanner Configuration**
+    - [x] Sub-task: Write unit tests for text validation logic (e.g., filtering out short/invalid strings).
+    - [x] Sub-task: Update `OCRCameraView` to use continuous scanning with high-confidence thresholds.
+- [x] **Task 2: Implement Auto-Capture and Confidence Logic**
+    - [x] Sub-task: Modify the `Coordinator` to automatically select the first valid text item without requiring a user tap.
+    - [x] Sub-task: Implement a debouncing or "stable match" timer to ensure the detected text is clear before capturing.
 - [ ] **Task 3: Conductor - User Manual Verification 'Phase 1: OCR Logic' (Protocol in workflow.md)**
 
 ## Phase 2: User Experience & Visual Feedback

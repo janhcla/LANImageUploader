@@ -30,7 +30,9 @@
 		3DB3700C2D98046E003D8E4A /* Utilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF72D98046E003D8E4A /* Utilities.swift */; };
 		3DB3700D2D98046E003D8E4A /* UploadView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF62D98046E003D8E4A /* UploadView.swift */; };
 		3DB3700E2D98046E003D8E4A /* NamingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF12D98046E003D8E4A /* NamingSheet.swift */; };
-		3DB3700F2D98046E003D8E4A /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF32D98046E003D8E4A /* NetworkMonitor.swift */; };
+		3DB3700F2D98046E003D8E4A /* OCRValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB3700F2D98046E003D8E4B /* OCRValidator.swift */; };
+		3DB3700F2D98046E003D8E4C /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF32D98046E003D8E4A /* NetworkMonitor.swift */; };
+		3DB3700F2D98046E003D8E4B /* OCRValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRValidator.swift; sourceTree = "<group>"; };
 		3DB370102D98046E003D8E4A /* ImageRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FED2D98046E003D8E4A /* ImageRowView.swift */; };
 		3DB370112D98046E003D8E4A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF52D98046E003D8E4A /* SettingsView.swift */; };
 		3DB370142D98048A003D8E4A /* LANImageUploaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB370122D98048A003D8E4A /* LANImageUploaderTests.swift */; };
@@ -104,6 +106,7 @@
 		3DB36FEF2D98046E003D8E4A /* LANImageUploaderApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LANImageUploaderApp.swift; sourceTree = "<group>"; };
 		3DB36FF02D98046E003D8E4A /* LaunchScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScreenView.swift; sourceTree = "<group>"; };
 		3DB36FF12D98046E003D8E4A /* NamingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NamingSheet.swift; sourceTree = "<group>"; };
+		3DB3700F2D98046E003D8E4B /* OCRValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRValidator.swift; sourceTree = "<group>"; };
 		3DB36FF22D98046E003D8E4A /* NetworkDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkDiscovery.swift; sourceTree = "<group>"; };
 		3DB36FF32D98046E003D8E4A /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		3DB36FF42D98046E003D8E4A /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
@@ -187,6 +190,7 @@
 				3DB36FEF2D98046E003D8E4A /* LANImageUploaderApp.swift */,
 				3DB36FF02D98046E003D8E4A /* LaunchScreenView.swift */,
 				3DB36FF12D98046E003D8E4A /* NamingSheet.swift */,
+				3DB3700F2D98046E003D8E4B /* OCRValidator.swift */,
 				3DB36FF22D98046E003D8E4A /* NetworkDiscovery.swift */,
 				3DB36FF32D98046E003D8E4A /* NetworkMonitor.swift */,
 				3DB36FF42D98046E003D8E4A /* OnboardingView.swift */,
@@ -416,7 +420,8 @@
 				3DB3700C2D98046E003D8E4A /* Utilities.swift in Sources */,
 				3DB3700D2D98046E003D8E4A /* UploadView.swift in Sources */,
 				3DB3700E2D98046E003D8E4A /* NamingSheet.swift in Sources */,
-				3DB3700F2D98046E003D8E4A /* NetworkMonitor.swift in Sources */,
+				3DB3700F2D98046E003D8E4A /* OCRValidator.swift in Sources */,
+				3DB3700F2D98046E003D8E4C /* NetworkMonitor.swift in Sources */,
 				3DB370102D98046E003D8E4A /* ImageRowView.swift in Sources */,
 				                                3DB370112D98046E003D8E4A /* SettingsView.swift in Sources */,
 				                                                                A1F11E5F2D68B563001D57FD /* FileService.swift in Sources */,
