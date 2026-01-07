@@ -21,19 +21,33 @@ struct CameraView: View {
             NavigationStack {
                 VStack {
                     Spacer()
-                    Button(action: { isShowingCamera = true }) {
-                        Label("Take Photo", systemImage: "camera.fill")
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    
+                    GlassContainer(cornerRadius: 24) {
+                        VStack(spacing: 20) {
+                            Image(systemName: "camera.shutter.button.fill")
+                                .font(.system(size: 60))
+                                .foregroundStyle(.blue)
+                                .symbolEffect(.bounce, value: isShowingCamera)
+                            
+                            Text("Ready to Capture")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                            
+                            Button(action: { 
+                                appData.hapticService.playLiquidBounce()
+                                isShowingCamera = true 
+                            }) {
+                                Label("Take Photo", systemImage: "camera.fill")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(BlueButtonStyle())
+                        }
                     }
+                    .padding(30)
+                    
                     Spacer()
                 }
-                .padding()
-                .background(Color.clear)
-                .navigationTitle("Capture Image")
+                .navigationTitle("Capture")
                 .fullScreenCover(
                     isPresented: $isShowingCamera,
                     onDismiss: {
@@ -55,7 +69,7 @@ struct CameraView: View {
                             await saveImage(image: image)
                         }
                         capturedImage = nil
-                        UINotificationFeedbackGenerator().notificationOccurred(.success)
+                        appData.hapticService.playNotification(type: .success)
                     }
                 }
                 .navigationDestination(isPresented: $navigateToGallery) {
@@ -63,15 +77,16 @@ struct CameraView: View {
                 }
                 .safeAreaInset(edge: .bottom) {
                     if !appData.images.isEmpty {
-                        Button(action: { navigateToGallery = true }) {
+                        Button(action: { 
+                            appData.hapticService.playSelection()
+                            navigateToGallery = true 
+                        }) {
                             Label("View Gallery", systemImage: "photo.on.rectangle")
                                 .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.green)
-                                .foregroundStyle(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
+                        .buttonStyle(LiquidButtonStyle(backgroundColor: .green))
                         .padding()
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
             }

@@ -16,12 +16,12 @@ Focus: Establishing the core visual building blocks and updating global styles.
 ## Phase 2: Modernized Camera Experience
 Focus: Updating the capture interface with modern feedback and iOS 26 aesthetics.
 
-- [ ] **Task 1: Refactor Camera Feedback Logic**
-    - [ ] Sub-task: Write unit tests for haptic trigger logic and auto-enhancement state management.
-    - [ ] Sub-task: Implement `HapticFeedbackService` (or equivalent) for precise iOS 26 haptics.
-- [ ] **Task 2: Implement iOS 26 Camera UI Overlay**
-    - [ ] Sub-task: Update `CameraView.swift` with the new Liquid Glass overlay and controls.
-    - [ ] Sub-task: Integrate fluid animations for focus and exposure feedback.
+- [x] **Task 1: Refactor Camera Feedback Logic**
+    - [x] Sub-task: Write unit tests for haptic trigger logic and auto-enhancement state management.
+    - [x] Sub-task: Implement `HapticFeedbackService` (or equivalent) for precise iOS 26 haptics.
+- [x] **Task 2: Implement iOS 26 Camera UI Overlay**
+    - [x] Sub-task: Update `CameraView.swift` with the new Liquid Glass overlay and controls.
+    - [x] Sub-task: Integrate fluid animations for focus and exposure feedback.
 - [ ] **Task 3: Conductor - User Manual Verification 'Phase 2: Camera' (Protocol in workflow.md)**
 
 ## Phase 3: Enhanced Gallery & Batch Management

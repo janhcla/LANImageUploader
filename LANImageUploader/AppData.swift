@@ -113,15 +113,18 @@ class AppData: ObservableObject {
     internal let fileService: FileServiceProtocol
     internal let uploadService: ImageUploadServiceProtocol
     internal let discoveryService: NetworkDiscoveryProtocol
+    internal let hapticService: HapticFeedbackServiceProtocol
 
     init(
         fileService: FileServiceProtocol,
         uploadService: ImageUploadServiceProtocol,
-        discoveryService: NetworkDiscoveryProtocol
+        discoveryService: NetworkDiscoveryProtocol,
+        hapticService: HapticFeedbackServiceProtocol
     ) {
         self.fileService = fileService
         self.uploadService = uploadService
         self.discoveryService = discoveryService
+        self.hapticService = hapticService
         
         self.settings = ServerSettings(
             serverIP: "", shareName: "", targetDirectory: nil, username: "")
@@ -220,7 +223,8 @@ extension AppData {
         AppData(
             fileService: FileService.shared,
             uploadService: ImageUploadService.shared,
-            discoveryService: NetworkDiscovery.shared
+            discoveryService: NetworkDiscovery.shared,
+            hapticService: HapticFeedbackService.shared
         )
     }
 }

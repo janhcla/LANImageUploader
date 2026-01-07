@@ -20,7 +20,8 @@ struct LANImageUploaderTests {
         let appData = AppData(
             fileService: mockFile,
             uploadService: mockUpload,
-            discoveryService: mockDiscovery
+            discoveryService: mockDiscovery,
+            hapticService: HapticFeedbackService.shared
         )
         
         #expect(appData.images.isEmpty)
@@ -34,7 +35,8 @@ struct LANImageUploaderTests {
         let appData = AppData(
             fileService: mockFile,
             uploadService: MockImageUploadService(),
-            discoveryService: MockNetworkDiscovery()
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: HapticFeedbackService.shared
         )
         
         await appData.saveImagesToDatedFolder()
@@ -50,7 +52,8 @@ struct LANImageUploaderTests {
         let appData = AppData(
             fileService: mockFile,
             uploadService: MockImageUploadService(),
-            discoveryService: MockNetworkDiscovery()
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: HapticFeedbackService.shared
         )
         
         await appData.saveImagesToDatedFolder()
