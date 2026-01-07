@@ -17,6 +17,7 @@ struct NamingSheet: View {
     @Environment(\.dismiss) var dismiss
     @State private var isScanningOCR = false
     @FocusState private var isTextFieldFocused: Bool
+    @State private var isHighlighted = false
 
     var body: some View {
         ZStack {
@@ -33,6 +34,8 @@ struct NamingSheet: View {
                         .font(.body)
                         .submitLabel(.done)
                         .focused($isTextFieldFocused)
+                        .scaleEffect(isHighlighted ? 1.05 : 1.0) // Scale effect for feedback
+                        .animation(.spring(response: 0.3, dampingFraction: 0.5), value: isHighlighted)
                         .overlay(alignment: .trailing) {
                             HStack {
                                 if !appData.imageName.isEmpty {
@@ -63,8 +66,14 @@ struct NamingSheet: View {
 
                 if isScanningOCR {
                     GlassContainer(cornerRadius: 20) {
-                        OCRCameraView(isScanning: $isScanningOCR, height: 260)
-                            .frame(height: 260)
+                        OCRCameraView(isScanning: $isScanningOCR, height: 260, onCapture: {
+                            // Trigger highlight animation
+                            isHighlighted = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                isHighlighted = false
+                            }
+                        })
+                        .frame(height: 260)
                     }
                     .transition(.scale.combined(with: .opacity))
                 }
@@ -103,13 +112,15 @@ struct OCRCameraView: UIViewControllerRepresentable {
     @Binding var isScanning: Bool
     @EnvironmentObject var appData: AppData
     let height: CGFloat
+    var onCapture: (() -> Void)? = nil // Callback for capture event
+    @State private var isFrozen = false // State to control freezing
 
     func makeUIViewController(context: Context) -> DataScannerViewController {
         let dataScanner = DataScannerViewController(
             recognizedDataTypes: [.text()],
-            qualityLevel: .balanced, // Balance speed and accuracy
-            recognizesMultipleItems: false, // Focus on single item
-            isHighFrameRateTrackingEnabled: true, // Smoother tracking
+            qualityLevel: .balanced,
+            recognizesMultipleItems: false,
+            isHighFrameRateTrackingEnabled: true,
             isHighlightingEnabled: true
         )
         dataScanner.delegate = context.coordinator
@@ -118,9 +129,13 @@ struct OCRCameraView: UIViewControllerRepresentable {
 
     func updateUIViewController(_ uiViewController: DataScannerViewController, context: Context) {
         do {
-            if isScanning && !uiViewController.isScanning {
+            // Only start scanning if explicitly requested AND not frozen
+            if isScanning && !uiViewController.isScanning && !context.coordinator.isFrozen {
                 try uiViewController.startScanning()
-            } else if !isScanning && uiViewController.isScanning {
+            } 
+            
+            // Explicitly stop scanning if frozen or if isScanning became false
+            if !isScanning || context.coordinator.isFrozen {
                 uiViewController.stopScanning()
             }
         } catch {
@@ -129,7 +144,7 @@ struct OCRCameraView: UIViewControllerRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(appData: appData, isScanning: $isScanning)
+        Coordinator(appData: appData, isScanning: $isScanning, onCapture: onCapture)
     }
 
     class Coordinator: NSObject, DataScannerViewControllerDelegate {
@@ -138,11 +153,14 @@ struct OCRCameraView: UIViewControllerRepresentable {
         private var lastScanTime: Date = Date()
         private var stableText: String?
         private var stabilityCounter = 0
-        private let stabilityThreshold = 2 // Require 2 consistent frames for stability
+        private let stabilityThreshold = 2
+        var isFrozen = false
+        var onCapture: (() -> Void)?
 
-        init(appData: AppData, isScanning: Binding<Bool>) {
+        init(appData: AppData, isScanning: Binding<Bool>, onCapture: (() -> Void)?) {
             self.appData = appData
             self.isScanning = isScanning
+            self.onCapture = onCapture
             super.init()
         }
 
@@ -161,7 +179,7 @@ struct OCRCameraView: UIViewControllerRepresentable {
                 handleItem(firstItem)
             }
         }
-        
+
         private func handleItem(_ item: RecognizedItem, force: Bool = false) {
             if case .text(let textItem) = item {
                 let text = textItem.transcript
@@ -176,18 +194,15 @@ struct OCRCameraView: UIViewControllerRepresentable {
                     return
                 }
                 
-                // Stability check: if the text matches the previous stable candidate, increment counter
                 if text == stableText {
                     stabilityCounter += 1
                 } else {
                     stableText = text
-                    stabilityCounter = 1 // Reset counter for new candidate
+                    stabilityCounter = 1
                 }
                 
-                // Only capture if we meet the stability threshold to avoid jittery/partial reads
                 guard stabilityCounter >= stabilityThreshold else { return }
                 
-                // Debounce time check (optional secondary throttle)
                 let now = Date()
                 guard now.timeIntervalSince(lastScanTime) > 0.3 else { return }
                 lastScanTime = now
@@ -197,17 +212,30 @@ struct OCRCameraView: UIViewControllerRepresentable {
         }
         
         private func capture(_ text: String) {
+            guard !isFrozen else { return }
+            isFrozen = true
+            
             DispatchQueue.main.async {
-                // Haptic feedback
-                self.appData.hapticService.playNotification(type: .success)
+                // Play a more prominent haptic feedback
+                let generator = UINotificationFeedbackGenerator()
+                generator.prepare()
+                generator.notificationOccurred(.success)
                 
-                // Update text field
                 self.appData.imageName = text
+                self.onCapture?() 
                 
-                // Brief freeze for verification before dismissing
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                // Trigger the freeze by updating the view (updateUIViewController will see isFrozen=true)
+                // We force a UI update implicitly by changing state in the parent if needed, 
+                // but here our coordinator state drives the logic.
+                
+                // Ensure the freeze duration is respected before dismissing
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
                     withAnimation {
                         self.isScanning.wrappedValue = false
+                        // Reset frozen state after dismissal animation completes
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            self.isFrozen = false
+                        }
                     }
                 }
             }

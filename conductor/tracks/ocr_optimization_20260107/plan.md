@@ -16,10 +16,10 @@ Focus: Improving text detection reliability and implementing the auto-capture lo
 ## Phase 2: User Experience & Visual Feedback
 Focus: Implementing the "freeze" effect and streamlining the transition back to the text field.
 
-- [ ] **Task 1: Implement "Freeze" Verification Effect**
-    - [ ] Sub-task: Add a state to pause the `DataScannerViewController` or overlay a static snapshot upon capture.
-    - [ ] Sub-task: Implement the 1-second auto-dismissal logic after a successful capture.
-- [ ] **Task 2: Refine UI Feedback and Haptics**
-    - [ ] Sub-task: Add a visual "highlight" animation to the text field when text is imported.
-    - [ ] Sub-task: Synchronize the "liquid" haptic pulse with the exact moment of capture.
+- [x] **Task 1: Implement "Freeze" Verification Effect**
+    - [x] Sub-task: Add a state to pause the `DataScannerViewController` or overlay a static snapshot upon capture.
+    - [x] Sub-task: Implement the 1-second auto-dismissal logic after a successful capture.
+- [x] **Task 2: Refine UI Feedback and Haptics**
+    - [x] Sub-task: Add a visual "highlight" animation to the text field when text is imported.
+    - [x] Sub-task: Synchronize the "liquid" haptic pulse with the exact moment of capture.
 - [ ] **Task 3: Conductor - User Manual Verification 'Phase 2: OCR UX' (Protocol in workflow.md)**
