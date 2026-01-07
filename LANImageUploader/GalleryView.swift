@@ -2,8 +2,6 @@
 //  GalleryView.swift
 //  LANImageUploader
 //
-//  Created by Jan Hagen Clausen on 02/03/2025.
-//
 
 import SwiftUI
 import UIKit
@@ -21,49 +19,82 @@ struct GalleryView: View {
     @State private var selectedImage: CapturedImage?
     @State private var showDeleteConfirmation = false
     @State private var isMultiSelectMode = false
-    @State private var selectedImages: Set<UUID> = []
     @State private var navigateToUpload = false
     @State private var isBatchRenameUpload = false
     @State private var fullscreenData: FullscreenImageData?
     @State private var showSaveConfirmation = false
 
+    let columns = [
+        GridItem(.flexible(), spacing: 16),
+        GridItem(.flexible(), spacing: 16)
+    ]
+
     var body: some View {
         BackgroundContainerView {
             NavigationStack {
-                ScrollView {
-                    LazyVStack(spacing: 10) {
-                        ForEach(appData.images) { image in
-                            imageRow(for: image)
+                ZStack {
+                    ScrollView {
+                        if appData.images.isEmpty {
+                            emptyStateView
+                        } else {
+                            LazyVGrid(columns: columns, spacing: 16) {
+                                ForEach(appData.images) { image in
+                                    ImageRowView(
+                                        image: image,
+                                        isMultiSelectMode: isMultiSelectMode,
+                                        isSelected: appData.selectedImageIDs.contains(image.id),
+                                        onTap: { handleImageTap(image) },
+                                        onRename: {
+                                            selectedImage = image
+                                            imageName = image.name
+                                            isShowingNamingSheet = true
+                                        },
+                                        onDelete: {
+                                            selectedImage = image
+                                            appData.selectedImageIDs = [image.id]
+                                            showDeleteConfirmation = true
+                                        }
+                                    )
+                                }
+                            }
+                            .padding()
+                            .padding(.bottom, 100) // Space for toolbar
                         }
                     }
-                    .padding()
+                    
+                    // Multi-select Toolbar
+                    if isMultiSelectMode && !appData.selectedImageIDs.isEmpty {
+                        VStack {
+                            Spacer()
+                            MultiSelectToolbarView(
+                                appData: appData,
+                                onDelete: { showDeleteConfirmation = true },
+                                onRename: { isShowingNamingSheet = true },
+                                onArchive: {
+                                    Task {
+                                        let selectedImages = appData.images.filter { appData.selectedImageIDs.contains($0.id) }
+                                        await appData.saveImagesToDatedFolder(selectedImages)
+                                        showSaveConfirmation = true
+                                        isMultiSelectMode = false
+                                        appData.selectedImageIDs.removeAll()
+                                    }
+                                }
+                            )
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
                 }
-                .background(Color.clear)
                 .navigationTitle("Gallery")
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
                         if !appData.images.isEmpty {
                             Button(isMultiSelectMode ? "Done" : "Select") {
-                                isMultiSelectMode.toggle()
-                                if !isMultiSelectMode {
-                                    selectedImages.removeAll()
-                                }
-                            }
-                        }
-                    }
-                    ToolbarItem(placement: .bottomBar) {
-                        if isMultiSelectMode && !selectedImages.isEmpty && !appData.images.isEmpty {
-                            HStack {
-                                Button(action: { isShowingNamingSheet = true }) {
-                                    Label("Rename", systemImage: "pencil")
-                                }
-                                Button(action: saveAndUpload) {
-                                    Label("Save and Upload Now", systemImage: "arrow.up.circle")
-                                }
-                                Button(
-                                    role: .destructive, action: { showDeleteConfirmation = true }
-                                ) {
-                                    Label("Delete", systemImage: "trash")
+                                appData.hapticService.playSelection()
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                    isMultiSelectMode.toggle()
+                                    if !isMultiSelectMode {
+                                        appData.selectedImageIDs.removeAll()
+                                    }
                                 }
                             }
                         }
@@ -83,12 +114,19 @@ struct GalleryView: View {
                 isMultiSelectMode ? "Delete Selected Images" : "Delete Selected Image",
                 isPresented: $showDeleteConfirmation
             ) {
-                Button("Delete", role: .destructive) { Task { await batchDeleteImages() } }
-                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) { 
+                    Task { 
+                        await appData.deleteSelectedImages() 
+                        isMultiSelectMode = false
+                    }
+                }
+                Button("Cancel", role: .cancel) {
+                    if !isMultiSelectMode { appData.selectedImageIDs.removeAll() }
+                }
             } message: {
                 Text(
                     isMultiSelectMode
-                        ? "Are you sure you want to delete \(selectedImages.count) image(s)?"
+                        ? "Are you sure you want to delete \(appData.selectedImageIDs.count) image(s)?"
                         : "Are you sure you want to delete this image?")
             }
             .navigationDestination(isPresented: $navigateToUpload) {
@@ -99,8 +137,8 @@ struct GalleryView: View {
                     image: data.capturedImage,
                     uiImage: data.uiImage,
                     onDelete: {
-                        selectedImages = [data.capturedImage.id]
-                        Task { await batchDeleteImages() }
+                        appData.selectedImageIDs = [data.capturedImage.id]
+                        Task { await appData.deleteSelectedImages() }
                         fullscreenData = nil
                     },
                     onSave: {
@@ -110,37 +148,34 @@ struct GalleryView: View {
                 )
             }
             .safeAreaInset(edge: .bottom) {
-                if !appData.images.isEmpty {
-                    VStack(spacing: 10) {
-                        Button(action: {
-                            Task { await appData.saveImagesToDatedFolder() }
-                            showSaveConfirmation = true
-                        }) {
-                            Label("Save to Archive", systemImage: "square.and.arrow.down")
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.gray)
-                                .foregroundStyle(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                        }
-                        Button(action: {
-                            selectedImages = Set(appData.images.map { $0.id })
-                            isBatchRenameUpload = true
-                            isShowingNamingSheet = true
-                        }) {
-                            Label("Batch Rename & Upload", systemImage: "square.and.pencil")
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.orange)
-                                .foregroundStyle(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                if !appData.images.isEmpty && !isMultiSelectMode {
+                    GlassContainer(cornerRadius: 20) {
+                        HStack(spacing: 16) {
+                            Button(action: {
+                                Task { await appData.saveImagesToDatedFolder() }
+                                showSaveConfirmation = true
+                            }) {
+                                Label("Archive All", systemImage: "square.and.arrow.down")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 44)
+                            }
+                            .buttonStyle(GrayButtonStyle())
+                            
+                            Button(action: {
+                                appData.selectedImageIDs = Set(appData.images.map { $0.id })
+                                isBatchRenameUpload = true
+                                isShowingNamingSheet = true
+                            }) {
+                                Label("Batch Upload", systemImage: "square.and.pencil")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 44)
+                            }
+                            .buttonStyle(OrangeButtonStyle())
                         }
                     }
                     .padding()
-                } else {
-                    Text("No images in gallery")
-                        .foregroundStyle(.gray)
-                        .padding()
                 }
             }
             .alert("Confirmation", isPresented: $showSaveConfirmation) {
@@ -153,84 +188,36 @@ struct GalleryView: View {
         }
     }
 
-    @ViewBuilder
-    func imageRow(for image: CapturedImage) -> some View {
-        let isSelected = selectedImages.contains(image.id)
-        VStack(alignment: .center) {
-            AsyncImage(url: image.fileURL) { phase in
-                if let swiftUIImage = phase.image {
-                    swiftUIImage
-                        .resizable()
-                        .scaledToFit()
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .frame(maxHeight: 200)
-                        .overlay {
-                            if isMultiSelectMode {
-                                selectionOverlay(isSelected: isSelected)
-                            } else {
-                                EmptyView()
-                            }
-                        }
-                } else if phase.error != nil {
-                    Image(systemName: "exclamationmark.triangle")
-                        .foregroundStyle(.red)
-                } else {
-                    ProgressView()
-                }
-            }
-            Text(image.name)
-                .font(.caption)
-                .foregroundStyle(.gray)
-                .multilineTextAlignment(.center)
+    private var emptyStateView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "photo.on.rectangle.angled")
+                .font(.system(size: 70))
+                .foregroundStyle(.secondary)
+            Text("No images in gallery")
+                .font(.title3)
+                .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity)
-        .onTapGesture {
-            if !isMultiSelectMode {
-                if let imageData = try? Data(contentsOf: image.fileURL),
-                    let uiImage = UIImage(data: imageData)
-                {
-                    fullscreenData = FullscreenImageData(
-                        id: image.id, capturedImage: image, uiImage: uiImage)
-                }
-            } else {
-                if selectedImages.contains(image.id) {
-                    selectedImages.remove(image.id)
-                } else {
-                    selectedImages.insert(image.id)
-                }
-            }
-        }
-        .contextMenu {
-            if !isMultiSelectMode {
-                Button(action: {
-                    selectedImage = image
-                    imageName = image.name
-                    isShowingNamingSheet = true
-                }) {
-                    Label("Rename", systemImage: "pencil")
-                }
-                Button(
-                    role: .destructive,
-                    action: {
-                        selectedImage = image
-                        selectedImages = [image.id]
-                        showDeleteConfirmation = true
-                    }
-                ) {
-                    Label("Delete", systemImage: "trash")
-                }
-            }
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.top, 100)
     }
 
-    @ViewBuilder
-    func selectionOverlay(isSelected: Bool) -> some View {
-        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-            .foregroundStyle(isSelected ? .blue : .gray)
-            .padding(8)
-            .background(Circle().fill(Color.white.opacity(0.8)))
-            .offset(x: -8, y: -8)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+    func handleImageTap(_ image: CapturedImage) {
+        if !isMultiSelectMode {
+            appData.hapticService.playSelection()
+            if let imageData = try? Data(contentsOf: image.fileURL),
+                let uiImage = UIImage(data: imageData)
+            {
+                fullscreenData = FullscreenImageData(
+                    id: image.id, capturedImage: image, uiImage: uiImage)
+            }
+        } else {
+            if appData.selectedImageIDs.contains(image.id) {
+                appData.selectedImageIDs.remove(image.id)
+            } else {
+                appData.hapticService.playImpact(style: .light)
+                appData.selectedImageIDs.insert(image.id)
+            }
+        }
     }
 
     func saveSingleImageToArchive(_ image: CapturedImage) async {
@@ -244,9 +231,7 @@ struct GalleryView: View {
             try await appData.fileService.createDirectory(at: datedFolderURL)
             let destinationURL = datedFolderURL.appendingPathComponent(image.fileURL.lastPathComponent)
 
-            // Check if the image already exists in the archive
             if await appData.fileService.fileExists(at: destinationURL) {
-                // Show warning that image is already saved
                 await MainActor.run {
                     showSaveConfirmation = true
                     appData.scanStatus = "Image is already saved to archive."
@@ -255,16 +240,13 @@ struct GalleryView: View {
             }
 
             try await appData.fileService.copyItem(at: image.fileURL, to: destinationURL)
-            print("Single image saved to \(datedFolderURL.path)")
-
-            // Show success message
+            
             await MainActor.run {
                 showSaveConfirmation = true
                 appData.scanStatus = "Image saved to archive."
+                appData.hapticService.playNotification(type: .success)
             }
         } catch {
-            print("Failed to save single image: \(error.localizedDescription)")
-            // Show error message
             await MainActor.run {
                 showSaveConfirmation = true
                 appData.scanStatus = "Failed to save image: \(error.localizedDescription)"
@@ -274,62 +256,44 @@ struct GalleryView: View {
 
     func batchRenameImages() {
         guard !imageName.isEmpty else { return }
-        for (index, imageID) in selectedImages.enumerated() {
-            if let indexInImages = appData.images.firstIndex(where: { $0.id == imageID }) {
+        let selectedImagesInOrder = appData.images.filter { appData.selectedImageIDs.contains($0.id) }
+        for (index, imageToRename) in selectedImagesInOrder.enumerated() {
+            if let indexInImages = appData.images.firstIndex(where: { $0.id == imageToRename.id }) {
                 let formattedIndex = String(format: "%02d", index + 1)
                 appData.images[indexInImages].name = "\(imageName)\(formattedIndex)"
             }
         }
-        selectedImages.removeAll()
+        appData.selectedImageIDs.removeAll()
         isMultiSelectMode = false
         imageName = ""
-    }
-
-    func saveAndUpload() {
-        batchRenameImages()
-        navigateToUpload = true
+        appData.hapticService.playNotification(type: .success)
     }
 
     func batchRenameAndUpload() {
         guard !imageName.isEmpty else { return }
-        for (index, imageID) in selectedImages.enumerated() {
-            if let indexInImages = appData.images.firstIndex(where: { $0.id == imageID }) {
+        let selectedImagesInOrder = appData.images.filter { appData.selectedImageIDs.contains($0.id) }
+        for (index, imageToRename) in selectedImagesInOrder.enumerated() {
+            if let indexInImages = appData.images.firstIndex(where: { $0.id == imageToRename.id }) {
                 let formattedIndex = String(format: "%02d", index + 1)
                 appData.images[indexInImages].name = "\(imageName)\(formattedIndex)"
             }
         }
-        selectedImages.removeAll()
+        appData.selectedImageIDs.removeAll()
         isMultiSelectMode = false
         isBatchRenameUpload = false
         imageName = ""
         navigateToUpload = true
     }
 
-    func batchDeleteImages() async {
-        for image in appData.images {
-            if selectedImages.contains(image.id) {
-                try? await appData.fileService.removeItem(at: image.fileURL)
-            }
-        }
-        
-        await MainActor.run {
-            appData.images.removeAll { image in
-                selectedImages.contains(image.id)
-            }
-            selectedImages.removeAll()
-            isMultiSelectMode = false
-            fullscreenData = nil
-        }
-    }
-
     func renameImage() {
         guard let image = selectedImage,
             let index = appData.images.firstIndex(where: { $0.id == image.id })
         else { return }
-        appData.images[index].name = appData.imageName.isEmpty ? "Image" : appData.imageName
+        appData.images[index].name = imageName.isEmpty ? "Image" : imageName
         selectedImage = nil
         imageName = ""
         isShowingNamingSheet = false
+        appData.hapticService.playNotification(type: .success)
     }
 }
 

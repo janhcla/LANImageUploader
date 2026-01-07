@@ -105,6 +105,7 @@ class AppData: ObservableObject {
     @Published var imageName: String = ""
     @Published var scanStatus: String = ""
     @Published var connectionStatus: ConnectionStatus = .disconnected
+    @Published var selectedImageIDs: Set<UUID> = []
 
     private let passwordKey = Constants.Keychain.serverPassword
     private let settingsKey = Constants.UserDefaults.serverSettings
@@ -113,15 +114,18 @@ class AppData: ObservableObject {
     internal let fileService: FileServiceProtocol
     internal let uploadService: ImageUploadServiceProtocol
     internal let discoveryService: NetworkDiscoveryProtocol
+    internal let hapticService: HapticFeedbackServiceProtocol
 
     init(
         fileService: FileServiceProtocol,
         uploadService: ImageUploadServiceProtocol,
-        discoveryService: NetworkDiscoveryProtocol
+        discoveryService: NetworkDiscoveryProtocol,
+        hapticService: HapticFeedbackServiceProtocol
     ) {
         self.fileService = fileService
         self.uploadService = uploadService
         self.discoveryService = discoveryService
+        self.hapticService = hapticService
         
         self.settings = ServerSettings(
             serverIP: "", shareName: "", targetDirectory: nil, username: "")
@@ -136,10 +140,25 @@ class AppData: ObservableObject {
         ocrText = ""
     }
 
+    func deleteSelectedImages() async {
+        let idsToDelete = selectedImageIDs
+        let imagesToDelete = images.filter { idsToDelete.contains($0.id) }
+        
+        for image in imagesToDelete {
+            try? await fileService.removeItem(at: image.fileURL)
+        }
+        await MainActor.run {
+            images.removeAll { idsToDelete.contains($0.id) }
+            selectedImageIDs.removeAll()
+            hapticService.playNotification(type: .success)
+        }
+    }
+
     // Save images to a dated folder
-    func saveImagesToDatedFolder(for date: Date = Date()) async {
+    func saveImagesToDatedFolder(_ imagesToSave: [CapturedImage]? = nil, for date: Date = Date()) async {
+        let targetImages = imagesToSave ?? images
         do {
-            let (savedCount, alreadySavedCount) = try await fileService.archiveImages(images, for: date)
+            let (savedCount, alreadySavedCount) = try await fileService.archiveImages(targetImages, for: date)
 
             // Update scan status based on results
             await MainActor.run {
@@ -220,7 +239,8 @@ extension AppData {
         AppData(
             fileService: FileService.shared,
             uploadService: ImageUploadService.shared,
-            discoveryService: NetworkDiscovery.shared
+            discoveryService: NetworkDiscovery.shared,
+            hapticService: HapticFeedbackService.shared
         )
     }
 }

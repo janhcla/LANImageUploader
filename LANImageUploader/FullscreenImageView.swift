@@ -2,8 +2,6 @@
 //  FullscreenImageView.swift
 //  LANImageUploader
 //
-//  Created by Jan Hagen Clausen on 22/02/2025.
-//
 
 import SwiftUI
 import UIKit
@@ -14,142 +12,129 @@ struct FullscreenImageView: View {
     let onDelete: () -> Void
     let onSave: () -> Void
     @Environment(\.dismiss) var dismiss
-
+    
+    // For Hero Transitions
+    @State private var appearAnimation = false
+    @State private var dragOffset: CGSize = .zero
+    
+    // Zoom State
     @State private var scale: CGFloat = 1.0
     @State private var lastScale: CGFloat = 1.0
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
-    @State private var pinchCenter: CGPoint = .zero
-    @State private var showSuccessToast = false
-
+    
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
-            GeometryReader { geo in
-                let viewCenter = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
-
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .scaleEffect(scale)
-                    .offset(offset)
-                    .gesture(
-                        DragGesture(minimumDistance: 10)
-                            .onChanged { gesture in
-                                offset = CGSize(
-                                    width: lastOffset.width + gesture.translation.width,
-                                    height: lastOffset.height + gesture.translation.height)
-                            }
-                            .onEnded { _ in
-                                lastOffset = offset
-                            }
-                    )
-                    .simultaneousGesture(
-                        SimultaneousGesture(
-                            MagnificationGesture()
-                                .onChanged { value in
-                                    let newScale = lastScale * value
-                                    let deltaScale = newScale / lastScale
-                                    let translation = CGPoint(
-                                        x: pinchCenter.x - viewCenter.x,
-                                        y: pinchCenter.y - viewCenter.y)
-                                    let newOffset = CGSize(
-                                        width: lastOffset.width - translation.x * (deltaScale - 1),
-                                        height: lastOffset.height - translation.y * (deltaScale - 1)
-                                    )
-                                    scale = newScale
-                                    offset = newOffset
+            // Background with blur effect
+            Color.black
+                .opacity(appearAnimation ? 1.0 : 0.0)
+                .ignoresSafeArea()
+            
+            // Image with Zoom & Pan & Dismiss Drag
+            Image(uiImage: uiImage)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .scaleEffect(scale)
+                .offset(x: offset.width + dragOffset.width, y: offset.height + dragOffset.height)
+                .opacity(appearAnimation ? 1.0 : 0.0)
+                .scaleEffect(appearAnimation ? 1.0 : 0.8)
+                .gesture(
+                    scale == 1.0 ? 
+                    DragGesture()
+                        .onChanged { value in
+                            dragOffset = value.translation
+                        }
+                        .onEnded { value in
+                            if abs(value.translation.height) > 100 {
+                                dismiss()
+                            } else {
+                                withAnimation(.spring()) {
+                                    dragOffset = .zero
                                 }
-                                .onEnded { _ in
-                                    lastScale = scale
-                                    lastOffset = offset
-                                },
-                            DragGesture(minimumDistance: 0)
-                                .onChanged { gesture in
-                                    pinchCenter = gesture.location
+                            }
+                        }
+                    : nil
+                )
+                .gesture(
+                    MagnificationGesture()
+                        .onChanged { value in
+                            scale = lastScale * value
+                        }
+                        .onEnded { _ in
+                            if scale < 1.0 {
+                                withAnimation(.spring()) {
+                                    scale = 1.0
+                                    offset = .zero
                                 }
-                        )
-                    )
-                    .onAppear {
-                        pinchCenter = viewCenter
-                    }
-            }
-
+                            }
+                            lastScale = scale
+                        }
+                )
+                .simultaneousGesture(
+                    DragGesture()
+                        .onChanged { value in
+                            guard scale > 1.0 else { return }
+                            offset = CGSize(
+                                width: lastOffset.width + value.translation.width,
+                                height: lastOffset.height + value.translation.height
+                            )
+                        }
+                        .onEnded { _ in
+                            guard scale > 1.0 else { return }
+                            lastOffset = offset
+                        }
+                )
+            
+            // Controls Overlay
             VStack {
                 HStack {
                     Spacer()
                     Button(action: { dismiss() }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title)
-                            .foregroundColor(.white)
+                        Image(systemName: "xmark")
+                            .font(.title3.weight(.bold))
+                            .foregroundStyle(.white)
                             .padding(12)
-                            .background(Circle().fill(Color.black.opacity(0.7)))
+                            .background(.ultraThinMaterial)
+                            .clipShape(Circle())
                     }
-                    .padding(.top, 20)
-                    .padding(.trailing, 20)
+                    .padding()
                 }
+                
                 Spacer()
-                HStack {
-                    Button(action: {
-                        // Show success toast
-                        showSuccessToast = true
-
-                        // First call onSave handler
-                        onSave()
-
-                        // Dismiss with delay to show the toast
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                            dismiss()
+                
+                GlassContainer(cornerRadius: 30) {
+                    HStack(spacing: 40) {
+                        Button(action: onSave) {
+                            VStack(spacing: 4) {
+                                Image(systemName: "square.and.arrow.down")
+                                    .font(.title2)
+                                Text("Save")
+                                    .font(.caption2)
+                            }
+                            .foregroundStyle(.white)
                         }
-                    }) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.green)
-                                .frame(width: 44, height: 44)
-
-                            Image(systemName: "square.and.arrow.down")
-                                .font(.system(size: 18))
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .padding(.leading, 16)
-
-                    Spacer()
-
-                    Button(action: onDelete) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.red)
-                                .frame(width: 44, height: 44)
-
-                            Image(systemName: "trash")
-                                .font(.system(size: 18))
-                                .foregroundColor(.white)
+                        
+                        Button(action: onDelete) {
+                            VStack(spacing: 4) {
+                                Image(systemName: "trash")
+                                    .font(.title2)
+                                Text("Delete")
+                                    .font(.caption2)
+                            }
+                            .foregroundStyle(.red)
                         }
                     }
-                    .padding(.trailing, 16)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 8)
                 }
-                .padding(.bottom, 8)
+                .padding(.bottom, 20)
+                .opacity(appearAnimation ? 1.0 : 0.0)
+                .offset(y: appearAnimation ? 0 : 50)
             }
-            .padding()
-            .zIndex(2)
-
-            // Success toast
-            if showSuccessToast {
-                VStack {
-                    Spacer()
-                    Text("Image saved to archive")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .padding()
-                        .background(Color.green)
-                        .cornerRadius(10)
-                        .shadow(radius: 4)
-                        .padding(.bottom, 80)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-                .animation(.easeInOut, value: showSuccessToast)
-                .zIndex(3)
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                appearAnimation = true
             }
         }
     }

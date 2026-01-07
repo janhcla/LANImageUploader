@@ -30,11 +30,13 @@ struct LANImageUploaderApp: App {
         let fileService = FileService.shared
         let uploadService = ImageUploadService.shared
         let discoveryService = NetworkDiscovery.shared
+        let hapticService = HapticFeedbackService.shared
         
         _appData = StateObject(wrappedValue: AppData(
             fileService: fileService,
             uploadService: uploadService,
-            discoveryService: discoveryService
+            discoveryService: discoveryService,
+            hapticService: hapticService
         ))
 
         _ = NetworkMonitor.shared
