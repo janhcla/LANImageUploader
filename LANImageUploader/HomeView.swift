@@ -106,7 +106,7 @@ struct HomeView: View {
                         Spacer()
                     }
                 )
-                .navigationTitle("ImageDrop")
+                .navigationTitle("ImageDropX")
                 .toolbarColorScheme(colorScheme, for: .navigationBar)
                 .toolbarBackground(.hidden, for: .navigationBar)
         }
@@ -141,5 +141,5 @@ struct HomeView: View {
 
 #Preview {
     HomeView()
-        .environmentObject(AppData())
+        .environmentObject(AppData.preview)
 }

@@ -21,16 +21,26 @@ class ClearBackgroundHostingController<Content: View>: UIHostingController<Conte
 
 @main
 struct LANImageUploaderApp: App {
-    @AppStorage("onboardingCompleted") var onboardingCompleted: Bool = false
-    @StateObject private var appData = AppData()
+    @AppStorage(Constants.UserDefaults.onboardingCompleted) var onboardingCompleted: Bool = false
+    @StateObject private var appData: AppData
     @Environment(\.scenePhase) private var scenePhase
     @State private var isShowingLaunchScreen = true
 
     init() {
+        let fileService = FileService.shared
+        let uploadService = ImageUploadService.shared
+        let discoveryService = NetworkDiscovery.shared
+        
+        _appData = StateObject(wrappedValue: AppData(
+            fileService: fileService,
+            uploadService: uploadService,
+            discoveryService: discoveryService
+        ))
+
         _ = NetworkMonitor.shared
 
         // Register the background task without 'weak' for struct (value type)
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.janhagenclausen.LANImageUploader.dailyImageSave", using: nil) { [self] task in
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: Constants.BackgroundTasks.dailyImageSave, using: nil) { [self] task in
             handleAppRefreshTask(task: task as! BGAppRefreshTask)
         }
         print("Onboarding completed state at launch: \(onboardingCompleted)")
@@ -103,12 +113,14 @@ struct LANImageUploaderApp: App {
         task.expirationHandler = {
             print("Task expired before completion")
         }
-        appData.saveImagesToDatedFolder()
-        task.setTaskCompleted(success: true)
+        Task {
+            await appData.saveImagesToDatedFolder()
+            task.setTaskCompleted(success: true)
+        }
     }
 
     private func scheduleDailyImageSave() {
-        let request = BGAppRefreshTaskRequest(identifier: "com.janhagenclausen.LANImageUploader.dailyImageSave")
+        let request = BGAppRefreshTaskRequest(identifier: Constants.BackgroundTasks.dailyImageSave)
         let calendar = Calendar.current
         var components = calendar.dateComponents([.year, .month, .day], from: Date())
         components.hour = 0
@@ -122,7 +134,15 @@ struct LANImageUploaderApp: App {
             try BGTaskScheduler.shared.submit(request)
             print("Scheduled daily image save for \(request.earliestBeginDate?.description ?? "unknown")")
         } catch {
-            print("Failed to schedule daily image save: \(error)")
+            if let bgError = error as? BGTaskScheduler.Error, bgError.code == .unavailable {
+                #if targetEnvironment(simulator)
+                print("Background task scheduling is unavailable on Simulator. This is expected.")
+                #else
+                print("Failed to schedule daily image save: Background tasks unavailable.")
+                #endif
+            } else {
+                print("Failed to schedule daily image save: \(error)")
+            }
         }
     }
 }

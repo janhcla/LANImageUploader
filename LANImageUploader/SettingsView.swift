@@ -328,7 +328,7 @@ struct SettingsView: View {
             searchProgress = "Searching for SMB servers..."
             
             let trimmedIP = serverIP.trimmingCharacters(in: .whitespacesAndNewlines)
-            let info = try await NetworkDiscovery.shared.retrieveNetworkInfo(
+            let info = try await appData.discoveryService.retrieveNetworkInfo(
                 targetFolder: targetDirectory,
                 username: username,
                 password: password,
@@ -493,5 +493,5 @@ extension View {
 
 #Preview {
     SettingsView()
-        .environmentObject(AppData())
+        .environmentObject(AppData.preview)
 }

@@ -52,11 +52,24 @@ public enum ConnectionError: LocalizedError, Equatable, Sendable {
 
 // MARK: - Main Class Definition
 @MainActor
-final class NetworkDiscovery {
-    static let shared = NetworkDiscovery()
-    private init() {}
+final class NetworkDiscovery: NetworkDiscoveryProtocol {
+    static let shared = NetworkDiscovery(networkMonitor: .shared)
     
-    private var discoveredServersCache: [String: (timestamp: Date, info: NetworkInfo)] = [:]
+    let networkMonitor: NetworkMonitor
+    
+    init(networkMonitor: NetworkMonitor) {
+        self.networkMonitor = networkMonitor
+    }
+    
+    private struct CacheKey: Hashable {
+        let ip: String
+        let targetFolder: String
+        let username: String
+        let password: String
+        let port: Int?
+    }
+    
+    private var discoveredServersCache: [CacheKey: (timestamp: Date, info: NetworkInfo)] = [:]
     private let cacheDuration: TimeInterval = 300
 }
 
@@ -73,7 +86,7 @@ extension NetworkDiscovery {
         logger.info("--- Starting retrieveNetworkInfo ---")
         
         // Wait briefly for network monitor to be ready
-        if try await !NetworkMonitor.shared.waitForNetwork(timeout: 3.0) {
+        if try await !networkMonitor.waitForNetwork(timeout: 3.0) {
             logger.error("Network connection unavailable (timed out waiting).")
             let error = ConnectionError.networkUnavailable
             onStatus?(.failure(error))
@@ -83,7 +96,7 @@ extension NetworkDiscovery {
         // 1. Direct Connection Attempt
         if let directIP = directIP, !directIP.isEmpty {
             onStatus?(.connecting(directIP))
-            if let cachedInfo = getCachedServer(directIP) {
+            if let cachedInfo = getCachedServer(ip: directIP, targetFolder: targetFolder, username: username, password: password, port: port) {
                 logger.info("Using cached server information for \(directIP)")
                 onStatus?(.connected(cachedInfo))
                 return cachedInfo
@@ -98,7 +111,7 @@ extension NetworkDiscovery {
                     port: port,
                     onStatus: onStatus
                 )
-                cacheServer(networkInfo)
+                cacheServer(networkInfo, targetFolder: targetFolder, username: username, password: password, port: port)
                 onStatus?(.connected(networkInfo))
                 return networkInfo
             } catch {
@@ -125,7 +138,7 @@ extension NetworkDiscovery {
                 port: port,
                 onStatus: onStatus
             )
-            cacheServer(networkInfo)
+            cacheServer(networkInfo, targetFolder: targetFolder, username: username, password: password, port: port)
             onStatus?(.connected(networkInfo))
             return networkInfo
         }
@@ -158,7 +171,7 @@ extension NetworkDiscovery {
                             port: port,
                             onStatus: onStatus
                         )
-                        cacheServer(networkInfo)
+                        cacheServer(networkInfo, targetFolder: targetFolder, username: username, password: password, port: port)
                         onStatus?(.connected(networkInfo))
                         return networkInfo
                     } catch {
@@ -206,7 +219,7 @@ extension NetworkDiscovery {
     ) async throws -> [DiscoveredHost] {
         var hosts: [String: DiscoveredHost] = [:]
 
-        if try await !NetworkMonitor.shared.waitForNetwork(timeout: 3.0) {
+        if try await !networkMonitor.waitForNetwork(timeout: 3.0) {
             throw ConnectionError.networkUnavailable
         }
         
@@ -475,14 +488,16 @@ extension NetworkDiscovery {
 
 // MARK: - Server Cache Management
 extension NetworkDiscovery {
-    private func cacheServer(_ info: NetworkInfo) {
-        discoveredServersCache[info.serverIP] = (Date(), info)
+    private func cacheServer(_ info: NetworkInfo, targetFolder: String, username: String, password: String, port: Int?) {
+        let key = CacheKey(ip: info.serverIP, targetFolder: targetFolder, username: username, password: password, port: port)
+        discoveredServersCache[key] = (Date(), info)
     }
     
-    private func getCachedServer(_ ip: String) -> NetworkInfo? {
-        guard let (timestamp, info) = discoveredServersCache[ip] else { return nil }
+    private func getCachedServer(ip: String, targetFolder: String, username: String, password: String, port: Int?) -> NetworkInfo? {
+        let key = CacheKey(ip: ip, targetFolder: targetFolder, username: username, password: password, port: port)
+        guard let (timestamp, info) = discoveredServersCache[key] else { return nil }
         guard Date().timeIntervalSince(timestamp) < cacheDuration else {
-            discoveredServersCache.removeValue(forKey: ip)
+            discoveredServersCache.removeValue(forKey: key)
             return nil
         }
         return info
@@ -1077,7 +1092,7 @@ struct DiscoveryResultsView: View {
         discoveryTask?.cancel()
         discoveryTask = Task {
             do {
-                let hosts = try await NetworkDiscovery.shared.discoverAvailableHosts(onStatus: { status in
+                let hosts = try await appData.discoveryService.discoverAvailableHosts(onStatus: { status in
                     Task { @MainActor in
                         updateStatus(status)
                     }
@@ -1124,7 +1139,7 @@ struct DiscoveryResultsView: View {
         
         Task {
             do {
-                let shares = try await NetworkDiscovery.shared.listAvailableShares(
+                let shares = try await appData.discoveryService.listAvailableShares(
                     ipAddress: host.id,
                     username: username,
                     password: password,
@@ -1158,5 +1173,5 @@ struct DiscoveryResultsView: View {
 
 #Preview {
     DiscoveryResultsView(username: "", password: "", port: nil, onSelect: { _ in })
-        .environmentObject(AppData())
+        .environmentObject(AppData.preview)
 }

@@ -89,7 +89,7 @@ struct WelcomePage: View {
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
-            Text("Welcome to ImageDrop!")
+            Text("Welcome to ImageDropX!")
                 .font(.largeTitle)
                 .fontWeight(.bold)
             Text("A simple and secure tool to capture images and upload them directly to your local network share.")
@@ -273,7 +273,7 @@ struct TutorialPage: View {
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
-            Text("How to Use ImageDrop")
+            Text("How to Use ImageDropX")
                 .font(.title)
                 .fontWeight(.bold)
             VStack(spacing: 20) {
@@ -384,7 +384,7 @@ struct CompletionPage: View {
                 .frame(width: 100, height: 100)
                 .foregroundStyle(.green)
             Spacer()
-            Button("Start Using ImageDrop") {
+            Button("Start Using ImageDropX") {
                 completeAction()
             }
             .frame(maxWidth: .infinity)
@@ -540,7 +540,7 @@ struct NetworkSetupView: View {
             let directIPFromSettings = appData.settings.serverIP.trimmingCharacters(in: .whitespacesAndNewlines)
             let directIP = directIPFromSettings.isEmpty ? nil : directIPFromSettings
 
-            let info = try await NetworkDiscovery.shared.retrieveNetworkInfo(
+            let info = try await appData.discoveryService.retrieveNetworkInfo(
                 targetFolder: targetDirectory,
                 username: username,
                 password: password,
@@ -625,5 +625,5 @@ struct NetworkSetupView: View {
 
 #Preview {
     OnboardingView()
-        .environmentObject(AppData())
+        .environmentObject(AppData.preview)
 }

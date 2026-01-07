@@ -26,16 +26,17 @@ struct ArchiveView: View {
     @State private var showRestoreConfirmation = false
     @State private var restoreMessage = ""
     @State private var showDeleteSelectedConfirmation = false
+    @State private var archivedDates: [String] = []
 
     private var hasArchives: Bool {
-        !appData.getArchivedDates().isEmpty
+        !archivedDates.isEmpty
     }
 
     var body: some View {
         BackgroundContainerView {
             NavigationStack {
                 List {
-                    ForEach(appData.getArchivedDates(), id: \.self) { date in
+                    ForEach(archivedDates, id: \.self) { date in
                         archiveRow(for: date)
                     }
                 }
@@ -56,7 +57,7 @@ struct ArchiveView: View {
                     ToolbarItem(placement: .bottomBar) {
                         if isMultiSelectMode && !selectedDates.isEmpty {
                             HStack {
-                                Button(action: restoreSelectedArchives) {
+                                Button(action: { Task { await restoreSelectedArchives() } }) {
                                     Label("Restore", systemImage: "arrow.uturn.backward")
                                         .frame(maxWidth: .infinity)
                                         .padding()
@@ -96,7 +97,7 @@ struct ArchiveView: View {
                     }
                 }
                 .alert("Confirmation", isPresented: $showDeleteAllConfirmation) {
-                    Button("Yes", role: .destructive) { deleteAllArchives() }
+                    Button("Yes", role: .destructive) { Task { await deleteAllArchives() } }
                     Button("No", role: .cancel) {}
                 } message: {
                     Text(
@@ -104,7 +105,7 @@ struct ArchiveView: View {
                     )
                 }
                 .alert("Confirmation", isPresented: $showDeleteSelectedConfirmation) {
-                    Button("Yes", role: .destructive) { deleteSelectedArchives() }
+                    Button("Yes", role: .destructive) { Task { await deleteSelectedArchives() } }
                     Button("No", role: .cancel) {}
                 } message: {
                     Text(
@@ -132,7 +133,15 @@ struct ArchiveView: View {
             }
             .onAppear {
                 loadCustomArchiveNames()
+                Task { await refreshArchivedDates() }
             }
+        }
+    }
+
+    private func refreshArchivedDates() async {
+        let dates = await appData.getArchivedDates()
+        await MainActor.run {
+            self.archivedDates = dates
         }
     }
 
@@ -218,7 +227,7 @@ struct ArchiveView: View {
         .swipeActions(edge: .leading) {
             Button {
                 selectedDates = [date]
-                restoreSelectedArchives()
+                Task { await restoreSelectedArchives() }
             } label: {
                 Label("Restore", systemImage: "arrow.uturn.backward")
             }
@@ -234,32 +243,31 @@ struct ArchiveView: View {
 
         // Save to UserDefaults
         if let encoded = try? JSONEncoder().encode(customArchiveNames) {
-            UserDefaults.standard.set(encoded, forKey: "archiveCustomNames")
+            UserDefaults.standard.set(encoded, forKey: Constants.UserDefaults.archiveCustomNames)
         }
 
         dateToRename = ""
     }
 
     private func loadCustomArchiveNames() {
-        if let savedData = UserDefaults.standard.data(forKey: "archiveCustomNames"),
+        if let savedData = UserDefaults.standard.data(forKey: Constants.UserDefaults.archiveCustomNames),
             let decoded = try? JSONDecoder().decode([String: String].self, from: savedData)
         {
             customArchiveNames = decoded
         }
     }
 
-    private func restoreSelectedArchives() {
+    private func restoreSelectedArchives() async {
         var successCount = 0
         var failureCount = 0
 
         for date in selectedDates {
-            let images = appData.getImagesForDate(date)
-            let fileManager = FileManager.default
-            let imagesFolderURL = appData.documentsDirectory.appendingPathComponent("images")
+            let images = await appData.getImagesForDate(date)
+            let docs = await appData.fileService.documentsDirectory
+            let imagesFolderURL = docs.appendingPathComponent("images")
 
             do {
-                try fileManager.createDirectory(
-                    at: imagesFolderURL, withIntermediateDirectories: true)
+                try await appData.fileService.createDirectory(at: imagesFolderURL)
 
                 for imageURL in images {
                     let destinationURL = imagesFolderURL.appendingPathComponent(
@@ -268,16 +276,16 @@ struct ArchiveView: View {
                     // Check if this image is already in our app's images array
                     if !appData.images.contains(where: { $0.fileURL == destinationURL }) {
                         // If file exists on disk but not in app's array, it's a leftover file - clean it up
-                        if fileManager.fileExists(atPath: destinationURL.path) {
-                            try fileManager.removeItem(at: destinationURL)
-                        }
+                        try? await appData.fileService.removeItem(at: destinationURL)
 
                         // Copy from archive to gallery
-                        try fileManager.copyItem(at: imageURL, to: destinationURL)
+                        try await appData.fileService.copyItem(at: imageURL, to: destinationURL)
                         let capturedImage = CapturedImage(
                             name: imageURL.deletingPathExtension().lastPathComponent,
                             fileURL: destinationURL)
-                        appData.images.append(capturedImage)
+                        await MainActor.run {
+                            appData.images.append(capturedImage)
+                        }
                         successCount += 1
                     } else {
                         failureCount += 1
@@ -289,21 +297,20 @@ struct ArchiveView: View {
             }
         }
 
-        restoreMessage =
-            "Restored \(successCount) images"
-            + (failureCount > 0 ? " (\(failureCount) already in gallery)" : "")
-        showRestoreConfirmation = true
-        selectedDates.removeAll()
-        isMultiSelectMode = false
+        await MainActor.run {
+            restoreMessage = "Restored \(successCount) images" + (failureCount > 0 ? " (\(failureCount) already in gallery)" : "")
+            showRestoreConfirmation = true
+            selectedDates.removeAll()
+            isMultiSelectMode = false
+        }
     }
 
-    private func deleteSelectedArchives() {
-        let fileManager = FileManager.default
-
+    private func deleteSelectedArchives() async {
+        let docs = await appData.fileService.documentsDirectory
         for date in selectedDates {
-            let archiveURL = appData.documentsDirectory.appendingPathComponent(date)
+            let archiveURL = docs.appendingPathComponent(date)
             do {
-                try fileManager.removeItem(at: archiveURL)
+                try await appData.fileService.removeItem(at: archiveURL)
                 print("Deleted archive: \(archiveURL.path)")
 
                 // Also remove custom name if it exists
@@ -315,20 +322,23 @@ struct ArchiveView: View {
 
         // Save updated custom names
         if let encoded = try? JSONEncoder().encode(customArchiveNames) {
-            UserDefaults.standard.set(encoded, forKey: "archiveCustomNames")
+            UserDefaults.standard.set(encoded, forKey: Constants.UserDefaults.archiveCustomNames)
         }
 
-        selectedDates.removeAll()
-        isMultiSelectMode = false
+        await refreshArchivedDates()
+        await MainActor.run {
+            selectedDates.removeAll()
+            isMultiSelectMode = false
+        }
     }
 
-    private func deleteAllArchives() {
-        let archives = appData.getArchivedDates()
-        let fileManager = FileManager.default
+    private func deleteAllArchives() async {
+        let archives = await appData.getArchivedDates()
+        let docs = await appData.fileService.documentsDirectory
         for archive in archives {
-            let archiveURL = appData.documentsDirectory.appendingPathComponent(archive)
+            let archiveURL = docs.appendingPathComponent(archive)
             do {
-                try fileManager.removeItem(at: archiveURL)
+                try await appData.fileService.removeItem(at: archiveURL)
                 print("Deleted archive: \(archiveURL.path)")
 
                 // Also remove custom name
@@ -340,8 +350,10 @@ struct ArchiveView: View {
 
         // Save updated custom names
         if let encoded = try? JSONEncoder().encode(customArchiveNames) {
-            UserDefaults.standard.set(encoded, forKey: "archiveCustomNames")
+            UserDefaults.standard.set(encoded, forKey: Constants.UserDefaults.archiveCustomNames)
         }
+        
+        await refreshArchivedDates()
     }
 }
 
@@ -395,7 +407,7 @@ struct ArchivedImagesView: View {
                     if isMultiSelectMode && !selectedImages.isEmpty {
                         VStack {
                             HStack(spacing: 20) {
-                                Button(action: restoreSelectedImages) {
+                                Button(action: { Task { await restoreSelectedImages() } }) {
                                     Label("Restore", systemImage: "arrow.uturn.backward")
                                         .frame(maxWidth: .infinity)
                                         .padding()
@@ -419,7 +431,7 @@ struct ArchivedImagesView: View {
                         .padding()
                         .background(Color(UIColor.systemBackground))
                     } else if !isMultiSelectMode {
-                        Button(action: restoreAllImages) {
+                        Button(action: { Task { await restoreAllImages() } }) {
                             Label("Restore Images", systemImage: "arrow.uturn.backward")
                                 .frame(maxWidth: .infinity)
                                 .padding()
@@ -436,7 +448,7 @@ struct ArchivedImagesView: View {
                     Text(restoreMessage)
                 }
                 .alert("Confirmation", isPresented: $showDeleteSelectedConfirmation) {
-                    Button("Yes", role: .destructive) { deleteSelectedImages() }
+                    Button("Yes", role: .destructive) { Task { await deleteSelectedImages() } }
                     Button("No", role: .cancel) {}
                 } message: {
                     Text(
@@ -444,11 +456,11 @@ struct ArchivedImagesView: View {
                     )
                 }
                 .onAppear {
-                    refreshImages()
+                    Task { await refreshImages() }
 
                     // Set up notification observer for deleted images
                     NotificationCenter.default.addObserver(
-                        forName: Notification.Name("ArchivedImageDeleted"),
+                        forName: Notification.Name(Constants.Notifications.archivedImageDeleted),
                         object: nil,
                         queue: .main
                     ) { notification in
@@ -503,56 +515,63 @@ struct ArchivedImagesView: View {
         }
     }
 
-    func restoreAllImages() {
-        let images = appData.getImagesForDate(date)
-        restoreImages(images)
+    func restoreAllImages() async {
+        let images = await appData.getImagesForDate(date)
+        await restoreImages(images)
     }
 
-    func restoreSelectedImages() {
-        restoreImages(Array(selectedImages))
-        selectedImages.removeAll()
-        isMultiSelectMode = false
+    func restoreSelectedImages() async {
+        await restoreImages(Array(selectedImages))
+        await MainActor.run {
+            selectedImages.removeAll()
+            isMultiSelectMode = false
+        }
     }
 
-    private func restoreImages(_ imageURLs: [URL]) {
-        let fileManager = FileManager.default
-        let imagesFolderURL = appData.documentsDirectory.appendingPathComponent("images")
+    private func restoreImages(_ imageURLs: [URL]) async {
+        let docs = await appData.fileService.documentsDirectory
+        let imagesFolderURL = docs.appendingPathComponent("images")
         var canRestore = true
         var restoredCount = 0
 
         do {
-            try fileManager.createDirectory(at: imagesFolderURL, withIntermediateDirectories: true)
+            try await appData.fileService.createDirectory(at: imagesFolderURL)
             for imageURL in imageURLs {
                 let destinationURL = imagesFolderURL.appendingPathComponent(
                     imageURL.lastPathComponent)
                 if !appData.images.contains(where: { $0.fileURL == destinationURL }) {
-                    try fileManager.copyItem(at: imageURL, to: destinationURL)
+                    try await appData.fileService.copyItem(at: imageURL, to: destinationURL)
                     let capturedImage = CapturedImage(
                         name: imageURL.deletingPathExtension().lastPathComponent,
                         fileURL: destinationURL)
-                    appData.images.append(capturedImage)
+                    await MainActor.run {
+                        appData.images.append(capturedImage)
+                    }
                     restoredCount += 1
                 } else {
                     canRestore = false
                 }
             }
-            showRestoreConfirmation(
-                canRestore ? "Image(s) restored" : "Cannot restore, images already in the gallery")
+            await MainActor.run {
+                showRestoreConfirmation(canRestore ? "Image(s) restored" : "Cannot restore, images already in the gallery")
+            }
             print("Restored \(restoredCount) images")
         } catch {
             print("Failed to restore images: \(error)")
-            showRestoreConfirmation("Failed to restore images: \(error.localizedDescription)")
+            await MainActor.run {
+                showRestoreConfirmation("Failed to restore images: \(error.localizedDescription)")
+            }
         }
     }
 
-    private func deleteSelectedImages() {
-        let fileManager = FileManager.default
-        let dateFolder = appData.documentsDirectory.appendingPathComponent(date)
+    private func deleteSelectedImages() async {
+        let docs = await appData.fileService.documentsDirectory
+        let dateFolder = docs.appendingPathComponent(date)
 
         // Delete selected images
         for imageURL in selectedImages {
             do {
-                try fileManager.removeItem(at: imageURL)
+                try await appData.fileService.removeItem(at: imageURL)
                 print("Deleted image: \(imageURL.path)")
             } catch {
                 print("Failed to delete image: \(error)")
@@ -561,26 +580,30 @@ struct ArchivedImagesView: View {
 
         // Check if the archive folder is now empty
         do {
-            let remainingFiles = try fileManager.contentsOfDirectory(
-                at: dateFolder, includingPropertiesForKeys: nil)
+            let remainingFiles = try await appData.fileService.contentsOfDirectory(at: dateFolder)
             let imageFiles = remainingFiles.filter {
                 ["jpg", "png"].contains($0.pathExtension.lowercased())
             }
 
             // If no images left in the folder, delete the archive folder
             if imageFiles.isEmpty {
-                try fileManager.removeItem(at: dateFolder)
+                try await appData.fileService.removeItem(at: dateFolder)
                 print("Deleted empty archive folder: \(date)")
                 // Dismiss the view since the archive folder no longer exists
-                dismiss()
+                await MainActor.run {
+                    dismiss()
+                }
                 return
             }
         } catch {
             print("Error checking for empty archive: \(error)")
         }
 
-        selectedImages.removeAll()
-        isMultiSelectMode = false
+        await MainActor.run {
+            selectedImages.removeAll()
+            isMultiSelectMode = false
+        }
+        await refreshImages()
     }
 
     private func showRestoreConfirmation(_ message: String) {
@@ -588,8 +611,11 @@ struct ArchivedImagesView: View {
         showRestoreConfirmation = true
     }
 
-    private func refreshImages() {
-        images = appData.getImagesForDate(date)
+    private func refreshImages() async {
+        let urls = await appData.getImagesForDate(date)
+        await MainActor.run {
+            self.images = urls
+        }
     }
 }
 
@@ -669,7 +695,7 @@ struct FullscreenArchivedImageView: View {
                 Spacer()
 
                 HStack {
-                    Button(action: { restoreImage() }) {
+                    Button(action: { Task { await restoreImage() } }) {
                         ZStack {
                             Circle()
                                 .fill(Color.green)
@@ -684,7 +710,7 @@ struct FullscreenArchivedImageView: View {
 
                     Spacer()
 
-                    Button(action: { deleteImage() }) {
+                    Button(action: { Task { await deleteImage() } }) {
                         ZStack {
                             Circle()
                                 .fill(Color.red)
@@ -708,57 +734,61 @@ struct FullscreenArchivedImageView: View {
         .edgesIgnoringSafeArea(.all)
     }
 
-    private func restoreImage() {
-        let fileManager = FileManager.default
-        let imagesFolderURL = appData.documentsDirectory.appendingPathComponent("images")
+    private func restoreImage() async {
+        let docs = await appData.fileService.documentsDirectory
+        let imagesFolderURL = docs.appendingPathComponent("images")
         do {
-            try fileManager.createDirectory(at: imagesFolderURL, withIntermediateDirectories: true)
+            try await appData.fileService.createDirectory(at: imagesFolderURL)
             let destinationURL = imagesFolderURL.appendingPathComponent(imageURL.lastPathComponent)
 
             if !appData.images.contains(where: { $0.fileURL == destinationURL }) {
-                if fileManager.fileExists(atPath: destinationURL.path) {
-                    try fileManager.removeItem(at: destinationURL)
-                }
+                try? await appData.fileService.removeItem(at: destinationURL)
 
-                try fileManager.copyItem(at: imageURL, to: destinationURL)
+                try await appData.fileService.copyItem(at: imageURL, to: destinationURL)
                 let capturedImage = CapturedImage(
                     name: imageURL.deletingPathExtension().lastPathComponent,
                     fileURL: destinationURL)
-                appData.images.append(capturedImage)
-                showRestoreConfirmation("Image restored")
+                await MainActor.run {
+                    appData.images.append(capturedImage)
+                    showRestoreConfirmation("Image restored")
+                }
             } else {
-                showRestoreConfirmation("Cannot restore, image already in the gallery")
+                await MainActor.run {
+                    showRestoreConfirmation("Cannot restore, image already in the gallery")
+                }
             }
         } catch {
             print("Failed to restore image: \(error)")
-            showRestoreConfirmation("Failed to restore image: \(error.localizedDescription)")
+            await MainActor.run {
+                showRestoreConfirmation("Failed to restore image: \(error.localizedDescription)")
+            }
         }
     }
 
-    private func deleteImage() {
-        let fileManager = FileManager.default
+    private func deleteImage() async {
         let archiveFolder = imageURL.deletingLastPathComponent()
         let archiveFolderName = archiveFolder.lastPathComponent
 
         do {
-            try fileManager.removeItem(at: imageURL)
+            try await appData.fileService.removeItem(at: imageURL)
             print("Deleted image: \(imageURL.path)")
 
-            let contents = try fileManager.contentsOfDirectory(
-                at: archiveFolder, includingPropertiesForKeys: nil)
+            let contents = try await appData.fileService.contentsOfDirectory(at: archiveFolder)
             let imageFiles = contents.filter {
                 ["jpg", "png"].contains($0.pathExtension.lowercased())
             }
 
             if imageFiles.isEmpty {
-                try fileManager.removeItem(at: archiveFolder)
+                try await appData.fileService.removeItem(at: archiveFolder)
                 print("Deleted empty archive: \(archiveFolderName)")
             }
 
-            NotificationCenter.default.post(
-                name: Notification.Name("ArchivedImageDeleted"), object: imageURL)
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: Notification.Name(Constants.Notifications.archivedImageDeleted), object: imageURL)
 
-            dismiss()
+                dismiss()
+            }
         } catch {
             print("Failed to delete image \(imageURL.path): \(error)")
         }
@@ -772,5 +802,5 @@ struct FullscreenArchivedImageView: View {
 
 #Preview {
     ArchiveView()
-        .environmentObject(AppData())
+        .environmentObject(AppData.preview)
 }

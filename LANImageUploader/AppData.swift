@@ -106,19 +106,23 @@ class AppData: ObservableObject {
     @Published var scanStatus: String = ""
     @Published var connectionStatus: ConnectionStatus = .disconnected
 
-    private let passwordKey = "serverPassword"
-    private let settingsKey = "serverSettings"
-    private let fileManager = FileManager.default
-    internal let documentsDirectory: URL  // Changed from `private` to `internal`
+    private let passwordKey = Constants.Keychain.serverPassword
+    private let settingsKey = Constants.UserDefaults.serverSettings
+    
+    // Injected Services
+    internal let fileService: FileServiceProtocol
+    internal let uploadService: ImageUploadServiceProtocol
+    internal let discoveryService: NetworkDiscoveryProtocol
 
-    // Add function to clear naming data
-    func clearNamingData() {
-        imageName = ""
-        ocrText = ""
-    }
-
-    init() {
-        documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+    init(
+        fileService: FileServiceProtocol,
+        uploadService: ImageUploadServiceProtocol,
+        discoveryService: NetworkDiscoveryProtocol
+    ) {
+        self.fileService = fileService
+        self.uploadService = uploadService
+        self.discoveryService = discoveryService
+        
         self.settings = ServerSettings(
             serverIP: "", shareName: "", targetDirectory: nil, username: "")
         if let savedSettings = loadSettingsFromUserDefaults() {
@@ -126,75 +130,44 @@ class AppData: ObservableObject {
         }
     }
 
+    // Add function to clear naming data
+    func clearNamingData() {
+        imageName = ""
+        ocrText = ""
+    }
+
     // Save images to a dated folder
-    func saveImagesToDatedFolder(for date: Date = Date()) {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        let dateString = formatter.string(from: date)
-        let datedFolderURL = documentsDirectory.appendingPathComponent(dateString)
-
-        var savedCount = 0
-        var alreadySavedCount = 0
-
+    func saveImagesToDatedFolder(for date: Date = Date()) async {
         do {
-            try fileManager.createDirectory(at: datedFolderURL, withIntermediateDirectories: true)
-            for image in images {
-                let destinationURL = datedFolderURL.appendingPathComponent(
-                    image.fileURL.lastPathComponent)
-                if !fileManager.fileExists(atPath: destinationURL.path) {
-                    try fileManager.copyItem(at: image.fileURL, to: destinationURL)
-                    savedCount += 1
-                } else {
-                    alreadySavedCount += 1
-                }
-            }
+            let (savedCount, alreadySavedCount) = try await fileService.archiveImages(images, for: date)
 
             // Update scan status based on results
-            if savedCount > 0 && alreadySavedCount > 0 {
-                scanStatus =
-                    "\(savedCount) images saved to archive. \(alreadySavedCount) images were already saved."
-            } else if savedCount > 0 {
-                scanStatus = "\(savedCount) images saved to archive."
-            } else if alreadySavedCount > 0 {
-                scanStatus = "All images were already saved to archive."
-            } else {
-                scanStatus = "No images to save."
+            await MainActor.run {
+                if savedCount > 0 && alreadySavedCount > 0 {
+                    scanStatus = "\(savedCount) images saved to archive. \(alreadySavedCount) images were already saved."
+                } else if savedCount > 0 {
+                    scanStatus = "\(savedCount) images saved to archive."
+                } else if alreadySavedCount > 0 {
+                    scanStatus = "All images were already saved to archive."
+                } else {
+                    scanStatus = "No images to save."
+                }
             }
-
-            print(
-                "Images saved to \(datedFolderURL.path): \(savedCount) new, \(alreadySavedCount) already existed"
-            )
         } catch {
-            scanStatus = "Failed to save images: \(error.localizedDescription)"
-            print("Failed to save images: \(error.localizedDescription)")
+            await MainActor.run {
+                scanStatus = "Failed to save images: \(error.localizedDescription)"
+            }
         }
     }
 
     // Get list of archived dates
-    func getArchivedDates() -> [String] {
-        do {
-            let folders = try fileManager.contentsOfDirectory(atPath: documentsDirectory.path)
-            return folders.filter {
-                $0.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil
-            }
-            .sorted(by: >)
-        } catch {
-            print("Failed to get archived dates: \(error)")
-            return []
-        }
+    func getArchivedDates() async -> [String] {
+        await fileService.getArchivedDates()
     }
 
     // Get image URLs for a specific date
-    func getImagesForDate(_ dateString: String) -> [URL] {
-        let datedFolderURL = documentsDirectory.appendingPathComponent(dateString)
-        do {
-            let files = try fileManager.contentsOfDirectory(
-                at: datedFolderURL, includingPropertiesForKeys: nil)
-            return files.filter { ["jpg", "png"].contains($0.pathExtension.lowercased()) }
-        } catch {
-            print("Failed to get images for \(dateString): \(error)")
-            return []
-        }
+    func getImagesForDate(_ dateString: String) async -> [URL] {
+        await fileService.getImagesForDate(dateString)
     }
 
     func savePassword(_ password: String) throws {
@@ -239,5 +212,15 @@ class AppData: ObservableObject {
             return try? decoder.decode(ServerSettings.self, from: savedData)
         }
         return nil
+    }
+}
+
+extension AppData {
+    static var preview: AppData {
+        AppData(
+            fileService: FileService.shared,
+            uploadService: ImageUploadService.shared,
+            discoveryService: NetworkDiscovery.shared
+        )
     }
 }

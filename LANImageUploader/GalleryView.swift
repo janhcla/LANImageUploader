@@ -83,7 +83,7 @@ struct GalleryView: View {
                 isMultiSelectMode ? "Delete Selected Images" : "Delete Selected Image",
                 isPresented: $showDeleteConfirmation
             ) {
-                Button("Delete", role: .destructive) { batchDeleteImages() }
+                Button("Delete", role: .destructive) { Task { await batchDeleteImages() } }
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text(
@@ -100,11 +100,11 @@ struct GalleryView: View {
                     uiImage: data.uiImage,
                     onDelete: {
                         selectedImages = [data.capturedImage.id]
-                        batchDeleteImages()
+                        Task { await batchDeleteImages() }
                         fullscreenData = nil
                     },
                     onSave: {
-                        saveSingleImageToArchive(data.capturedImage)
+                        Task { await saveSingleImageToArchive(data.capturedImage) }
                         showSaveConfirmation = true
                     }
                 )
@@ -113,7 +113,7 @@ struct GalleryView: View {
                 if !appData.images.isEmpty {
                     VStack(spacing: 10) {
                         Button(action: {
-                            appData.saveImagesToDatedFolder()
+                            Task { await appData.saveImagesToDatedFolder() }
                             showSaveConfirmation = true
                         }) {
                             Label("Save to Archive", systemImage: "square.and.arrow.down")
@@ -233,41 +233,39 @@ struct GalleryView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
     }
 
-    func saveSingleImageToArchive(_ image: CapturedImage) {
+    func saveSingleImageToArchive(_ image: CapturedImage) async {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         let dateString = formatter.string(from: Date())
-        let datedFolderURL = appData.documentsDirectory.appendingPathComponent(dateString)
+        let docs = await appData.fileService.documentsDirectory
+        let datedFolderURL = docs.appendingPathComponent(dateString)
 
         do {
-            try FileManager.default.createDirectory(
-                at: datedFolderURL, withIntermediateDirectories: true)
-            let destinationURL = datedFolderURL.appendingPathComponent(
-                image.fileURL.lastPathComponent)
+            try await appData.fileService.createDirectory(at: datedFolderURL)
+            let destinationURL = datedFolderURL.appendingPathComponent(image.fileURL.lastPathComponent)
 
             // Check if the image already exists in the archive
-            if FileManager.default.fileExists(atPath: destinationURL.path) {
+            if await appData.fileService.fileExists(at: destinationURL) {
                 // Show warning that image is already saved
-                showSaveConfirmation = true
-                DispatchQueue.main.async {
+                await MainActor.run {
                     showSaveConfirmation = true
                     appData.scanStatus = "Image is already saved to archive."
                 }
                 return
             }
 
-            try FileManager.default.copyItem(at: image.fileURL, to: destinationURL)
+            try await appData.fileService.copyItem(at: image.fileURL, to: destinationURL)
             print("Single image saved to \(datedFolderURL.path)")
 
             // Show success message
-            DispatchQueue.main.async {
+            await MainActor.run {
                 showSaveConfirmation = true
                 appData.scanStatus = "Image saved to archive."
             }
         } catch {
             print("Failed to save single image: \(error.localizedDescription)")
             // Show error message
-            DispatchQueue.main.async {
+            await MainActor.run {
                 showSaveConfirmation = true
                 appData.scanStatus = "Failed to save image: \(error.localizedDescription)"
             }
@@ -307,17 +305,21 @@ struct GalleryView: View {
         navigateToUpload = true
     }
 
-    func batchDeleteImages() {
-        appData.images.removeAll { image in
+    func batchDeleteImages() async {
+        for image in appData.images {
             if selectedImages.contains(image.id) {
-                try? FileManager.default.removeItem(at: image.fileURL)
-                return true
+                try? await appData.fileService.removeItem(at: image.fileURL)
             }
-            return false
         }
-        selectedImages.removeAll()
-        isMultiSelectMode = false
-        fullscreenData = nil
+        
+        await MainActor.run {
+            appData.images.removeAll { image in
+                selectedImages.contains(image.id)
+            }
+            selectedImages.removeAll()
+            isMultiSelectMode = false
+            fullscreenData = nil
+        }
     }
 
     func renameImage() {
@@ -333,5 +335,5 @@ struct GalleryView: View {
 
 #Preview {
     GalleryView()
-        .environmentObject(AppData())
+        .environmentObject(AppData.preview)
 }
