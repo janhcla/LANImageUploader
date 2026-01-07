@@ -1,4 +1,47 @@
-# Xcode user-specific data
-**/xcuserdata/
-**/*.xcuserdatad/
-*.xcuserstate
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode
+build/
+DerivedData/
+*.hmap
+*.ipa
+*.pkg
+*.dSYM.zip
+*.dSYM
+
+# Xcode User Data
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
+xcuserdata/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# CocoaPods
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+
+# Code coverage
+.coverage
+htmlcov/
+
+# Editor
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.swp
+*~

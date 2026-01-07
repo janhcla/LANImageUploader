@@ -29,7 +29,7 @@ struct LaunchScreenView: View {
                     )
                 
                 // Fading-in app name
-                Text("ImageDrop")
+                Text("ImageDropX")
                     .font(.title)
                     .fontWeight(.bold)
                     .opacity(textOpacity) // Controlled by state
