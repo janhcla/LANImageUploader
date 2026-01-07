@@ -13,7 +13,7 @@ Focus: Improving text detection reliability and implementing the auto-capture lo
     - [x] Sub-task: Implement a debouncing or "stable match" timer to ensure the detected text is clear before capturing.
 - [x] **Task 3: Conductor - User Manual Verification 'Phase 1: OCR Logic' (Protocol in workflow.md)**
 
-## Phase 2: User Experience & Visual Feedback
+## Phase 2: User Experience & Visual Feedback [checkpoint: a280949]
 Focus: Implementing the "freeze" effect and streamlining the transition back to the text field.
 
 - [x] **Task 1: Implement "Freeze" Verification Effect**
@@ -22,4 +22,4 @@ Focus: Implementing the "freeze" effect and streamlining the transition back to 
 - [x] **Task 2: Refine UI Feedback and Haptics**
     - [x] Sub-task: Add a visual "highlight" animation to the text field when text is imported.
     - [x] Sub-task: Synchronize the "liquid" haptic pulse with the exact moment of capture.
-- [ ] **Task 3: Conductor - User Manual Verification 'Phase 2: OCR UX' (Protocol in workflow.md)**
+- [x] **Task 3: Conductor - User Manual Verification 'Phase 2: OCR UX' (Protocol in workflow.md)**
