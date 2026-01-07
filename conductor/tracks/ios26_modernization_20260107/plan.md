@@ -41,10 +41,10 @@ Focus: Streamlining image management with a robust multi-select experience.
 ## Phase 4: Animations, Hero Transitions & Polishing
 Focus: Adding the "delightful" layers of fluid transitions and micro-interactions.
 
-- [ ] **Task 1: Implement Hero Animations**
-    - [ ] Sub-task: Implement smooth transitions from `GalleryView` grid items to `FullscreenImageView`.
-    - [ ] Sub-task: Ensure navigation transitions adhere to iOS 26 fluid patterns.
-- [ ] **Task 2: Final UI Polishing and Performance Audit**
-    - [ ] Sub-task: Conduct a sweep of the app for consistent haptic integration.
-    - [ ] Sub-task: Optimize view rendering for 60+ FPS performance during "liquid" animations.
+- [x] **Task 1: Implement Hero Animations**
+    - [x] Sub-task: Implement smooth transitions from `GalleryView` grid items to `FullscreenImageView`.
+    - [x] Sub-task: Ensure navigation transitions adhere to iOS 26 fluid patterns.
+- [x] **Task 2: Final UI Polishing and Performance Audit**
+    - [x] Sub-task: Conduct a sweep of the app for consistent haptic integration.
+    - [x] Sub-task: Optimize view rendering for 60+ FPS performance during "liquid" animations.
 - [ ] **Task 3: Conductor - User Manual Verification 'Phase 4: Final Polishing' (Protocol in workflow.md)**

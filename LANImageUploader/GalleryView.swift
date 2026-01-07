@@ -155,7 +155,9 @@ struct GalleryView: View {
                                 showSaveConfirmation = true
                             }) {
                                 Label("Archive All", systemImage: "square.and.arrow.down")
+                                    .font(.subheadline.weight(.semibold))
                                     .frame(maxWidth: .infinity)
+                                    .frame(height: 44)
                             }
                             .buttonStyle(GrayButtonStyle())
                             
@@ -165,7 +167,9 @@ struct GalleryView: View {
                                 isShowingNamingSheet = true
                             }) {
                                 Label("Batch Upload", systemImage: "square.and.pencil")
+                                    .font(.subheadline.weight(.semibold))
                                     .frame(maxWidth: .infinity)
+                                    .frame(height: 44)
                             }
                             .buttonStyle(OrangeButtonStyle())
                         }
