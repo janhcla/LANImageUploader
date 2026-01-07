@@ -283,6 +283,7 @@ struct ArchiveView: View {
                     }
                 }
             } catch {
+                print("Failed to restore archive \(date): \(error)")
                 failureCount += 1
             }
         }
@@ -302,7 +303,9 @@ struct ArchiveView: View {
             let archiveURL = docs.appendingPathComponent(date)
             do {
                 try await appData.fileService.removeItem(at: archiveURL)
-                customArchiveNames.removeValue(forKey: date)
+                await MainActor.run {
+                    customArchiveNames.removeValue(forKey: date)
+                }
             } catch {
                 print("Failed to delete archive \(date): \(error)")
             }
@@ -426,6 +429,22 @@ struct ArchivedImagesView: View {
                 } message: {
                     Text("Delete the selected images from the archive?")
                 }
+                .fullScreenCover(item: $selectedImageURL) { identifiableURL in
+                    if let imageData = try? Data(contentsOf: identifiableURL.url), let uiImage = UIImage(data: imageData) {
+                        FullscreenImageView(
+                            image: CapturedImage(name: identifiableURL.url.deletingPathExtension().lastPathComponent, fileURL: identifiableURL.url),
+                            uiImage: uiImage,
+                            onDelete: {
+                                selectedImages = [identifiableURL.url]
+                                Task { await deleteSelectedImages() }
+                                selectedImageURL = nil
+                            },
+                            onSave: {
+                                Task { await restoreImages([identifiableURL.url]) }
+                            }
+                        )
+                    }
+                }
                 .onAppear {
                     Task { await refreshImages() }
                 }
@@ -470,6 +489,14 @@ struct ArchivedImagesView: View {
                             }
                         }
                     }
+            } else if phase.error != nil {
+                Rectangle().fill(.secondary.opacity(0.2))
+                    .frame(width: 100, height: 100)
+                    .cornerRadius(12)
+                    .overlay(
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+                    )
             } else {
                 Rectangle().fill(.secondary.opacity(0.2))
                     .frame(width: 100, height: 100)
@@ -527,8 +554,29 @@ struct ArchivedImagesView: View {
     }
 
     private func deleteSelectedImages() async {
+        let docs = await appData.fileService.documentsDirectory
+        let dateFolder = docs.appendingPathComponent(date)
+
         for imageURL in selectedImages {
-            try? await appData.fileService.removeItem(at: imageURL)
+            do {
+                try await appData.fileService.removeItem(at: imageURL)
+            } catch {
+                print("Failed to delete image: \(error)")
+            }
+        }
+
+        // Check if the archive folder is now empty and delete it
+        do {
+            let remainingFiles = try await appData.fileService.contentsOfDirectory(at: dateFolder)
+            if remainingFiles.filter({ ["jpg", "png"].contains($0.pathExtension.lowercased()) }).isEmpty {
+                try await appData.fileService.removeItem(at: dateFolder)
+                await MainActor.run {
+                    dismiss()
+                }
+                return
+            }
+        } catch {
+            print("Error checking/deleting empty archive folder: \(error)")
         }
 
         await MainActor.run {

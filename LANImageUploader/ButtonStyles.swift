@@ -36,69 +36,18 @@ struct LiquidButtonStyle: ButtonStyle {
 
 struct GrayButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
-            .background(
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.gray.opacity(0.3))
-                        .background(.ultraThinMaterial)
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                        .padding(1)
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.6, blendDuration: 0), value: configuration.isPressed)
-            .shadow(color: Color.gray.opacity(0.2), radius: configuration.isPressed ? 4 : 10, x: 0, y: configuration.isPressed ? 2 : 5)
+        LiquidButtonStyle(backgroundColor: .gray).makeBody(configuration: configuration)
     }
 }
 
-// Helper view to wrap content since ButtonStyle must return a View but we are using another ButtonStyle inside
-// Wait, actually I can just use the logic directly.
-
 struct OrangeButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
-            .background(
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.orange.opacity(0.3))
-                        .background(.ultraThinMaterial)
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                        .padding(1)
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.6, blendDuration: 0), value: configuration.isPressed)
-            .shadow(color: Color.orange.opacity(0.2), radius: configuration.isPressed ? 4 : 10, x: 0, y: configuration.isPressed ? 2 : 5)
+        LiquidButtonStyle(backgroundColor: .orange).makeBody(configuration: configuration)
     }
 }
 
 struct BlueButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
-            .background(
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.blue.opacity(0.3))
-                        .background(.ultraThinMaterial)
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                        .padding(1)
-                }
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.6, blendDuration: 0), value: configuration.isPressed)
-            .shadow(color: Color.blue.opacity(0.2), radius: configuration.isPressed ? 4 : 10, x: 0, y: configuration.isPressed ? 2 : 5)
+        LiquidButtonStyle(backgroundColor: .blue).makeBody(configuration: configuration)
     }
 }

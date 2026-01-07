@@ -72,7 +72,8 @@ struct GalleryView: View {
                                 onRename: { isShowingNamingSheet = true },
                                 onArchive: {
                                     Task {
-                                        await appData.saveImagesToDatedFolder()
+                                        let selectedImages = appData.images.filter { appData.selectedImageIDs.contains($0.id) }
+                                        await appData.saveImagesToDatedFolder(selectedImages)
                                         showSaveConfirmation = true
                                         isMultiSelectMode = false
                                         appData.selectedImageIDs.removeAll()
@@ -255,8 +256,9 @@ struct GalleryView: View {
 
     func batchRenameImages() {
         guard !imageName.isEmpty else { return }
-        for (index, imageID) in appData.selectedImageIDs.enumerated() {
-            if let indexInImages = appData.images.firstIndex(where: { $0.id == imageID }) {
+        let selectedImagesInOrder = appData.images.filter { appData.selectedImageIDs.contains($0.id) }
+        for (index, imageToRename) in selectedImagesInOrder.enumerated() {
+            if let indexInImages = appData.images.firstIndex(where: { $0.id == imageToRename.id }) {
                 let formattedIndex = String(format: "%02d", index + 1)
                 appData.images[indexInImages].name = "\(imageName)\(formattedIndex)"
             }
@@ -269,8 +271,9 @@ struct GalleryView: View {
 
     func batchRenameAndUpload() {
         guard !imageName.isEmpty else { return }
-        for (index, imageID) in appData.selectedImageIDs.enumerated() {
-            if let indexInImages = appData.images.firstIndex(where: { $0.id == imageID }) {
+        let selectedImagesInOrder = appData.images.filter { appData.selectedImageIDs.contains($0.id) }
+        for (index, imageToRename) in selectedImagesInOrder.enumerated() {
+            if let indexInImages = appData.images.firstIndex(where: { $0.id == imageToRename.id }) {
                 let formattedIndex = String(format: "%02d", index + 1)
                 appData.images[indexInImages].name = "\(imageName)\(formattedIndex)"
             }

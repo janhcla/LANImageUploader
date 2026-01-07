@@ -142,10 +142,10 @@ class AppData: ObservableObject {
 
     func deleteSelectedImages() async {
         let idsToDelete = selectedImageIDs
-        for id in idsToDelete {
-            if let image = images.first(where: { $0.id == id }) {
-                try? await fileService.removeItem(at: image.fileURL)
-            }
+        let imagesToDelete = images.filter { idsToDelete.contains($0.id) }
+        
+        for image in imagesToDelete {
+            try? await fileService.removeItem(at: image.fileURL)
         }
         await MainActor.run {
             images.removeAll { idsToDelete.contains($0.id) }
@@ -155,9 +155,10 @@ class AppData: ObservableObject {
     }
 
     // Save images to a dated folder
-    func saveImagesToDatedFolder(for date: Date = Date()) async {
+    func saveImagesToDatedFolder(_ imagesToSave: [CapturedImage]? = nil, for date: Date = Date()) async {
+        let targetImages = imagesToSave ?? images
         do {
-            let (savedCount, alreadySavedCount) = try await fileService.archiveImages(images, for: date)
+            let (savedCount, alreadySavedCount) = try await fileService.archiveImages(targetImages, for: date)
 
             // Update scan status based on results
             await MainActor.run {
