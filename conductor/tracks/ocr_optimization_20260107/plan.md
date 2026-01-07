@@ -2,7 +2,7 @@
 
 This plan outlines the steps to optimize the text recognition feature in the "Name Your Image" sheet, focusing on speed, automatic capture, and clear user feedback.
 
-## Phase 1: Core OCR Optimization & Logic
+## Phase 1: Core OCR Optimization & Logic [checkpoint: f383f31]
 Focus: Improving text detection reliability and implementing the auto-capture logic.
 
 - [x] **Task 1: Optimize DataScanner Configuration**
@@ -11,7 +11,7 @@ Focus: Improving text detection reliability and implementing the auto-capture lo
 - [x] **Task 2: Implement Auto-Capture and Confidence Logic**
     - [x] Sub-task: Modify the `Coordinator` to automatically select the first valid text item without requiring a user tap.
     - [x] Sub-task: Implement a debouncing or "stable match" timer to ensure the detected text is clear before capturing.
-- [ ] **Task 3: Conductor - User Manual Verification 'Phase 1: OCR Logic' (Protocol in workflow.md)**
+- [x] **Task 3: Conductor - User Manual Verification 'Phase 1: OCR Logic' (Protocol in workflow.md)**
 
 ## Phase 2: User Experience & Visual Feedback
 Focus: Implementing the "freeze" effect and streamlining the transition back to the text field.
