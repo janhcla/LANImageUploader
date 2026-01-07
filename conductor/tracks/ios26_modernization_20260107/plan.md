@@ -2,7 +2,7 @@
 
 This plan outlines the steps to modernize LANImageUploader with the iOS 26 "Liquid Glass" design language and enhanced gallery features.
 
-## Phase 1: Foundation & Liquid Glass Design System
+## Phase 1: Foundation & Liquid Glass Design System [checkpoint: 03342ac]
 Focus: Establishing the core visual building blocks and updating global styles.
 
 - [x] **Task 1: Define Liquid Glass View Modifiers**
@@ -11,7 +11,7 @@ Focus: Establishing the core visual building blocks and updating global styles.
 - [x] **Task 2: Update Global Button and Background Styles**
     - [x] Sub-task: Update `AppBackground.swift` to support the iOS 26 refractive background style.
     - [x] Sub-task: Update `ButtonStyles.swift` with bouncy "liquid" interaction animations.
-- [ ] **Task 3: Conductor - User Manual Verification 'Phase 1: Foundation' (Protocol in workflow.md)**
+- [x] **Task 3: Conductor - User Manual Verification 'Phase 1: Foundation' (Protocol in workflow.md)**
 
 ## Phase 2: Modernized Camera Experience
 Focus: Updating the capture interface with modern feedback and iOS 26 aesthetics.
