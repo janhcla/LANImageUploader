@@ -107,4 +107,15 @@ struct LANImageUploaderTests {
         let hostError = ConnectionError.hostNotFound("192.168.1.1")
         #expect(hostError.localizedDescription.contains("192.168.1.1"))
     }
+
+    @Test func calculateRefractionOffset() async throws {
+        let depth: CGFloat = 10.0
+        let angle: Double = 45.0 // Degrees
+        
+        let offset = LiquidGlassUtils.calculateRefractionOffset(depth: depth, angle: angle)
+        
+        // At 45 degrees, x and y should be equal
+        #expect(abs(offset.width - offset.height) < 0.001)
+        #expect(offset.width > 0)
+    }
 }

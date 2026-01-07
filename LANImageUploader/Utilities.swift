@@ -25,3 +25,12 @@ extension NSLock {
         return try body()
     }
 }
+
+enum LiquidGlassUtils {
+    static func calculateRefractionOffset(depth: CGFloat, angle: Double) -> CGSize {
+        let radians = angle * .pi / 180.0
+        let dx = depth * tan(radians)
+        let dy = depth * tan(radians)
+        return CGSize(width: dx, height: dy)
+    }
+}
