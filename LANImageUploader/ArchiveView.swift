@@ -2,8 +2,6 @@
 //  ArchiveView.swift
 //  LANImageUploader
 //
-//  Created by Jan Hagen Clausen on 02/03/2025.
-//
 
 import SwiftUI
 
@@ -38,81 +36,74 @@ struct ArchiveView: View {
                 List {
                     ForEach(archivedDates, id: \.self) { date in
                         archiveRow(for: date)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
                     }
                 }
                 .scrollContentBackground(.hidden)
                 .background(Color.clear)
-                .navigationTitle("Archived Images")
+                .navigationTitle("Archives")
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
                         if hasArchives {
                             Button(isMultiSelectMode ? "Done" : "Select") {
-                                isMultiSelectMode.toggle()
-                                if !isMultiSelectMode {
-                                    selectedDates.removeAll()
+                                appData.hapticService.playSelection()
+                                withAnimation(.spring()) {
+                                    isMultiSelectMode.toggle()
+                                    if !isMultiSelectMode {
+                                        selectedDates.removeAll()
+                                    }
                                 }
                             }
-                        }
-                    }
-                    ToolbarItem(placement: .bottomBar) {
-                        if isMultiSelectMode && !selectedDates.isEmpty {
-                            HStack {
-                                Button(action: { Task { await restoreSelectedArchives() } }) {
-                                    Label("Restore", systemImage: "arrow.uturn.backward")
-                                        .frame(maxWidth: .infinity)
-                                        .padding()
-                                        .background(Color.green)
-                                        .foregroundStyle(.white)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                                }
-
-                                Button(action: {
-                                    showDeleteSelectedConfirmation = true
-                                }) {
-                                    Label("Delete", systemImage: "trash")
-                                        .frame(maxWidth: .infinity)
-                                        .padding()
-                                        .background(Color.red)
-                                        .foregroundStyle(.white)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                                }
-                            }
-                            .padding(.horizontal)
                         }
                     }
                 }
                 .safeAreaInset(edge: .bottom) {
-                    if hasArchives && !isMultiSelectMode {
-                        Button(action: {
-                            showDeleteAllConfirmation = true
-                        }) {
-                            Label("Delete ALL", systemImage: "trash")
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.red)
-                                .foregroundStyle(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                    if hasArchives {
+                        GlassContainer(cornerRadius: 20) {
+                            if isMultiSelectMode && !selectedDates.isEmpty {
+                                HStack(spacing: 16) {
+                                    Button(action: { Task { await restoreSelectedArchives() } }) {
+                                        Label("Restore", systemImage: "arrow.uturn.backward")
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                    .buttonStyle(LiquidButtonStyle(backgroundColor: .green))
+
+                                    Button(action: {
+                                        showDeleteSelectedConfirmation = true
+                                    }) {
+                                        Label("Delete", systemImage: "trash")
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                    .buttonStyle(LiquidButtonStyle(backgroundColor: .red))
+                                }
+                            } else if !isMultiSelectMode {
+                                Button(action: {
+                                    showDeleteAllConfirmation = true
+                                }) {
+                                    Label("Delete All Archives", systemImage: "trash.fill")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(LiquidButtonStyle(backgroundColor: .red))
+                            }
                         }
                         .padding()
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
                 .alert("Confirmation", isPresented: $showDeleteAllConfirmation) {
-                    Button("Yes", role: .destructive) { Task { await deleteAllArchives() } }
-                    Button("No", role: .cancel) {}
+                    Button("Yes, Delete All", role: .destructive) { Task { await deleteAllArchives() } }
+                    Button("Cancel", role: .cancel) {}
                 } message: {
-                    Text(
-                        "Do you really want to delete all images in the archive - this action cannot be undone"
-                    )
+                    Text("Do you really want to delete all images in the archive? This cannot be undone.")
                 }
-                .alert("Confirmation", isPresented: $showDeleteSelectedConfirmation) {
-                    Button("Yes", role: .destructive) { Task { await deleteSelectedArchives() } }
-                    Button("No", role: .cancel) {}
+                .alert("Delete Selected", isPresented: $showDeleteSelectedConfirmation) {
+                    Button("Delete", role: .destructive) { Task { await deleteSelectedArchives() } }
+                    Button("Cancel", role: .cancel) {}
                 } message: {
-                    Text(
-                        "Do you really want to delete the selected archives? This action cannot be undone."
-                    )
+                    Text("Delete the selected archives permanently?")
                 }
-                .alert("Confirmation", isPresented: $showRestoreConfirmation) {
+                .alert("Restore Result", isPresented: $showRestoreConfirmation) {
                     Button("OK") { showRestoreConfirmation = false }
                 } message: {
                     Text(restoreMessage)
@@ -147,27 +138,30 @@ struct ArchiveView: View {
 
     @ViewBuilder
     var renameArchiveSheet: some View {
-        NavigationStack {
-            Form {
-                Section(header: Text("Enter new name for archive")) {
-                    TextField("New name", text: $newArchiveName)
+        ZStack {
+            AppBackground()
+            VStack(spacing: 24) {
+                Text("Rename Archive")
+                    .font(.headline)
+                    .padding(.top)
+                
+                GlassContainer(cornerRadius: 16) {
+                    TextField("Archive Name", text: $newArchiveName)
                 }
-            }
-            .navigationTitle("Rename Archive")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        showRenameSheet = false
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
+                
+                HStack(spacing: 16) {
+                    Button("Cancel") { showRenameSheet = false }
+                        .buttonStyle(GrayButtonStyle())
+                    
                     Button("Save") {
                         saveRenamedArchive()
                         showRenameSheet = false
                     }
+                    .buttonStyle(BlueButtonStyle())
                 }
+                Spacer()
             }
+            .padding(24)
         }
         .presentationDetents([.medium])
     }
@@ -177,36 +171,49 @@ struct ArchiveView: View {
         let isSelected = selectedDates.contains(date)
         let displayName = customArchiveNames[date] ?? date
 
-        HStack {
-            if isMultiSelectMode {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isSelected ? .blue : .gray)
-                    .padding(.trailing, 5)
-            }
-
-            Button(action: {
+        GlassContainer(cornerRadius: 16) {
+            HStack {
                 if isMultiSelectMode {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.title3)
+                        .foregroundStyle(isSelected ? .blue : .secondary)
+                        .padding(.trailing, 8)
+                        .symbolEffect(.bounce, value: isSelected)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(displayName)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Text(date)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Spacer()
+
+                if !isMultiSelectMode {
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if isMultiSelectMode {
+                    appData.hapticService.playImpact(style: .light)
                     if isSelected {
                         selectedDates.remove(date)
                     } else {
                         selectedDates.insert(date)
                     }
                 } else {
+                    appData.hapticService.playSelection()
                     selectedDate = date
                 }
-            }) {
-                Text(displayName)
-                    .foregroundStyle(Color.primary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            if !isMultiSelectMode {
-                Image(systemName: "chevron.right")
-                    .foregroundStyle(.gray)
-                    .font(.caption)
             }
         }
-        .contentShape(Rectangle())
+        .padding(.vertical, 4)
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
                 selectedDates = [date]
@@ -224,28 +231,15 @@ struct ArchiveView: View {
             }
             .tint(.blue)
         }
-        .swipeActions(edge: .leading) {
-            Button {
-                selectedDates = [date]
-                Task { await restoreSelectedArchives() }
-            } label: {
-                Label("Restore", systemImage: "arrow.uturn.backward")
-            }
-            .tint(.green)
-        }
     }
 
     private func saveRenamedArchive() {
         guard !dateToRename.isEmpty, !newArchiveName.isEmpty else { return }
-
-        // Update the custom name
         customArchiveNames[dateToRename] = newArchiveName
-
-        // Save to UserDefaults
         if let encoded = try? JSONEncoder().encode(customArchiveNames) {
             UserDefaults.standard.set(encoded, forKey: Constants.UserDefaults.archiveCustomNames)
         }
-
+        appData.hapticService.playNotification(type: .success)
         dateToRename = ""
     }
 
@@ -258,6 +252,7 @@ struct ArchiveView: View {
     }
 
     private func restoreSelectedArchives() async {
+        appData.hapticService.playLiquidBounce()
         var successCount = 0
         var failureCount = 0
 
@@ -273,12 +268,8 @@ struct ArchiveView: View {
                     let destinationURL = imagesFolderURL.appendingPathComponent(
                         imageURL.lastPathComponent)
 
-                    // Check if this image is already in our app's images array
                     if !appData.images.contains(where: { $0.fileURL == destinationURL }) {
-                        // If file exists on disk but not in app's array, it's a leftover file - clean it up
                         try? await appData.fileService.removeItem(at: destinationURL)
-
-                        // Copy from archive to gallery
                         try await appData.fileService.copyItem(at: imageURL, to: destinationURL)
                         let capturedImage = CapturedImage(
                             name: imageURL.deletingPathExtension().lastPathComponent,
@@ -292,7 +283,6 @@ struct ArchiveView: View {
                     }
                 }
             } catch {
-                print("Failed to restore archive \(date): \(error)")
                 failureCount += 1
             }
         }
@@ -302,6 +292,7 @@ struct ArchiveView: View {
             showRestoreConfirmation = true
             selectedDates.removeAll()
             isMultiSelectMode = false
+            appData.hapticService.playNotification(type: .success)
         }
     }
 
@@ -311,16 +302,12 @@ struct ArchiveView: View {
             let archiveURL = docs.appendingPathComponent(date)
             do {
                 try await appData.fileService.removeItem(at: archiveURL)
-                print("Deleted archive: \(archiveURL.path)")
-
-                // Also remove custom name if it exists
                 customArchiveNames.removeValue(forKey: date)
             } catch {
                 print("Failed to delete archive \(date): \(error)")
             }
         }
 
-        // Save updated custom names
         if let encoded = try? JSONEncoder().encode(customArchiveNames) {
             UserDefaults.standard.set(encoded, forKey: Constants.UserDefaults.archiveCustomNames)
         }
@@ -329,6 +316,7 @@ struct ArchiveView: View {
         await MainActor.run {
             selectedDates.removeAll()
             isMultiSelectMode = false
+            appData.hapticService.playNotification(type: .success)
         }
     }
 
@@ -337,23 +325,16 @@ struct ArchiveView: View {
         let docs = await appData.fileService.documentsDirectory
         for archive in archives {
             let archiveURL = docs.appendingPathComponent(archive)
-            do {
-                try await appData.fileService.removeItem(at: archiveURL)
-                print("Deleted archive: \(archiveURL.path)")
-
-                // Also remove custom name
-                customArchiveNames.removeValue(forKey: archive)
-            } catch {
-                print("Failed to delete archive \(archive): \(error)")
-            }
+            try? await appData.fileService.removeItem(at: archiveURL)
+            customArchiveNames.removeValue(forKey: archive)
         }
 
-        // Save updated custom names
         if let encoded = try? JSONEncoder().encode(customArchiveNames) {
             UserDefaults.standard.set(encoded, forKey: Constants.UserDefaults.archiveCustomNames)
         }
         
         await refreshArchivedDates()
+        appData.hapticService.playNotification(type: .success)
     }
 }
 
@@ -372,105 +353,81 @@ struct ArchivedImagesView: View {
     var body: some View {
         BackgroundContainerView {
             NavigationStack {
-                ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 10) {
-                        ForEach(images, id: \.self) { imageURL in
-                            imageThumbnail(for: imageURL)
+                ZStack {
+                    ScrollView {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)], spacing: 12) {
+                            ForEach(images, id: \.self) { imageURL in
+                                imageThumbnail(for: imageURL)
+                            }
                         }
+                        .padding()
                     }
-                    .padding()
-                }
-                .background(Color.clear)
-                .navigationTitle("Images from \(displayName)")
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button(action: {
-                            dismiss()
-                        }) {
-                            HStack {
-                                Image(systemName: "chevron.left")
-                                Text("Back")
+                    .background(Color.clear)
+                    .navigationTitle(displayName)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("Close") { dismiss() }
+                        }
+                        ToolbarItem(placement: .primaryAction) {
+                            Button(isMultiSelectMode ? "Done" : "Select") {
+                                appData.hapticService.playSelection()
+                                withAnimation {
+                                    isMultiSelectMode.toggle()
+                                    if !isMultiSelectMode { selectedImages.removeAll() }
+                                }
                             }
                         }
                     }
-                    ToolbarItem(placement: .primaryAction) {
-                        Button(isMultiSelectMode ? "Done" : "Select") {
-                            isMultiSelectMode.toggle()
-                            if !isMultiSelectMode { selectedImages.removeAll() }
-                        }
-                    }
-                }
-                .fullScreenCover(item: $selectedImageURL) { identifiableURL in
-                    FullscreenArchivedImageView(imageURL: identifiableURL.url)
-                }
-                .safeAreaInset(edge: .bottom) {
+                    
                     if isMultiSelectMode && !selectedImages.isEmpty {
                         VStack {
-                            HStack(spacing: 20) {
-                                Button(action: { Task { await restoreSelectedImages() } }) {
-                                    Label("Restore", systemImage: "arrow.uturn.backward")
-                                        .frame(maxWidth: .infinity)
-                                        .padding()
-                                        .background(Color.green)
-                                        .foregroundStyle(.white)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                                }
+                            Spacer()
+                            GlassContainer(cornerRadius: 20) {
+                                HStack(spacing: 16) {
+                                    Button(action: { Task { await restoreSelectedImages() } }) {
+                                        Label("Restore", systemImage: "arrow.uturn.backward")
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                    .buttonStyle(LiquidButtonStyle(backgroundColor: .green))
 
-                                Button(action: {
-                                    showDeleteSelectedConfirmation = true
-                                }) {
-                                    Label("Delete", systemImage: "trash")
-                                        .frame(maxWidth: .infinity)
-                                        .padding()
-                                        .background(Color.red)
-                                        .foregroundStyle(.white)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    Button(action: {
+                                        showDeleteSelectedConfirmation = true
+                                    }) {
+                                        Label("Delete", systemImage: "trash")
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                    .buttonStyle(LiquidButtonStyle(backgroundColor: .red))
                                 }
                             }
+                            .padding()
                         }
-                        .padding()
-                        .background(Color(UIColor.systemBackground))
-                    } else if !isMultiSelectMode {
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                }
+                .safeAreaInset(edge: .bottom) {
+                    if !isMultiSelectMode && !images.isEmpty {
                         Button(action: { Task { await restoreAllImages() } }) {
-                            Label("Restore Images", systemImage: "arrow.uturn.backward")
+                            Label("Restore All Images", systemImage: "arrow.uturn.backward")
                                 .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.green)
-                                .foregroundStyle(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
+                        .buttonStyle(LiquidButtonStyle(backgroundColor: .green))
                         .padding()
                     }
                 }
-                .alert("Confirmation", isPresented: $showRestoreConfirmation) {
+                .alert("Restore", isPresented: $showRestoreConfirmation) {
                     Button("OK") { showRestoreConfirmation = false }
                 } message: {
                     Text(restoreMessage)
                 }
-                .alert("Confirmation", isPresented: $showDeleteSelectedConfirmation) {
-                    Button("Yes", role: .destructive) { Task { await deleteSelectedImages() } }
-                    Button("No", role: .cancel) {}
+                .alert("Delete", isPresented: $showDeleteSelectedConfirmation) {
+                    Button("Delete", role: .destructive) { Task { await deleteSelectedImages() } }
+                    Button("Cancel", role: .cancel) {}
                 } message: {
-                    Text(
-                        "Do you really want to delete all selected images in the archive - this action cannot be undone"
-                    )
+                    Text("Delete the selected images from the archive?")
                 }
                 .onAppear {
                     Task { await refreshImages() }
-
-                    // Set up notification observer for deleted images
-                    NotificationCenter.default.addObserver(
-                        forName: Notification.Name(Constants.Notifications.archivedImageDeleted),
-                        object: nil,
-                        queue: .main
-                    ) { notification in
-                        if let deletedURL = notification.object as? URL {
-                            // Remove the deleted image from our local array
-                            images.removeAll(where: { $0 == deletedURL })
-                            // Also remove from selected images if needed
-                            selectedImages.remove(deletedURL)
-                        }
-                    }
                 }
             }
         }
@@ -485,21 +442,27 @@ struct ArchivedImagesView: View {
             if let image = phase.image {
                 image
                     .resizable()
-                    .scaledToFit()
+                    .scaledToFill()
                     .frame(width: 100, height: 100)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(alignment: .topTrailing) {
                         if isMultiSelectMode {
-                            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(isSelected ? .blue : .gray)
-                                .padding(4)
-                                .background(Circle().fill(Color.white.opacity(0.8)))
+                            ZStack {
+                                Color.black.opacity(isSelected ? 0.2 : 0)
+                                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(isSelected ? .blue : .white)
+                                    .padding(6)
+                                    .shadow(radius: 2)
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
                     }
                     .onTapGesture {
                         if !isMultiSelectMode {
+                            appData.hapticService.playSelection()
                             selectedImageURL = IdentifiableURL(url: imageURL)
                         } else {
+                            appData.hapticService.playImpact(style: .light)
                             if selectedImages.contains(imageURL) {
                                 selectedImages.remove(imageURL)
                             } else {
@@ -507,10 +470,10 @@ struct ArchivedImagesView: View {
                             }
                         }
                     }
-            } else if phase.error != nil {
-                Image(systemName: "exclamationmark.triangle").foregroundStyle(.red)
             } else {
-                ProgressView()
+                Rectangle().fill(.secondary.opacity(0.2))
+                    .frame(width: 100, height: 100)
+                    .cornerRadius(12)
             }
         }
     }
@@ -531,8 +494,7 @@ struct ArchivedImagesView: View {
     private func restoreImages(_ imageURLs: [URL]) async {
         let docs = await appData.fileService.documentsDirectory
         let imagesFolderURL = docs.appendingPathComponent("images")
-        var canRestore = true
-        var restoredCount = 0
+        var successCount = 0
 
         do {
             try await appData.fileService.createDirectory(at: imagesFolderURL)
@@ -540,6 +502,7 @@ struct ArchivedImagesView: View {
                 let destinationURL = imagesFolderURL.appendingPathComponent(
                     imageURL.lastPathComponent)
                 if !appData.images.contains(where: { $0.fileURL == destinationURL }) {
+                    try? await appData.fileService.removeItem(at: destinationURL)
                     try await appData.fileService.copyItem(at: imageURL, to: destinationURL)
                     let capturedImage = CapturedImage(
                         name: imageURL.deletingPathExtension().lastPathComponent,
@@ -547,68 +510,33 @@ struct ArchivedImagesView: View {
                     await MainActor.run {
                         appData.images.append(capturedImage)
                     }
-                    restoredCount += 1
-                } else {
-                    canRestore = false
+                    successCount += 1
                 }
             }
             await MainActor.run {
-                showRestoreConfirmation(canRestore ? "Image(s) restored" : "Cannot restore, images already in the gallery")
+                restoreMessage = "Restored \(successCount) images"
+                showRestoreConfirmation = true
+                appData.hapticService.playNotification(type: .success)
             }
-            print("Restored \(restoredCount) images")
         } catch {
-            print("Failed to restore images: \(error)")
             await MainActor.run {
-                showRestoreConfirmation("Failed to restore images: \(error.localizedDescription)")
+                restoreMessage = "Error: \(error.localizedDescription)"
+                showRestoreConfirmation = true
             }
         }
     }
 
     private func deleteSelectedImages() async {
-        let docs = await appData.fileService.documentsDirectory
-        let dateFolder = docs.appendingPathComponent(date)
-
-        // Delete selected images
         for imageURL in selectedImages {
-            do {
-                try await appData.fileService.removeItem(at: imageURL)
-                print("Deleted image: \(imageURL.path)")
-            } catch {
-                print("Failed to delete image: \(error)")
-            }
-        }
-
-        // Check if the archive folder is now empty
-        do {
-            let remainingFiles = try await appData.fileService.contentsOfDirectory(at: dateFolder)
-            let imageFiles = remainingFiles.filter {
-                ["jpg", "png"].contains($0.pathExtension.lowercased())
-            }
-
-            // If no images left in the folder, delete the archive folder
-            if imageFiles.isEmpty {
-                try await appData.fileService.removeItem(at: dateFolder)
-                print("Deleted empty archive folder: \(date)")
-                // Dismiss the view since the archive folder no longer exists
-                await MainActor.run {
-                    dismiss()
-                }
-                return
-            }
-        } catch {
-            print("Error checking for empty archive: \(error)")
+            try? await appData.fileService.removeItem(at: imageURL)
         }
 
         await MainActor.run {
             selectedImages.removeAll()
             isMultiSelectMode = false
+            appData.hapticService.playNotification(type: .success)
         }
         await refreshImages()
-    }
-
-    private func showRestoreConfirmation(_ message: String) {
-        restoreMessage = message
-        showRestoreConfirmation = true
     }
 
     private func refreshImages() async {
@@ -617,190 +545,4 @@ struct ArchivedImagesView: View {
             self.images = urls
         }
     }
-}
-
-struct FullscreenArchivedImageView: View {
-    let imageURL: URL
-    @EnvironmentObject var appData: AppData
-    @Environment(\.dismiss) var dismiss
-    @State private var showRestoreConfirmation = false
-    @State private var restoreMessage = ""
-
-    @State private var scale: CGFloat = 1.0
-    @State private var lastScale: CGFloat = 1.0
-    @State private var offset: CGSize = .zero
-    @State private var lastOffset: CGSize = .zero
-    @State private var pinchCenter: CGPoint = .zero
-
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-
-            AsyncImage(url: imageURL) { phase in
-                if let image = phase.image {
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .scaleEffect(scale)
-                        .offset(offset)
-                        .gesture(
-                            DragGesture(minimumDistance: 10)
-                                .onChanged { gesture in
-                                    offset = CGSize(
-                                        width: lastOffset.width + gesture.translation.width,
-                                        height: lastOffset.height + gesture.translation.height)
-                                }
-                                .onEnded { _ in
-                                    lastOffset = offset
-                                }
-                        )
-                        .simultaneousGesture(
-                            SimultaneousGesture(
-                                MagnificationGesture()
-                                    .onChanged { value in
-                                        let newScale = lastScale * value
-                                        scale = newScale
-                                    }
-                                    .onEnded { _ in
-                                        lastScale = scale
-                                    },
-                                DragGesture(minimumDistance: 0)
-                                    .onChanged { gesture in
-                                        pinchCenter = gesture.location
-                                    }
-                            )
-                        )
-                } else if phase.error != nil {
-                    Image(systemName: "exclamationmark.triangle")
-                        .foregroundStyle(.red)
-                } else {
-                    ProgressView()
-                }
-            }
-
-            VStack {
-                HStack {
-                    Spacer()
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title)
-                            .foregroundColor(.white)
-                            .padding(12)
-                            .background(Circle().fill(Color.black.opacity(0.7)))
-                    }
-                    .padding(.top, 20)
-                    .padding(.trailing, 20)
-                }
-
-                Spacer()
-
-                HStack {
-                    Button(action: { Task { await restoreImage() } }) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.green)
-                                .frame(width: 44, height: 44)
-
-                            Image(systemName: "arrow.uturn.backward")
-                                .font(.system(size: 18))
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .padding(.leading, 16)
-
-                    Spacer()
-
-                    Button(action: { Task { await deleteImage() } }) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.red)
-                                .frame(width: 44, height: 44)
-
-                            Image(systemName: "trash")
-                                .font(.system(size: 18))
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .padding(.trailing, 16)
-                }
-                .padding(.bottom, 8)
-            }
-            .padding()
-            .zIndex(2)
-        }
-        .alert(restoreMessage, isPresented: $showRestoreConfirmation) {
-            Button("OK") { showRestoreConfirmation = false }
-        }
-        .edgesIgnoringSafeArea(.all)
-    }
-
-    private func restoreImage() async {
-        let docs = await appData.fileService.documentsDirectory
-        let imagesFolderURL = docs.appendingPathComponent("images")
-        do {
-            try await appData.fileService.createDirectory(at: imagesFolderURL)
-            let destinationURL = imagesFolderURL.appendingPathComponent(imageURL.lastPathComponent)
-
-            if !appData.images.contains(where: { $0.fileURL == destinationURL }) {
-                try? await appData.fileService.removeItem(at: destinationURL)
-
-                try await appData.fileService.copyItem(at: imageURL, to: destinationURL)
-                let capturedImage = CapturedImage(
-                    name: imageURL.deletingPathExtension().lastPathComponent,
-                    fileURL: destinationURL)
-                await MainActor.run {
-                    appData.images.append(capturedImage)
-                    showRestoreConfirmation("Image restored")
-                }
-            } else {
-                await MainActor.run {
-                    showRestoreConfirmation("Cannot restore, image already in the gallery")
-                }
-            }
-        } catch {
-            print("Failed to restore image: \(error)")
-            await MainActor.run {
-                showRestoreConfirmation("Failed to restore image: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    private func deleteImage() async {
-        let archiveFolder = imageURL.deletingLastPathComponent()
-        let archiveFolderName = archiveFolder.lastPathComponent
-
-        do {
-            try await appData.fileService.removeItem(at: imageURL)
-            print("Deleted image: \(imageURL.path)")
-
-            let contents = try await appData.fileService.contentsOfDirectory(at: archiveFolder)
-            let imageFiles = contents.filter {
-                ["jpg", "png"].contains($0.pathExtension.lowercased())
-            }
-
-            if imageFiles.isEmpty {
-                try await appData.fileService.removeItem(at: archiveFolder)
-                print("Deleted empty archive: \(archiveFolderName)")
-            }
-
-            await MainActor.run {
-                NotificationCenter.default.post(
-                    name: Notification.Name(Constants.Notifications.archivedImageDeleted), object: imageURL)
-
-                dismiss()
-            }
-        } catch {
-            print("Failed to delete image \(imageURL.path): \(error)")
-        }
-    }
-
-    private func showRestoreConfirmation(_ message: String) {
-        restoreMessage = message
-        showRestoreConfirmation = true
-    }
-}
-
-#Preview {
-    ArchiveView()
-        .environmentObject(AppData.preview)
 }

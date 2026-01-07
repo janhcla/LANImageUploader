@@ -27,15 +27,15 @@ Focus: Updating the capture interface with modern feedback and iOS 26 aesthetics
 ## Phase 3: Enhanced Gallery & Batch Management
 Focus: Streamlining image management with a robust multi-select experience.
 
-- [ ] **Task 1: Implement Multi-Select and Batch Logic**
-    - [ ] Sub-task: Write unit tests for multi-selection, batch renaming, and batch archiving logic.
-    - [ ] Sub-task: Implement selection state management in `AppData`.
-- [ ] **Task 2: Build the Multi-Select Toolbar**
-    - [ ] Sub-task: Create `MultiSelectToolbarView` with modern Liquid Glass styling.
-    - [ ] Sub-task: Integrate toolbar into `GalleryView` with appearing/disappearing animations.
-- [ ] **Task 3: Modernize Gallery Grid and Sheets**
-    - [ ] Sub-task: Update `ImageRowView` and `GalleryView` containers with Liquid Glass aesthetics.
-    - [ ] Sub-task: Modernize `NamingSheet` and `ArchiveView` for the new design language.
+- [x] **Task 1: Implement Multi-Select and Batch Logic**
+    - [x] Sub-task: Write unit tests for multi-selection, batch renaming, and batch archiving logic.
+    - [x] Sub-task: Implement selection state management in `AppData`.
+- [x] **Task 2: Build the Multi-Select Toolbar**
+    - [x] Sub-task: Create `MultiSelectToolbarView` with modern Liquid Glass styling.
+    - [x] Sub-task: Integrate toolbar into `GalleryView` with appearing/disappearing animations.
+- [x] **Task 3: Modernize Gallery Grid and Sheets**
+    - [x] Sub-task: Update `ImageRowView` and `GalleryView` containers with Liquid Glass aesthetics.
+    - [x] Sub-task: Modernize `NamingSheet` and `ArchiveView` for the new design language.
 - [ ] **Task 4: Conductor - User Manual Verification 'Phase 3: Gallery' (Protocol in workflow.md)**
 
 ## Phase 4: Animations, Hero Transitions & Polishing

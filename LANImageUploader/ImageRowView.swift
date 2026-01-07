@@ -2,8 +2,6 @@
 //  ImageRowView.swift
 //  LANImageUploader
 //
-//  Created by Jan Hagen Clausen on 02/03/2025.
-//
 
 import SwiftUI
 import UIKit
@@ -17,44 +15,52 @@ struct ImageRowView: View {
     var onDelete: () -> Void
     
     var body: some View {
-        VStack(alignment: .center) {
-            AsyncImage(url: image.fileURL) { phase in
-                if let swiftUIImage = phase.image {
-                    swiftUIImage
-                        .resizable()
-                        .scaledToFit()
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .frame(maxHeight: 200)
-                        .overlay {
-                            if isMultiSelectMode {
-                                selectionOverlay(isSelected: isSelected)
-                            } else {
-                                EmptyView()
+        GlassContainer(cornerRadius: 18) {
+            VStack(alignment: .center, spacing: 10) {
+                AsyncImage(url: image.fileURL) { phase in
+                    if let swiftUIImage = phase.image {
+                        swiftUIImage
+                            .resizable()
+                            .scaledToFill()
+                            .frame(height: 160)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay {
+                                if isMultiSelectMode {
+                                    selectionOverlay(isSelected: isSelected)
+                                }
                             }
+                    } else if phase.error != nil {
+                        VStack {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.largeTitle)
+                            Text("Load Error")
+                                .font(.caption)
                         }
-                } else if phase.error != nil {
-                    Image(systemName: "exclamationmark.triangle")
-                        .foregroundColor(.red)
-                } else {
-                    ProgressView()
+                        .foregroundStyle(.red)
+                        .frame(height: 160)
+                    } else {
+                        ProgressView()
+                            .frame(height: 160)
+                    }
                 }
+                
+                Text(image.name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
-            Text(image.name)
-                .font(.caption)
-                .foregroundColor(.gray)
-                .multilineTextAlignment(.center)
         }
-        .frame(maxWidth: .infinity)
+        .scaleEffect(isSelected ? 0.96 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSelected)
         .onTapGesture(perform: onTap)
         .contextMenu {
             if !isMultiSelectMode {
                 Button(action: onRename) {
                     Label("Rename", systemImage: "pencil")
                 }
-                Button(
-                    role: .destructive,
-                    action: onDelete
-                ) {
+                Button(role: .destructive, action: onDelete) {
                     Label("Delete", systemImage: "trash")
                 }
             }
@@ -63,11 +69,23 @@ struct ImageRowView: View {
     
     @ViewBuilder
     func selectionOverlay(isSelected: Bool) -> some View {
-        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-            .foregroundColor(isSelected ? .blue : .gray)
-            .padding(8)
-            .background(Circle().fill(Color.white.opacity(0.8)))
-            .offset(x: -8, y: -8)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+        ZStack {
+            Color.black.opacity(isSelected ? 0.2 : 0)
+            
+            VStack {
+                HStack {
+                    Spacer()
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.title2)
+                        .foregroundStyle(isSelected ? .blue : .white.opacity(0.8))
+                        .symbolEffect(.bounce, value: isSelected)
+                        .padding(10)
+                        .shadow(radius: 4)
+                }
+                Spacer()
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .animation(.easeInOut(duration: 0.2), value: isSelected)
     }
 }

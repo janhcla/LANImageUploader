@@ -105,6 +105,7 @@ class AppData: ObservableObject {
     @Published var imageName: String = ""
     @Published var scanStatus: String = ""
     @Published var connectionStatus: ConnectionStatus = .disconnected
+    @Published var selectedImageIDs: Set<UUID> = []
 
     private let passwordKey = Constants.Keychain.serverPassword
     private let settingsKey = Constants.UserDefaults.serverSettings
@@ -137,6 +138,20 @@ class AppData: ObservableObject {
     func clearNamingData() {
         imageName = ""
         ocrText = ""
+    }
+
+    func deleteSelectedImages() async {
+        let idsToDelete = selectedImageIDs
+        for id in idsToDelete {
+            if let image = images.first(where: { $0.id == id }) {
+                try? await fileService.removeItem(at: image.fileURL)
+            }
+        }
+        await MainActor.run {
+            images.removeAll { idsToDelete.contains($0.id) }
+            selectedImageIDs.removeAll()
+            hapticService.playNotification(type: .success)
+        }
     }
 
     // Save images to a dated folder

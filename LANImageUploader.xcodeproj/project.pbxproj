@@ -17,6 +17,7 @@
 		3DB370012D98046E003D8E4A /* GalleryBottomActionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE82D98046E003D8E4A /* GalleryBottomActionView.swift */; };
 		        3DB370022D98046E003D8E4A /* AppData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE12D98046E003D8E4A /* AppData.swift */; };
 		        3DB370022D98046E003D8E4B /* HapticFeedbackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE12D98046E003D8E4B /* HapticFeedbackService.swift */; };
+		3DB370022D98046E003D8E4C /* MultiSelectToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE12D98046E003D8E4C /* MultiSelectToolbarView.swift */; };
 		        A1F11E582D68B563001D57FD /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = A1F11E562D68B563001D57FD /* LaunchScreen.storyboard */; };		3DB370032D98046E003D8E4A /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF42D98046E003D8E4A /* OnboardingView.swift */; };
 		3DB370042D98046E003D8E4A /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE62D98046E003D8E4A /* CameraView.swift */; };
 		3DB370052D98046E003D8E4A /* NetworkDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF22D98046E003D8E4A /* NetworkDiscovery.swift */; };
@@ -85,6 +86,7 @@
 		3DB36FE02D98046E003D8E4A /* AppBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppBackground.swift; sourceTree = "<group>"; };
 		3DB36FE12D98046E003D8E4A /* AppData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppData.swift; sourceTree = "<group>"; };
 		3DB36FE12D98046E003D8E4B /* HapticFeedbackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticFeedbackService.swift; sourceTree = "<group>"; };
+		3DB36FE12D98046E003D8E4C /* MultiSelectToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiSelectToolbarView.swift; sourceTree = "<group>"; };
 		A1F11E4E2D68B563001D57FD /* LANImageUploader.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LANImageUploader.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3DB36FE22D98046E003D8E4A /* ArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveView.swift; sourceTree = "<group>"; };
 		3DB36FE32D98046E003D8E4A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -168,6 +170,7 @@
 				3DB36FE02D98046E003D8E4A /* AppBackground.swift */,
 				3DB36FE12D98046E003D8E4A /* AppData.swift */,
 				3DB36FE12D98046E003D8E4B /* HapticFeedbackService.swift */,
+				3DB36FE12D98046E003D8E4C /* MultiSelectToolbarView.swift */,
 				3DB36FE22D98046E003D8E4A /* ArchiveView.swift */,
 				3DB36FE32D98046E003D8E4A /* Assets.xcassets */,
 				3DB36FE42D98046E003D8E4A /* ButtonStyles.swift */,
@@ -400,6 +403,7 @@
 				3DB370012D98046E003D8E4A /* GalleryBottomActionView.swift in Sources */,
 				3DB370022D98046E003D8E4A /* AppData.swift in Sources */,
 				3DB370022D98046E003D8E4B /* HapticFeedbackService.swift in Sources */,
+				3DB370022D98046E003D8E4C /* MultiSelectToolbarView.swift in Sources */,
 				3DB370032D98046E003D8E4A /* OnboardingView.swift in Sources */,
 				3DB370042D98046E003D8E4A /* CameraView.swift in Sources */,
 				3DB370052D98046E003D8E4A /* NetworkDiscovery.swift in Sources */,
