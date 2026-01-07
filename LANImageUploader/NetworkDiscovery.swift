@@ -61,7 +61,15 @@ final class NetworkDiscovery: NetworkDiscoveryProtocol {
         self.networkMonitor = networkMonitor
     }
     
-    private var discoveredServersCache: [String: (timestamp: Date, info: NetworkInfo)] = [:]
+    private struct CacheKey: Hashable {
+        let ip: String
+        let targetFolder: String
+        let username: String
+        let password: String
+        let port: Int?
+    }
+    
+    private var discoveredServersCache: [CacheKey: (timestamp: Date, info: NetworkInfo)] = [:]
     private let cacheDuration: TimeInterval = 300
 }
 
@@ -88,7 +96,7 @@ extension NetworkDiscovery {
         // 1. Direct Connection Attempt
         if let directIP = directIP, !directIP.isEmpty {
             onStatus?(.connecting(directIP))
-            if let cachedInfo = getCachedServer(directIP) {
+            if let cachedInfo = getCachedServer(ip: directIP, targetFolder: targetFolder, username: username, password: password, port: port) {
                 logger.info("Using cached server information for \(directIP)")
                 onStatus?(.connected(cachedInfo))
                 return cachedInfo
@@ -103,7 +111,7 @@ extension NetworkDiscovery {
                     port: port,
                     onStatus: onStatus
                 )
-                cacheServer(networkInfo)
+                cacheServer(networkInfo, targetFolder: targetFolder, username: username, password: password, port: port)
                 onStatus?(.connected(networkInfo))
                 return networkInfo
             } catch {
@@ -130,7 +138,7 @@ extension NetworkDiscovery {
                 port: port,
                 onStatus: onStatus
             )
-            cacheServer(networkInfo)
+            cacheServer(networkInfo, targetFolder: targetFolder, username: username, password: password, port: port)
             onStatus?(.connected(networkInfo))
             return networkInfo
         }
@@ -163,7 +171,7 @@ extension NetworkDiscovery {
                             port: port,
                             onStatus: onStatus
                         )
-                        cacheServer(networkInfo)
+                        cacheServer(networkInfo, targetFolder: targetFolder, username: username, password: password, port: port)
                         onStatus?(.connected(networkInfo))
                         return networkInfo
                     } catch {
@@ -480,14 +488,16 @@ extension NetworkDiscovery {
 
 // MARK: - Server Cache Management
 extension NetworkDiscovery {
-    private func cacheServer(_ info: NetworkInfo) {
-        discoveredServersCache[info.serverIP] = (Date(), info)
+    private func cacheServer(_ info: NetworkInfo, targetFolder: String, username: String, password: String, port: Int?) {
+        let key = CacheKey(ip: info.serverIP, targetFolder: targetFolder, username: username, password: password, port: port)
+        discoveredServersCache[key] = (Date(), info)
     }
     
-    private func getCachedServer(_ ip: String) -> NetworkInfo? {
-        guard let (timestamp, info) = discoveredServersCache[ip] else { return nil }
+    private func getCachedServer(ip: String, targetFolder: String, username: String, password: String, port: Int?) -> NetworkInfo? {
+        let key = CacheKey(ip: ip, targetFolder: targetFolder, username: username, password: password, port: port)
+        guard let (timestamp, info) = discoveredServersCache[key] else { return nil }
         guard Date().timeIntervalSince(timestamp) < cacheDuration else {
-            discoveredServersCache.removeValue(forKey: ip)
+            discoveredServersCache.removeValue(forKey: key)
             return nil
         }
         return info
