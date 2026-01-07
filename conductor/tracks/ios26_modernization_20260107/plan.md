@@ -38,7 +38,7 @@ Focus: Streamlining image management with a robust multi-select experience.
     - [x] Sub-task: Modernize `NamingSheet` and `ArchiveView` for the new design language.
 - [x] **Task 4: Conductor - User Manual Verification 'Phase 3: Gallery' (Protocol in workflow.md)**
 
-## Phase 4: Animations, Hero Transitions & Polishing
+## Phase 4: Animations, Hero Transitions & Polishing [checkpoint: 9ffd9af]
 Focus: Adding the "delightful" layers of fluid transitions and micro-interactions.
 
 - [x] **Task 1: Implement Hero Animations**
@@ -47,4 +47,4 @@ Focus: Adding the "delightful" layers of fluid transitions and micro-interaction
 - [x] **Task 2: Final UI Polishing and Performance Audit**
     - [x] Sub-task: Conduct a sweep of the app for consistent haptic integration.
     - [x] Sub-task: Optimize view rendering for 60+ FPS performance during "liquid" animations.
-- [ ] **Task 3: Conductor - User Manual Verification 'Phase 4: Final Polishing' (Protocol in workflow.md)**
+- [x] **Task 3: Conductor - User Manual Verification 'Phase 4: Final Polishing' (Protocol in workflow.md)**
