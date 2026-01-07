@@ -13,7 +13,7 @@ Focus: Establishing the core visual building blocks and updating global styles.
     - [x] Sub-task: Update `ButtonStyles.swift` with bouncy "liquid" interaction animations.
 - [x] **Task 3: Conductor - User Manual Verification 'Phase 1: Foundation' (Protocol in workflow.md)**
 
-## Phase 2: Modernized Camera Experience
+## Phase 2: Modernized Camera Experience [checkpoint: 8800f55]
 Focus: Updating the capture interface with modern feedback and iOS 26 aesthetics.
 
 - [x] **Task 1: Refactor Camera Feedback Logic**
@@ -22,7 +22,7 @@ Focus: Updating the capture interface with modern feedback and iOS 26 aesthetics
 - [x] **Task 2: Implement iOS 26 Camera UI Overlay**
     - [x] Sub-task: Update `CameraView.swift` with the new Liquid Glass overlay and controls.
     - [x] Sub-task: Integrate fluid animations for focus and exposure feedback.
-- [ ] **Task 3: Conductor - User Manual Verification 'Phase 2: Camera' (Protocol in workflow.md)**
+- [x] **Task 3: Conductor - User Manual Verification 'Phase 2: Camera' (Protocol in workflow.md)**
 
 ## Phase 3: Enhanced Gallery & Batch Management
 Focus: Streamlining image management with a robust multi-select experience.
