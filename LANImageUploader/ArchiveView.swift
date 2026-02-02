@@ -328,8 +328,14 @@ struct ArchiveView: View {
         let docs = await appData.fileService.documentsDirectory
         for archive in archives {
             let archiveURL = docs.appendingPathComponent(archive)
-            try? await appData.fileService.removeItem(at: archiveURL)
-            customArchiveNames.removeValue(forKey: archive)
+            do {
+                try await appData.fileService.removeItem(at: archiveURL)
+                await MainActor.run {
+                    customArchiveNames.removeValue(forKey: archive)
+                }
+            } catch {
+                print("Failed to delete archive \(archive): \(error)")
+            }
         }
 
         if let encoded = try? JSONEncoder().encode(customArchiveNames) {
@@ -337,7 +343,9 @@ struct ArchiveView: View {
         }
         
         await refreshArchivedDates()
-        appData.hapticService.playNotification(type: .success)
+        await MainActor.run {
+            appData.hapticService.playNotification(type: .success)
+        }
     }
 }
 

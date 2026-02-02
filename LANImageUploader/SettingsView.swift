@@ -11,6 +11,7 @@ import UIKit
 
 struct SettingsView: View {
     @EnvironmentObject var appData: AppData
+    @AppStorage(Constants.UserDefaults.ocrMode) private var ocrModeRawValue: String = OCRMode.full.rawValue
     @State private var serverIP = ""
     @State private var shareName = ""
     @State private var targetDirectory = ""
@@ -66,6 +67,13 @@ struct SettingsView: View {
         username != appData.settings.username ||
         port != (appData.settings.port.map(String.init) ?? "") ||
         password != (appData.getPassword() ?? "")
+    }
+    
+    private var ocrModeBinding: Binding<OCRMode> {
+        Binding(
+            get: { OCRMode(rawValue: ocrModeRawValue) ?? .full },
+            set: { ocrModeRawValue = $0.rawValue }
+        )
     }
 
     var body: some View {
@@ -179,6 +187,7 @@ struct SettingsView: View {
                 TextField("Port (optional)", text: $port)
                     .keyboardType(.numberPad)
             }
+            ocrSection
             Section {
                 if isDiscovering {
                     HStack(spacing: 15) {
@@ -280,6 +289,7 @@ struct SettingsView: View {
                 SecureField("Password", text: $password)
                     .textContentType(.password)
             }
+            ocrSection
             Section {
                 Button("Save") {
                     Task { await saveSettings() }
@@ -295,6 +305,17 @@ struct SettingsView: View {
                 }
                 .foregroundStyle(.blue)
             }
+        }
+    }
+    
+    var ocrSection: some View {
+        Section("OCR") {
+            Picker("OCR Mode", selection: ocrModeBinding) {
+                ForEach(OCRMode.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
         }
     }
 

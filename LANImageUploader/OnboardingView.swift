@@ -172,6 +172,7 @@ struct FeatureItem: View {
 struct OnboardingSettingsView: View {
     @EnvironmentObject var appData: AppData
     let nextAction: () -> Void
+    @AppStorage(Constants.UserDefaults.ocrMode) private var ocrModeRawValue: String = OCRMode.full.rawValue
     @State private var serverIP = ""
     @State private var shareName = ""
     @State private var targetDirectory = ""
@@ -182,6 +183,13 @@ struct OnboardingSettingsView: View {
 
     var areSettingsComplete: Bool {
         !serverIP.isEmpty && !shareName.isEmpty && !targetDirectory.isEmpty && !username.isEmpty && !password.isEmpty
+    }
+    
+    private var ocrModeBinding: Binding<OCRMode> {
+        Binding(
+            get: { OCRMode(rawValue: ocrModeRawValue) ?? .full },
+            set: { ocrModeRawValue = $0.rawValue }
+        )
     }
 
     var body: some View {
@@ -214,8 +222,16 @@ struct OnboardingSettingsView: View {
                     .textContentType(.username)
                 SecureField("Password", text: $password)
                     .textContentType(.password)
+                Section("OCR") {
+                    Picker("OCR Mode", selection: ocrModeBinding) {
+                        ForEach(OCRMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
             }
-            .frame(maxHeight: 200)
+            .frame(maxHeight: 260)
             Button("Save and Next") {
                 saveSettings()
                 nextAction()
@@ -401,6 +417,7 @@ struct CompletionPage: View {
 struct NetworkSetupView: View {
     @EnvironmentObject var appData: AppData
     let nextAction: () -> Void
+    @AppStorage(Constants.UserDefaults.ocrMode) private var ocrModeRawValue: String = OCRMode.full.rawValue
     @State private var targetDirectory = ""
     @State private var username = ""
     @State private var password = ""
@@ -417,6 +434,13 @@ struct NetworkSetupView: View {
 
     var canAutoFill: Bool {
         !targetDirectory.isEmpty && !username.isEmpty && !password.isEmpty
+    }
+    
+    private var ocrModeBinding: Binding<OCRMode> {
+        Binding(
+            get: { OCRMode(rawValue: ocrModeRawValue) ?? .full },
+            set: { ocrModeRawValue = $0.rawValue }
+        )
     }
 
     private func stopAutoFill() {
@@ -463,8 +487,16 @@ struct NetworkSetupView: View {
                     .textContentType(.password)
                 TextField("Port (optional)", text: $port)
                     .keyboardType(.numberPad)
+                Section("OCR") {
+                    Picker("OCR Mode", selection: ocrModeBinding) {
+                        ForEach(OCRMode.allCases) { mode in
+                            Text(mode.displayName).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
             }
-            .frame(maxHeight: 200)
+            .frame(maxHeight: 260)
             
             Button("Browse & Auto-Fill") {
                 showDiscoveryResults = true

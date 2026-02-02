@@ -16,6 +16,7 @@ enum Constants {
         static let serverSettings = "serverSettings"
         static let onboardingCompleted = "onboardingCompleted"
         static let archiveCustomNames = "archiveCustomNames"
+        static let ocrMode = "ocrMode"
     }
     
     enum Notifications {

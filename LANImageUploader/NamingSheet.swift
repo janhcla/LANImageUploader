@@ -12,12 +12,14 @@ import Foundation
 struct NamingSheet: View {
     @Binding var imageName: String
     @EnvironmentObject var appData: AppData
+    @AppStorage(Constants.UserDefaults.ocrMode) private var ocrModeRawValue: String = OCRMode.full.rawValue
     var onSave: () -> Void
     var saveButtonLabel: String
     @Environment(\.dismiss) var dismiss
     @State private var isScanningOCR = false
     @FocusState private var isTextFieldFocused: Bool
     @State private var isHighlighted = false
+    @State private var showCPRDetected = false
 
     var body: some View {
         ZStack {
@@ -66,15 +68,40 @@ struct NamingSheet: View {
 
                 if isScanningOCR {
                     GlassContainer(cornerRadius: 20) {
-                        OCRCameraView(isScanning: $isScanningOCR, height: 260, onCapture: {
+                        OCRCameraView(
+                            isScanning: $isScanningOCR,
+                            ocrMode: OCRMode(rawValue: ocrModeRawValue) ?? .full,
+                            height: 260,
+                            onDetect: {
+                                showCPRDetected = true
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+                                    showCPRDetected = false
+                                }
+                            },
+                            onCapture: {
                             // Trigger highlight animation
                             isHighlighted = true
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                                 isHighlighted = false
                             }
-                        })
+                        }
+                        )
                         .frame(height: 260)
                     }
+                    .overlay(alignment: .topLeading) {
+                        if showCPRDetected {
+                            Text("CPR detected")
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color.green.opacity(0.9))
+                                .foregroundStyle(.white)
+                                .clipShape(Capsule())
+                                .transition(.scale.combined(with: .opacity))
+                        }
+                    }
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: showCPRDetected)
                     .transition(.scale.combined(with: .opacity))
                 }
 
@@ -111,7 +138,9 @@ struct NamingSheet: View {
 struct OCRCameraView: UIViewControllerRepresentable {
     @Binding var isScanning: Bool
     @EnvironmentObject var appData: AppData
+    let ocrMode: OCRMode
     let height: CGFloat
+    var onDetect: (() -> Void)? = nil
     var onCapture: (() -> Void)? = nil // Callback for capture event
     @State private var isFrozen = false // State to control freezing
 
@@ -119,7 +148,7 @@ struct OCRCameraView: UIViewControllerRepresentable {
         let dataScanner = DataScannerViewController(
             recognizedDataTypes: [.text()],
             qualityLevel: .balanced,
-            recognizesMultipleItems: false,
+            recognizesMultipleItems: true,
             isHighFrameRateTrackingEnabled: true,
             isHighlightingEnabled: true
         )
@@ -144,70 +173,70 @@ struct OCRCameraView: UIViewControllerRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(appData: appData, isScanning: $isScanning, onCapture: onCapture)
+        Coordinator(
+            appData: appData,
+            isScanning: $isScanning,
+            ocrMode: ocrMode,
+            onDetect: onDetect,
+            onCapture: onCapture
+        )
     }
 
     class Coordinator: NSObject, DataScannerViewControllerDelegate {
         private let appData: AppData
         private var isScanning: Binding<Bool>
-        private var lastScanTime: Date = Date()
-        private var stableText: String?
-        private var stabilityCounter = 0
-        private let stabilityThreshold = 2
+        private let ocrMode: OCRMode
         var isFrozen = false
+        var onDetect: (() -> Void)?
         var onCapture: (() -> Void)?
 
-        init(appData: AppData, isScanning: Binding<Bool>, onCapture: (() -> Void)?) {
+        init(
+            appData: AppData,
+            isScanning: Binding<Bool>,
+            ocrMode: OCRMode,
+            onDetect: (() -> Void)?,
+            onCapture: (() -> Void)?
+        ) {
             self.appData = appData
             self.isScanning = isScanning
+            self.ocrMode = ocrMode
+            self.onDetect = onDetect
             self.onCapture = onCapture
             super.init()
         }
 
         func dataScanner(_ dataScanner: DataScannerViewController, didTapOn item: RecognizedItem) {
-            handleItem(item, force: true)
+            handleItems([item], force: true)
         }
 
-        func dataScanner(_ dataScanner: DataScannerViewController, didAdd addedItems: [RecognizedItem], didRemove removedItems: [RecognizedItem]) {
-            if let firstItem = addedItems.first {
-                handleItem(firstItem)
-            }
+        func dataScanner(_ dataScanner: DataScannerViewController, didAdd addedItems: [RecognizedItem], allItems: [RecognizedItem]) {
+            handleItems(addedItems)
         }
         
-        func dataScanner(_ dataScanner: DataScannerViewController, didUpdate updatedItems: [RecognizedItem]) {
-            if let firstItem = updatedItems.first {
-                handleItem(firstItem)
-            }
+        func dataScanner(_ dataScanner: DataScannerViewController, didUpdate updatedItems: [RecognizedItem], allItems: [RecognizedItem]) {
+            handleItems(updatedItems)
         }
 
-        private func handleItem(_ item: RecognizedItem, force: Bool = false) {
-            if case .text(let textItem) = item {
-                let text = textItem.transcript
+        private func handleItems(_ items: [RecognizedItem], force: Bool = false) {
+            guard force || ocrMode == .cpr else { return }
+            
+            for item in items {
+                guard !isFrozen else { return }
+                guard case .text(let textItem) = item else { continue }
                 
-                guard OCRValidator.isValid(text) else { 
-                    stabilityCounter = 0
-                    return 
-                }
+                let text = textItem.transcript
+                guard let sanitized = OCRValidator.sanitizedText(from: text, mode: ocrMode) else { continue }
                 
                 if force {
-                    capture(text)
+                    capture(sanitized)
                     return
                 }
-                
-                if text == stableText {
-                    stabilityCounter += 1
-                } else {
-                    stableText = text
-                    stabilityCounter = 1
+
+                DispatchQueue.main.async {
+                    self.onDetect?()
                 }
-                
-                guard stabilityCounter >= stabilityThreshold else { return }
-                
-                let now = Date()
-                guard now.timeIntervalSince(lastScanTime) > 0.3 else { return }
-                lastScanTime = now
-                
-                capture(text)
+                capture(sanitized)
+                return
             }
         }
         
