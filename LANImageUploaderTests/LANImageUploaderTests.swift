@@ -62,6 +62,41 @@ struct LANImageUploaderTests {
         #expect(appData.scanStatus.contains("Disk Full"))
     }
 
+    @Test @MainActor func appDataGetArchivedDates() async throws {
+        let mockFile = MockFileService()
+        let expectedDates = ["2024-01-01", "2024-01-02"]
+        mockFile.getArchivedDatesResult = expectedDates
+
+        let appData = AppData(
+            fileService: mockFile,
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: HapticFeedbackService.shared
+        )
+
+        let result = await appData.getArchivedDates()
+
+        #expect(result == expectedDates)
+    }
+
+    @Test @MainActor func appDataGetImagesForDate() async throws {
+        let mockFile = MockFileService()
+        let testDate = "2024-01-01"
+        let expectedURLs = [URL(fileURLWithPath: "/tmp/1.jpg"), URL(fileURLWithPath: "/tmp/2.jpg")]
+        mockFile.getImagesForDateResult = expectedURLs
+
+        let appData = AppData(
+            fileService: mockFile,
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: HapticFeedbackService.shared
+        )
+
+        let result = await appData.getImagesForDate(testDate)
+
+        #expect(result == expectedURLs)
+    }
+
     @Test func connectionStatusEnumExists() async throws {
         let status = ConnectionStatus.disconnected
         #expect(status == .disconnected)
