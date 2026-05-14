@@ -86,19 +86,13 @@ struct LANImageUploaderApp: App {
 
                 // Fix UIHostingController background after scene is created
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                       let window = windowScene.windows.first,
-                       let rootViewController = window.rootViewController {
-                        // Set background color of the root view controller to clear
-                        rootViewController.view.backgroundColor = .clear
-
-                        // If there's a UIHostingController in the hierarchy, also set its background to clear
-                        if let hostingController = rootViewController as? UIHostingController<AnyView> {
-                            hostingController.view.backgroundColor = .clear
-                        } else if let hostingController = rootViewController.children.first as? UIHostingController<AnyView> {
-                            hostingController.view.backgroundColor = .clear
+                    UIApplication.shared.connectedScenes
+                        .compactMap { $0 as? UIWindowScene }
+                        .flatMap { $0.windows }
+                        .forEach { window in
+                            window.backgroundColor = .clear
+                            window.rootViewController?.view.backgroundColor = .clear
                         }
-                    }
                 }
             }
             .onChange(of: scenePhase) { oldPhase, newPhase in
