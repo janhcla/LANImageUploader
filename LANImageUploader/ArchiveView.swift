@@ -299,15 +299,35 @@ struct ArchiveView: View {
 
     private func deleteSelectedArchives() async {
         let docs = await appData.fileService.documentsDirectory
-        for date in selectedDates {
-            let archiveURL = docs.appendingPathComponent(date)
-            do {
-                try await appData.fileService.removeItem(at: archiveURL)
-                await MainActor.run {
-                    customArchiveNames.removeValue(forKey: date)
+        let datesToDelete = Array(selectedDates)
+
+        await withTaskGroup(of: String?.self) { group in
+            for date in datesToDelete {
+                group.addTask {
+                    let archiveURL = docs.appendingPathComponent(date)
+                    do {
+                        try await appData.fileService.removeItem(at: archiveURL)
+                        return date
+                    } catch {
+                        print("Failed to delete archive \(date): \(error)")
+                        return nil
+                    }
                 }
-            } catch {
-                print("Failed to delete archive \(date): \(error)")
+            }
+
+            var deletedResults: [String] = []
+            for await deletedDate in group {
+                if let date = deletedDate {
+                    deletedResults.append(date)
+                }
+            }
+
+            if !deletedResults.isEmpty {
+                await MainActor.run {
+                    for date in deletedResults {
+                        customArchiveNames.removeValue(forKey: date)
+                    }
+                }
             }
         }
 
@@ -326,15 +346,34 @@ struct ArchiveView: View {
     private func deleteAllArchives() async {
         let archives = await appData.getArchivedDates()
         let docs = await appData.fileService.documentsDirectory
-        for archive in archives {
-            let archiveURL = docs.appendingPathComponent(archive)
-            do {
-                try await appData.fileService.removeItem(at: archiveURL)
-                await MainActor.run {
-                    customArchiveNames.removeValue(forKey: archive)
+
+        await withTaskGroup(of: String?.self) { group in
+            for archive in archives {
+                group.addTask {
+                    let archiveURL = docs.appendingPathComponent(archive)
+                    do {
+                        try await appData.fileService.removeItem(at: archiveURL)
+                        return archive
+                    } catch {
+                        print("Failed to delete archive \(archive): \(error)")
+                        return nil
+                    }
                 }
-            } catch {
-                print("Failed to delete archive \(archive): \(error)")
+            }
+
+            var deletedResults: [String] = []
+            for await deletedArchive in group {
+                if let archive = deletedArchive {
+                    deletedResults.append(archive)
+                }
+            }
+
+            if !deletedResults.isEmpty {
+                await MainActor.run {
+                    for archive in deletedResults {
+                        customArchiveNames.removeValue(forKey: archive)
+                    }
+                }
             }
         }
 
