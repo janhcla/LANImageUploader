@@ -1,0 +1,5 @@
+🔒 Fix Path Traversal in SMB Upload Destination
+
+🎯 **What:** The user input `image.name` was being used directly to construct the `destinationPath` without sanitization.
+⚠️ **Risk:** An attacker or malicious input could use characters like `../` to traverse the directory structure and write files outside the intended target directory on the SMB server.
+🛡️ **Solution:** Implemented a sanitization step to replace any `/` or `\` characters in `image.name` with `_` before constructing `destinationPath`. This ensures the file is safely stored in the expected location.

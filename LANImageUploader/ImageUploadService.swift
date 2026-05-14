@@ -117,14 +117,15 @@ final class ImageUploadService: ImageUploadServiceProtocol {
             try await client.connectShare(name: settings.shareName)
             
             let targetDir = settings.targetDirectory?.trimmingCharacters(in: .init(charactersIn: "/\\")) ?? ""
-            let destinationPath = targetDir.isEmpty ? "\(image.name).jpg" : "\(targetDir)/\(image.name).jpg"
+            let sanitizedName = image.name.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "\\", with: "_")
+            let destinationPath = targetDir.isEmpty ? "\(sanitizedName).jpg" : "\(targetDir)/\(sanitizedName).jpg"
 
             // Check for duplicates if not overwriting
             if !overwrite {
                 let parentPath = targetDir.isEmpty ? "" : targetDir
                 do {
                     let contents = try await client.contentsOfDirectory(atPath: parentPath)
-                    if contents.contains(where: { $0.name == "\(image.name).jpg" }) {
+                    if contents.contains(where: { $0.name == "\(sanitizedName).jpg" }) {
                         try? await client.disconnectShare()
                         throw UploadError.fileAlreadyExists(image.name)
                     }
