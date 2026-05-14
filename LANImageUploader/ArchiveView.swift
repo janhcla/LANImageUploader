@@ -253,43 +253,70 @@ struct ArchiveView: View {
 
     private func restoreSelectedArchives() async {
         appData.hapticService.playLiquidBounce()
-        var successCount = 0
-        var failureCount = 0
+        let datesToRestore = Array(selectedDates)
+        let docs = await appData.fileService.documentsDirectory
+        let imagesFolderURL = docs.appendingPathComponent("images")
 
-        for date in selectedDates {
+        try? await appData.fileService.createDirectory(at: imagesFolderURL)
+
+        struct RestorationResult {
+            let successCount: Int
+            let failureCount: Int
+            let restoredImages: [CapturedImage]
+        }
+
+        let existingImageURLs = await MainActor.run {
+            Set(appData.images.map(\.fileURL))
+        }
+
+        var seenDestinationURLs = existingImageURLs
+        var imagesToRestore: [(source: URL, destination: URL)] = []
+        var skippedCount = 0
+
+        for date in datesToRestore {
             let images = await appData.getImagesForDate(date)
-            let docs = await appData.fileService.documentsDirectory
-            let imagesFolderURL = docs.appendingPathComponent("images")
-
-            do {
-                try await appData.fileService.createDirectory(at: imagesFolderURL)
-
-                for imageURL in images {
-                    let destinationURL = imagesFolderURL.appendingPathComponent(
-                        imageURL.lastPathComponent)
-
-                    if !appData.images.contains(where: { $0.fileURL == destinationURL }) {
-                        try? await appData.fileService.removeItem(at: destinationURL)
-                        try await appData.fileService.copyItem(at: imageURL, to: destinationURL)
-                        let capturedImage = CapturedImage(
-                            name: imageURL.deletingPathExtension().lastPathComponent,
-                            fileURL: destinationURL)
-                        await MainActor.run {
-                            appData.images.append(capturedImage)
-                        }
-                        successCount += 1
-                    } else {
-                        failureCount += 1
-                    }
+            for imageURL in images {
+                let destinationURL = imagesFolderURL.appendingPathComponent(imageURL.lastPathComponent)
+                if seenDestinationURLs.insert(destinationURL).inserted {
+                    imagesToRestore.append((source: imageURL, destination: destinationURL))
+                } else {
+                    skippedCount += 1
                 }
-            } catch {
-                print("Failed to restore archive \(date): \(error)")
-                failureCount += 1
             }
         }
 
+        let (restoredCount, failedCount, allRestored) = await withTaskGroup(of: RestorationResult.self) { group in
+            for image in imagesToRestore {
+                group.addTask {
+                    do {
+                        try? await self.appData.fileService.removeItem(at: image.destination)
+                        try await self.appData.fileService.copyItem(at: image.source, to: image.destination)
+                        let capturedImage = CapturedImage(
+                            name: image.source.deletingPathExtension().lastPathComponent,
+                            fileURL: image.destination)
+                        return RestorationResult(successCount: 1, failureCount: 0, restoredImages: [capturedImage])
+                    } catch {
+                        print("Failed to restore archived image: \(error)")
+                        return RestorationResult(successCount: 0, failureCount: 1, restoredImages: [])
+                    }
+                }
+            }
+
+            var success = 0
+            var failure = 0
+            var restored: [CapturedImage] = []
+            for await res in group {
+                success += res.successCount
+                failure += res.failureCount
+                restored.append(contentsOf: res.restoredImages)
+            }
+            return (success, failure, restored)
+        }
+
         await MainActor.run {
-            restoreMessage = "Restored \(successCount) images" + (failureCount > 0 ? " (\(failureCount) already in gallery)" : "")
+            appData.images.append(contentsOf: allRestored)
+            let totalFailure = failedCount + skippedCount
+            restoreMessage = "Restored \(restoredCount) images" + (totalFailure > 0 ? " (\(totalFailure) already in gallery)" : "")
             showRestoreConfirmation = true
             selectedDates.removeAll()
             isMultiSelectMode = false
@@ -568,27 +595,51 @@ struct ArchivedImagesView: View {
     private func restoreImages(_ imageURLs: [URL]) async {
         let docs = await appData.fileService.documentsDirectory
         let imagesFolderURL = docs.appendingPathComponent("images")
-        var successCount = 0
 
         do {
             try await appData.fileService.createDirectory(at: imagesFolderURL)
-            for imageURL in imageURLs {
-                let destinationURL = imagesFolderURL.appendingPathComponent(
-                    imageURL.lastPathComponent)
-                if !appData.images.contains(where: { $0.fileURL == destinationURL }) {
-                    try? await appData.fileService.removeItem(at: destinationURL)
-                    try await appData.fileService.copyItem(at: imageURL, to: destinationURL)
-                    let capturedImage = CapturedImage(
-                        name: imageURL.deletingPathExtension().lastPathComponent,
-                        fileURL: destinationURL)
-                    await MainActor.run {
-                        appData.images.append(capturedImage)
-                    }
-                    successCount += 1
-                }
+
+            let existingImageURLs = await MainActor.run {
+                Set(appData.images.map(\.fileURL))
             }
+
+            var seenDestinationURLs = existingImageURLs
+            let imagesToRestore = imageURLs.compactMap { imageURL -> (source: URL, destination: URL)? in
+                let destinationURL = imagesFolderURL.appendingPathComponent(imageURL.lastPathComponent)
+                guard seenDestinationURLs.insert(destinationURL).inserted else {
+                    return nil
+                }
+                return (source: imageURL, destination: destinationURL)
+            }
+
+            let restoredImages = await withTaskGroup(of: CapturedImage?.self) { group in
+                for image in imagesToRestore {
+                    group.addTask {
+                        do {
+                            try? await appData.fileService.removeItem(at: image.destination)
+                            try await appData.fileService.copyItem(at: image.source, to: image.destination)
+                            return CapturedImage(
+                                name: image.source.deletingPathExtension().lastPathComponent,
+                                fileURL: image.destination)
+                        } catch {
+                            print("Failed to restore archived image: \(error)")
+                            return nil
+                        }
+                    }
+                }
+
+                var results: [CapturedImage] = []
+                for await image in group {
+                    if let image = image {
+                        results.append(image)
+                    }
+                }
+                return results
+            }
+
             await MainActor.run {
-                restoreMessage = "Restored \(successCount) images"
+                appData.images.append(contentsOf: restoredImages)
+                restoreMessage = "Restored \(restoredImages.count) images"
                 showRestoreConfirmation = true
                 appData.hapticService.playNotification(type: .success)
             }
@@ -603,12 +654,17 @@ struct ArchivedImagesView: View {
     private func deleteSelectedImages() async {
         let docs = await appData.fileService.documentsDirectory
         let dateFolder = docs.appendingPathComponent(date)
+        let imagesToDelete = Array(selectedImages)
 
-        for imageURL in selectedImages {
-            do {
-                try await appData.fileService.removeItem(at: imageURL)
-            } catch {
-                print("Failed to delete image: \(error)")
+        await withTaskGroup(of: Void.self) { group in
+            for imageURL in imagesToDelete {
+                group.addTask {
+                    do {
+                        try await appData.fileService.removeItem(at: imageURL)
+                    } catch {
+                        print("Failed to delete image: \(error)")
+                    }
+                }
             }
         }
 
