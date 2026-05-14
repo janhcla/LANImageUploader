@@ -21,7 +21,7 @@ struct LANImageUploaderTests {
             fileService: mockFile,
             uploadService: mockUpload,
             discoveryService: mockDiscovery,
-            hapticService: HapticFeedbackService.shared
+            hapticService: MockHapticFeedbackService()
         )
         
         #expect(appData.images.isEmpty)
@@ -36,7 +36,7 @@ struct LANImageUploaderTests {
             fileService: mockFile,
             uploadService: MockImageUploadService(),
             discoveryService: MockNetworkDiscovery(),
-            hapticService: HapticFeedbackService.shared
+            hapticService: MockHapticFeedbackService()
         )
         
         await appData.saveImagesToDatedFolder()
@@ -53,13 +53,48 @@ struct LANImageUploaderTests {
             fileService: mockFile,
             uploadService: MockImageUploadService(),
             discoveryService: MockNetworkDiscovery(),
-            hapticService: HapticFeedbackService.shared
+            hapticService: MockHapticFeedbackService()
         )
         
         await appData.saveImagesToDatedFolder()
         
         #expect(appData.scanStatus.contains("Failed to save images"))
         #expect(appData.scanStatus.contains("Disk Full"))
+    }
+
+    @Test @MainActor func appDataGetArchivedDates() async throws {
+        let mockFile = MockFileService()
+        let expectedDates = ["2024-01-01", "2024-01-02"]
+        mockFile.getArchivedDatesResult = expectedDates
+
+        let appData = AppData(
+            fileService: mockFile,
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService()
+        )
+
+        let result = await appData.getArchivedDates()
+
+        #expect(result == expectedDates)
+    }
+
+    @Test @MainActor func appDataGetImagesForDate() async throws {
+        let mockFile = MockFileService()
+        let testDate = "2024-01-01"
+        let expectedURLs = [URL(fileURLWithPath: "/tmp/1.jpg"), URL(fileURLWithPath: "/tmp/2.jpg")]
+        mockFile.getImagesForDateResult = expectedURLs
+
+        let appData = AppData(
+            fileService: mockFile,
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService()
+        )
+
+        let result = await appData.getImagesForDate(testDate)
+
+        #expect(result == expectedURLs)
     }
 
     @Test func connectionStatusEnumExists() async throws {
