@@ -21,7 +21,7 @@ struct LANImageUploaderTests {
             fileService: mockFile,
             uploadService: mockUpload,
             discoveryService: mockDiscovery,
-            hapticService: HapticFeedbackService.shared
+            hapticService: MockHapticFeedbackService()
         )
         
         #expect(appData.images.isEmpty)
@@ -36,7 +36,7 @@ struct LANImageUploaderTests {
             fileService: mockFile,
             uploadService: MockImageUploadService(),
             discoveryService: MockNetworkDiscovery(),
-            hapticService: HapticFeedbackService.shared
+            hapticService: MockHapticFeedbackService()
         )
         
         await appData.saveImagesToDatedFolder()
@@ -53,7 +53,7 @@ struct LANImageUploaderTests {
             fileService: mockFile,
             uploadService: MockImageUploadService(),
             discoveryService: MockNetworkDiscovery(),
-            hapticService: HapticFeedbackService.shared
+            hapticService: MockHapticFeedbackService()
         )
         
         await appData.saveImagesToDatedFolder()
@@ -71,7 +71,7 @@ struct LANImageUploaderTests {
             fileService: mockFile,
             uploadService: MockImageUploadService(),
             discoveryService: MockNetworkDiscovery(),
-            hapticService: HapticFeedbackService.shared
+            hapticService: MockHapticFeedbackService()
         )
 
         let result = await appData.getArchivedDates()
@@ -89,7 +89,7 @@ struct LANImageUploaderTests {
             fileService: mockFile,
             uploadService: MockImageUploadService(),
             discoveryService: MockNetworkDiscovery(),
-            hapticService: HapticFeedbackService.shared
+            hapticService: MockHapticFeedbackService()
         )
 
         let result = await appData.getImagesForDate(testDate)
