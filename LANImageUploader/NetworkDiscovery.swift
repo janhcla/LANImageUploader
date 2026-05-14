@@ -802,10 +802,9 @@ extension NetworkDiscovery {
             }
         }
 
-        // FIX: rename to pathComponents to avoid redeclaration with URLComponents
-        let pathComponents = normalizedTarget.split(separator: "/", omittingEmptySubsequences: true)
-        if let shareGuess = pathComponents.first {
-            let remainder = pathComponents.dropFirst().joined(separator: "/")
+        let targetComponents = normalizedTarget.split(separator: "/", omittingEmptySubsequences: true)
+        if let shareGuess = targetComponents.first {
+            let remainder = targetComponents.dropFirst().joined(separator: "/")
             addCandidate(share: String(shareGuess), directory: remainder.isEmpty ? nil : remainder)
         }
         addCandidate(share: normalizedTarget, directory: nil)
