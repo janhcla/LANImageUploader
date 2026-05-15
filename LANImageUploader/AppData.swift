@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 import Security
 import SwiftUI
 
@@ -115,23 +116,32 @@ class AppData: ObservableObject {
     internal let uploadService: ImageUploadServiceProtocol
     internal let discoveryService: NetworkDiscoveryProtocol
     internal let hapticService: HapticFeedbackServiceProtocol
+    let premiumAccess: PremiumAccessController
+    private var cancellables: Set<AnyCancellable> = []
 
     init(
         fileService: FileServiceProtocol,
         uploadService: ImageUploadServiceProtocol,
         discoveryService: NetworkDiscoveryProtocol,
-        hapticService: HapticFeedbackServiceProtocol
+        hapticService: HapticFeedbackServiceProtocol,
+        premiumAccess: PremiumAccessController = PremiumAccessController(store: KeychainPremiumAccessStore())
     ) {
         self.fileService = fileService
         self.uploadService = uploadService
         self.discoveryService = discoveryService
         self.hapticService = hapticService
+        self.premiumAccess = premiumAccess
         
         self.settings = ServerSettings(
             serverIP: "", shareName: "", targetDirectory: nil, username: "")
         if let savedSettings = loadSettingsFromUserDefaults() {
             self.settings = savedSettings
         }
+        self.premiumAccess.objectWillChange
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
     }
 
     // Add function to clear naming data

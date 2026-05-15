@@ -34,6 +34,7 @@ struct SettingsView: View {
     @State private var directIPInput = ""
     @State private var discoveryTask: Task<Void, Never>? = nil
     @State private var activeSheet: SettingsSheet? = nil
+    @State private var developerModeEnabled = false
 
     private enum SettingsSheet: Identifiable {
         case helpGuide
@@ -175,7 +176,7 @@ struct SettingsView: View {
     var firstSetupView: some View {
         Group {
             Section("First Setup") {
-                Text("Enter your credentials and target folder. Then choose 'Auto-Fill' to detect your SMB server automatically, or select 'Try Direct IP' if you already know the server's IP address. Note: Sometimes 'Auto-Fill' cannot exctract the server info automatically. This app stores your password in a secure keychain.")
+                Text("Enter your credentials and target folder. Then choose 'Auto-Fill' to detect your SMB server automatically, or select 'Try Direct IP' if you already know the server's IP address. Note: Sometimes 'Auto-Fill' cannot extract the server info automatically. This app stores your password in a secure keychain.")
                     .font(.caption)
                     .foregroundStyle(.gray)
                 TextField("Target Directory (e.g., MediaCapture)", text: $targetDirectory)
@@ -188,6 +189,7 @@ struct SettingsView: View {
                     .keyboardType(.numberPad)
             }
             ocrSection
+            premiumSection
             Section {
                 if isDiscovering {
                     HStack(spacing: 15) {
@@ -290,6 +292,7 @@ struct SettingsView: View {
                     .textContentType(.password)
             }
             ocrSection
+            premiumSection
             Section {
                 Button("Save") {
                     Task { await saveSettings() }
@@ -316,6 +319,27 @@ struct SettingsView: View {
                 }
             }
             .pickerStyle(.segmented)
+        }
+    }
+
+    var premiumSection: some View {
+        Section("Premium") {
+            Toggle("Developer Mode", isOn: $developerModeEnabled)
+                .onChange(of: developerModeEnabled) { _, newValue in
+                    appData.premiumAccess.setDeveloperModeEnabled(newValue)
+                }
+
+            if appData.premiumAccess.state.isFullAppUnlocked {
+                Label("Full App Unlock active", systemImage: "checkmark.seal.fill")
+                    .foregroundStyle(.green)
+            } else {
+                Text("\(appData.premiumAccess.state.remainingTrialUploads) trial uploads remaining")
+                    .foregroundStyle(appData.premiumAccess.state.canUpload ? Color.secondary : Color.red)
+
+                NavigationLink("Full App Unlock") {
+                    FullAppUnlockView().environmentObject(appData)
+                }
+            }
         }
     }
 
@@ -409,6 +433,7 @@ struct SettingsView: View {
         username = appData.settings.username
         port = appData.settings.port.map(String.init) ?? ""
         password = appData.getPassword() ?? ""
+        developerModeEnabled = appData.premiumAccess.state.isDeveloperModeEnabled
         if !isSetupComplete && (serverIP.isEmpty && shareName.isEmpty && username.isEmpty && password.isEmpty) {
             isFirstSetup = true
         }

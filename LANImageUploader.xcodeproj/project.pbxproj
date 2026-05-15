@@ -15,10 +15,10 @@
 		3DB36FFF2D98046E003D8E4A /* GalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FEA2D98046E003D8E4A /* GalleryView.swift */; };
 		3DB370002D98046E003D8E4A /* ButtonStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE42D98046E003D8E4A /* ButtonStyles.swift */; };
 		3DB370012D98046E003D8E4A /* GalleryBottomActionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE82D98046E003D8E4A /* GalleryBottomActionView.swift */; };
-		        3DB370022D98046E003D8E4A /* AppData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE12D98046E003D8E4A /* AppData.swift */; };
-		        3DB370022D98046E003D8E4B /* HapticFeedbackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE12D98046E003D8E4B /* HapticFeedbackService.swift */; };
+		3DB370022D98046E003D8E4A /* AppData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE12D98046E003D8E4A /* AppData.swift */; };
+		3DB370022D98046E003D8E4B /* HapticFeedbackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE12D98046E003D8E4B /* HapticFeedbackService.swift */; };
 		3DB370022D98046E003D8E4C /* MultiSelectToolbarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE12D98046E003D8E4C /* MultiSelectToolbarView.swift */; };
-		        A1F11E582D68B563001D57FD /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = A1F11E562D68B563001D57FD /* LaunchScreen.storyboard */; };		3DB370032D98046E003D8E4A /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF42D98046E003D8E4A /* OnboardingView.swift */; };
+		3DB370032D98046E003D8E4A /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF42D98046E003D8E4A /* OnboardingView.swift */; };
 		3DB370042D98046E003D8E4A /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE62D98046E003D8E4A /* CameraView.swift */; };
 		3DB370052D98046E003D8E4A /* NetworkDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF22D98046E003D8E4A /* NetworkDiscovery.swift */; };
 		3DB370062D98046E003D8E4A /* ArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FE22D98046E003D8E4A /* ArchiveView.swift */; };
@@ -32,7 +32,6 @@
 		3DB3700E2D98046E003D8E4A /* NamingSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF12D98046E003D8E4A /* NamingSheet.swift */; };
 		3DB3700F2D98046E003D8E4A /* OCRValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB3700F2D98046E003D8E4B /* OCRValidator.swift */; };
 		3DB3700F2D98046E003D8E4C /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF32D98046E003D8E4A /* NetworkMonitor.swift */; };
-		3DB3700F2D98046E003D8E4B /* OCRValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRValidator.swift; sourceTree = "<group>"; };
 		3DB370102D98046E003D8E4A /* ImageRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FED2D98046E003D8E4A /* ImageRowView.swift */; };
 		3DB370112D98046E003D8E4A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF52D98046E003D8E4A /* SettingsView.swift */; };
 		3DB370142D98048A003D8E4A /* LANImageUploaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB370122D98048A003D8E4A /* LANImageUploaderTests.swift */; };
@@ -41,18 +40,24 @@
 		8E0F16112D6B5F2700843EEC /* AMSMB2 in Frameworks */ = {isa = PBXBuildFile; productRef = 8E0F16102D6B5F2700843EEC /* AMSMB2 */; settings = {ATTRIBUTES = (Required, ); }; };
 		8E0F16122D6B5F5200843EEC /* AMSMB2 in Embed Frameworks */ = {isa = PBXBuildFile; productRef = 8E0F16102D6B5F2700843EEC /* AMSMB2 */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		8E4693D02D6FAA9200C537C9 /* VisionKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E4693CF2D6FAA9200C537C9 /* VisionKit.framework */; };
-		                8E4693D22D6FAA9F00C537C9 /* Vision.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E4693D12D6FAA9F00C537C9 /* Vision.framework */; };
-		                                A1F11E5F2D68B563001D57FD /* FileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E5E2D68B563001D57FD /* FileService.swift */; };
-		                                A1F11E612D68B563001D57FD /* ImageUploadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E602D68B563001D57FD /* ImageUploadService.swift */; };
-		                                A1F11E652D68B563001D57FD /* FileServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E622D68B563001D57FD /* FileServiceProtocol.swift */; };
-		                                A1F11E662D68B563001D57FD /* ImageUploadServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E632D68B563001D57FD /* ImageUploadServiceProtocol.swift */; };
-		                                                A1F11E672D68B563001D57FD /* NetworkDiscoveryProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E642D68B563001D57FD /* NetworkDiscoveryProtocol.swift */; };
-		                                                                A1F11E692D68B563001D57FD /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E682D68B563001D57FD /* Constants.swift */; };
-		                                                                                A1F11E6B2D68B563001D57FD /* FileActor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E6A2D68B563001D57FD /* FileActor.swift */; };
-		                                                                                A1F11E6F2D68B563001D57FD /* MockFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E6C2D68B563001D57FD /* MockFileService.swift */; };
-		                                                                                A1F11E702D68B563001D57FD /* MockImageUploadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E6D2D68B563001D57FD /* MockImageUploadService.swift */; };
-		                                                                                A1F11E712D68B563001D57FD /* MockNetworkDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E6E2D68B563001D57FD /* MockNetworkDiscovery.swift */; };
-		                                                                /* End PBXBuildFile section *//* Begin PBXContainerItemProxy section */
+		8E4693D22D6FAA9F00C537C9 /* Vision.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E4693D12D6FAA9F00C537C9 /* Vision.framework */; };
+		A1F11E5F2D68B563001D57FD /* FileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E5E2D68B563001D57FD /* FileService.swift */; };
+		A1F11E612D68B563001D57FD /* ImageUploadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E602D68B563001D57FD /* ImageUploadService.swift */; };
+		A1F11E652D68B563001D57FD /* Services/FileServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E622D68B563001D57FD /* Services/FileServiceProtocol.swift */; };
+		A1F11E662D68B563001D57FD /* Services/ImageUploadServiceProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E632D68B563001D57FD /* Services/ImageUploadServiceProtocol.swift */; };
+		A1F11E672D68B563001D57FD /* Services/NetworkDiscoveryProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E642D68B563001D57FD /* Services/NetworkDiscoveryProtocol.swift */; };
+		A1F11E692D68B563001D57FD /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E682D68B563001D57FD /* Constants.swift */; };
+		A1F11E6B2D68B563001D57FD /* Services/FileActor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E6A2D68B563001D57FD /* Services/FileActor.swift */; };
+		A1F11E6F2D68B563001D57FD /* Mocks/MockFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E6C2D68B563001D57FD /* Mocks/MockFileService.swift */; };
+		A1F11E702D68B563001D57FD /* Mocks/MockImageUploadService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E6D2D68B563001D57FD /* Mocks/MockImageUploadService.swift */; };
+		A1F11E712D68B563001D57FD /* Mocks/MockNetworkDiscovery.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E6E2D68B563001D57FD /* Mocks/MockNetworkDiscovery.swift */; };
+		A1F11E722D68B563001D57FD /* PremiumAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E752D68B563001D57FD /* PremiumAccess.swift */; };
+		A1F11E732D68B563001D57FD /* StoreKitPurchaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E762D68B563001D57FD /* StoreKitPurchaseManager.swift */; };
+		A1F11E742D68B563001D57FD /* FullAppUnlockView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E772D68B563001D57FD /* FullAppUnlockView.swift */; };
+		A1F11E782D68B563001D57FD /* Mocks/MockHapticFeedbackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E792D68B563001D57FD /* Mocks/MockHapticFeedbackService.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
 		8EC4E84D2D68B564001D57FD /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 8EC4E8342D68B563001D57FD /* Project object */;
@@ -89,7 +94,6 @@
 		3DB36FE12D98046E003D8E4A /* AppData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppData.swift; sourceTree = "<group>"; };
 		3DB36FE12D98046E003D8E4B /* HapticFeedbackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticFeedbackService.swift; sourceTree = "<group>"; };
 		3DB36FE12D98046E003D8E4C /* MultiSelectToolbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiSelectToolbarView.swift; sourceTree = "<group>"; };
-		A1F11E4E2D68B563001D57FD /* LANImageUploader.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LANImageUploader.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3DB36FE22D98046E003D8E4A /* ArchiveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveView.swift; sourceTree = "<group>"; };
 		3DB36FE32D98046E003D8E4A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		3DB36FE42D98046E003D8E4A /* ButtonStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtonStyles.swift; sourceTree = "<group>"; };
@@ -106,13 +110,13 @@
 		3DB36FEF2D98046E003D8E4A /* LANImageUploaderApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LANImageUploaderApp.swift; sourceTree = "<group>"; };
 		3DB36FF02D98046E003D8E4A /* LaunchScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchScreenView.swift; sourceTree = "<group>"; };
 		3DB36FF12D98046E003D8E4A /* NamingSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NamingSheet.swift; sourceTree = "<group>"; };
-		3DB3700F2D98046E003D8E4B /* OCRValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRValidator.swift; sourceTree = "<group>"; };
 		3DB36FF22D98046E003D8E4A /* NetworkDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkDiscovery.swift; sourceTree = "<group>"; };
 		3DB36FF32D98046E003D8E4A /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		3DB36FF42D98046E003D8E4A /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		3DB36FF52D98046E003D8E4A /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		3DB36FF62D98046E003D8E4A /* UploadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadView.swift; sourceTree = "<group>"; };
 		3DB36FF72D98046E003D8E4A /* Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utilities.swift; sourceTree = "<group>"; };
+		3DB3700F2D98046E003D8E4B /* OCRValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRValidator.swift; sourceTree = "<group>"; };
 		3DB370122D98048A003D8E4A /* LANImageUploaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LANImageUploaderTests.swift; sourceTree = "<group>"; };
 		3DB370152D980499003D8E4A /* LANImageUploaderUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LANImageUploaderUITests.swift; sourceTree = "<group>"; };
 		3DB370162D980499003D8E4A /* LANImageUploaderUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LANImageUploaderUITestsLaunchTests.swift; sourceTree = "<group>"; };
@@ -120,18 +124,24 @@
 		8E4693D12D6FAA9F00C537C9 /* Vision.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Vision.framework; path = System/Library/Frameworks/Vision.framework; sourceTree = SDKROOT; };
 		8EC4E83C2D68B563001D57FD /* LANImageUploader.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LANImageUploader.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8EC4E84C2D68B564001D57FD /* LANImageUploaderTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LANImageUploaderTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		                8EC4E8562D68B564001D57FD /* LANImageUploaderUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LANImageUploaderUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		                                A1F11E5E2D68B563001D57FD /* FileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileService.swift; sourceTree = "<group>"; };
-		                                A1F11E602D68B563001D57FD /* ImageUploadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageUploadService.swift; sourceTree = "<group>"; };
-		                                A1F11E622D68B563001D57FD /* FileServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/FileServiceProtocol.swift; sourceTree = "<group>"; };
-		                                A1F11E632D68B563001D57FD /* ImageUploadServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/ImageUploadServiceProtocol.swift; sourceTree = "<group>"; };
-		                                                A1F11E642D68B563001D57FD /* NetworkDiscoveryProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/NetworkDiscoveryProtocol.swift; sourceTree = "<group>"; };
-		                                                                A1F11E682D68B563001D57FD /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
-		                                                                                A1F11E6A2D68B563001D57FD /* FileActor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/FileActor.swift; sourceTree = "<group>"; };
-		                                                                                A1F11E6C2D68B563001D57FD /* MockFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mocks/MockFileService.swift; sourceTree = "<group>"; };
-		                                                                                A1F11E6D2D68B563001D57FD /* MockImageUploadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mocks/MockImageUploadService.swift; sourceTree = "<group>"; };
-		                                                                                A1F11E6E2D68B563001D57FD /* MockNetworkDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mocks/MockNetworkDiscovery.swift; sourceTree = "<group>"; };
-		                                                                /* End PBXFileReference section *//* Begin PBXFrameworksBuildPhase section */
+		8EC4E8562D68B564001D57FD /* LANImageUploaderUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LANImageUploaderUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A1F11E5E2D68B563001D57FD /* FileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileService.swift; sourceTree = "<group>"; };
+		A1F11E602D68B563001D57FD /* ImageUploadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageUploadService.swift; sourceTree = "<group>"; };
+		A1F11E622D68B563001D57FD /* Services/FileServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/FileServiceProtocol.swift; sourceTree = "<group>"; };
+		A1F11E632D68B563001D57FD /* Services/ImageUploadServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/ImageUploadServiceProtocol.swift; sourceTree = "<group>"; };
+		A1F11E642D68B563001D57FD /* Services/NetworkDiscoveryProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/NetworkDiscoveryProtocol.swift; sourceTree = "<group>"; };
+		A1F11E682D68B563001D57FD /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
+		A1F11E6A2D68B563001D57FD /* Services/FileActor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/FileActor.swift; sourceTree = "<group>"; };
+		A1F11E6C2D68B563001D57FD /* Mocks/MockFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mocks/MockFileService.swift; sourceTree = "<group>"; };
+		A1F11E6D2D68B563001D57FD /* Mocks/MockImageUploadService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mocks/MockImageUploadService.swift; sourceTree = "<group>"; };
+		A1F11E6E2D68B563001D57FD /* Mocks/MockNetworkDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mocks/MockNetworkDiscovery.swift; sourceTree = "<group>"; };
+		A1F11E752D68B563001D57FD /* PremiumAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumAccess.swift; sourceTree = "<group>"; };
+		A1F11E762D68B563001D57FD /* StoreKitPurchaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreKitPurchaseManager.swift; sourceTree = "<group>"; };
+		A1F11E772D68B563001D57FD /* FullAppUnlockView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullAppUnlockView.swift; sourceTree = "<group>"; };
+		A1F11E792D68B563001D57FD /* Mocks/MockHapticFeedbackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mocks/MockHapticFeedbackService.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
 		8EC4E8392D68B563001D57FD /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -196,26 +206,32 @@
 				3DB36FF42D98046E003D8E4A /* OnboardingView.swift */,
 				3DB36FF52D98046E003D8E4A /* SettingsView.swift */,
 				3DB36FF62D98046E003D8E4A /* UploadView.swift */,
-				                                3DB36FF72D98046E003D8E4A /* Utilities.swift */,
-				                                                                A1F11E5E2D68B563001D57FD /* FileService.swift */,
-				                                                                A1F11E602D68B563001D57FD /* ImageUploadService.swift */,
-				                                                                A1F11E622D68B563001D57FD /* FileServiceProtocol.swift */,
-				                                                                A1F11E632D68B563001D57FD /* ImageUploadServiceProtocol.swift */,
-				                                                                                                A1F11E642D68B563001D57FD /* NetworkDiscoveryProtocol.swift */,
-				                                                                                                                                A1F11E682D68B563001D57FD /* Constants.swift */,
-				                                                                                                                                A1F11E6A2D68B563001D57FD /* FileActor.swift */,
-				                                                                                                                                3DB36FDF2D98046E003D8E4A /* Preview Content */,			);
+				3DB36FF72D98046E003D8E4A /* Utilities.swift */,
+				A1F11E5E2D68B563001D57FD /* FileService.swift */,
+				A1F11E602D68B563001D57FD /* ImageUploadService.swift */,
+				A1F11E622D68B563001D57FD /* Services/FileServiceProtocol.swift */,
+				A1F11E632D68B563001D57FD /* Services/ImageUploadServiceProtocol.swift */,
+				A1F11E642D68B563001D57FD /* Services/NetworkDiscoveryProtocol.swift */,
+				A1F11E682D68B563001D57FD /* Constants.swift */,
+				A1F11E6A2D68B563001D57FD /* Services/FileActor.swift */,
+				A1F11E752D68B563001D57FD /* PremiumAccess.swift */,
+				A1F11E762D68B563001D57FD /* StoreKitPurchaseManager.swift */,
+				A1F11E772D68B563001D57FD /* FullAppUnlockView.swift */,
+				3DB36FDF2D98046E003D8E4A /* Preview Content */,
+			);
 			path = LANImageUploader;
 			sourceTree = "<group>";
 		};
 		3DB370132D98048A003D8E4A /* LANImageUploaderTests */ = {
 			isa = PBXGroup;
-			                        children = (
-			                                3DB370122D98048A003D8E4A /* LANImageUploaderTests.swift */,
-			                                A1F11E6C2D68B563001D57FD /* MockFileService.swift */,
-			                                A1F11E6D2D68B563001D57FD /* MockImageUploadService.swift */,
-			                                A1F11E6E2D68B563001D57FD /* MockNetworkDiscovery.swift */,
-			                        );			path = LANImageUploaderTests;
+			children = (
+				3DB370122D98048A003D8E4A /* LANImageUploaderTests.swift */,
+				A1F11E6C2D68B563001D57FD /* Mocks/MockFileService.swift */,
+				A1F11E6D2D68B563001D57FD /* Mocks/MockImageUploadService.swift */,
+				A1F11E6E2D68B563001D57FD /* Mocks/MockNetworkDiscovery.swift */,
+				A1F11E792D68B563001D57FD /* Mocks/MockHapticFeedbackService.swift */,
+			);
+			path = LANImageUploaderTests;
 			sourceTree = "<group>";
 		};
 		3DB370172D980499003D8E4A /* LANImageUploaderUITests */ = {
@@ -423,25 +439,31 @@
 				3DB3700F2D98046E003D8E4A /* OCRValidator.swift in Sources */,
 				3DB3700F2D98046E003D8E4C /* NetworkMonitor.swift in Sources */,
 				3DB370102D98046E003D8E4A /* ImageRowView.swift in Sources */,
-				                                3DB370112D98046E003D8E4A /* SettingsView.swift in Sources */,
-				                                                                A1F11E5F2D68B563001D57FD /* FileService.swift in Sources */,
-				                                                                A1F11E612D68B563001D57FD /* ImageUploadService.swift in Sources */,
-				                                                                A1F11E652D68B563001D57FD /* FileServiceProtocol.swift in Sources */,
-				                                                                A1F11E662D68B563001D57FD /* ImageUploadServiceProtocol.swift in Sources */,
-				                                                                                                A1F11E672D68B563001D57FD /* NetworkDiscoveryProtocol.swift in Sources */,
-				                                                                                                                                A1F11E692D68B563001D57FD /* Constants.swift in Sources */,
-				                                                                                                                                A1F11E6B2D68B563001D57FD /* FileActor.swift in Sources */,
-				                                                                                                                        );			runOnlyForDeploymentPostprocessing = 0;
+				3DB370112D98046E003D8E4A /* SettingsView.swift in Sources */,
+				A1F11E5F2D68B563001D57FD /* FileService.swift in Sources */,
+				A1F11E612D68B563001D57FD /* ImageUploadService.swift in Sources */,
+				A1F11E652D68B563001D57FD /* Services/FileServiceProtocol.swift in Sources */,
+				A1F11E662D68B563001D57FD /* Services/ImageUploadServiceProtocol.swift in Sources */,
+				A1F11E672D68B563001D57FD /* Services/NetworkDiscoveryProtocol.swift in Sources */,
+				A1F11E692D68B563001D57FD /* Constants.swift in Sources */,
+				A1F11E6B2D68B563001D57FD /* Services/FileActor.swift in Sources */,
+				A1F11E722D68B563001D57FD /* PremiumAccess.swift in Sources */,
+				A1F11E732D68B563001D57FD /* StoreKitPurchaseManager.swift in Sources */,
+				A1F11E742D68B563001D57FD /* FullAppUnlockView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 		8EC4E8482D68B564001D57FD /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
-			                        files = (
-			                                3DB370142D98048A003D8E4A /* LANImageUploaderTests.swift in Sources */,
-			                                A1F11E6F2D68B563001D57FD /* MockFileService.swift in Sources */,
-			                                A1F11E702D68B563001D57FD /* MockImageUploadService.swift in Sources */,
-			                                A1F11E712D68B563001D57FD /* MockNetworkDiscovery.swift in Sources */,
-			                        );			runOnlyForDeploymentPostprocessing = 0;
+			files = (
+				3DB370142D98048A003D8E4A /* LANImageUploaderTests.swift in Sources */,
+				A1F11E6F2D68B563001D57FD /* Mocks/MockFileService.swift in Sources */,
+				A1F11E702D68B563001D57FD /* Mocks/MockImageUploadService.swift in Sources */,
+				A1F11E712D68B563001D57FD /* Mocks/MockNetworkDiscovery.swift in Sources */,
+				A1F11E782D68B563001D57FD /* Mocks/MockHapticFeedbackService.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 		8EC4E8522D68B564001D57FD /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -595,8 +617,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+					CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_ASSET_PATHS = "\"LANImageUploader/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -608,15 +630,15 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.5;
+				MARKETING_VERSION = 1.55;
 				PRODUCT_BUNDLE_IDENTIFIER = com.janhagenclausen.LANImageUploader;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+					SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -632,8 +654,9 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+					CODE_SIGN_IDENTITY = "iPhone Distribution";
+					CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 4;
 				DEVELOPMENT_ASSET_PATHS = "\"LANImageUploader/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -645,14 +668,15 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.5;
-				PRODUCT_BUNDLE_IDENTIFIER = com.janhagenclausen.LANImageUploader;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				MARKETING_VERSION = 1.55;
+					PRODUCT_BUNDLE_IDENTIFIER = com.janhagenclausen.LANImageUploader;
+					PRODUCT_NAME = "$(TARGET_NAME)";
+					PROVISIONING_PROFILE_SPECIFIER = "LANImageUploader App Store 1.55 Build 4";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -670,7 +694,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = jhc.LANImageUploaderTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -688,7 +712,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = jhc.LANImageUploaderTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -705,7 +729,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = jhc.LANImageUploaderUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -722,7 +746,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = jhc.LANImageUploaderUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";

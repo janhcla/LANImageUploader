@@ -10,6 +10,8 @@ import Foundation
 enum Constants {
     enum Keychain {
         static let serverPassword = "serverPassword"
+        static let premiumSuccessfulUploadCount = "premiumSuccessfulUploadCount"
+        static let premiumFullUnlockPurchased = "premiumFullUnlockPurchased"
     }
     
     enum UserDefaults {
@@ -17,6 +19,7 @@ enum Constants {
         static let onboardingCompleted = "onboardingCompleted"
         static let archiveCustomNames = "archiveCustomNames"
         static let ocrMode = "ocrMode"
+        static let developerModeEnabled = "developerModeEnabled"
     }
     
     enum Notifications {
