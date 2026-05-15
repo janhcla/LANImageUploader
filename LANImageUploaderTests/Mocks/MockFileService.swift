@@ -15,8 +15,10 @@ final class MockFileService: FileServiceProtocol, @unchecked Sendable {
     }
     
     var createDirectoryCalled = false
+    var createdDirectories: [URL] = []
     func createDirectory(at url: URL) async throws {
         createDirectoryCalled = true
+        createdDirectories.append(url)
     }
     
     var fileExistsResult = true
@@ -25,13 +27,17 @@ final class MockFileService: FileServiceProtocol, @unchecked Sendable {
     }
     
     var copyItemCalled = false
+    var copiedItems: [(src: URL, dst: URL)] = []
     func copyItem(at src: URL, to dst: URL) async throws {
         copyItemCalled = true
+        copiedItems.append((src, dst))
     }
     
     var removeItemCalled = false
+    var removedItems: [URL] = []
     func removeItem(at url: URL) async throws {
         removeItemCalled = true
+        removedItems.append(url)
     }
     
     var contentsOfDirectoryResult: [URL] = []
@@ -63,8 +69,10 @@ final class MockFileService: FileServiceProtocol, @unchecked Sendable {
     
     var saveImageResult: URL = URL(fileURLWithPath: "/tmp/mock/images/test.jpg")
     var saveImageError: Error?
+    var savedImages: [(data: Data, fileName: String)] = []
     func saveImage(_ data: Data, fileName: String) async throws -> URL {
         if let error = saveImageError { throw error }
+        savedImages.append((data, fileName))
         return saveImageResult
     }
 }

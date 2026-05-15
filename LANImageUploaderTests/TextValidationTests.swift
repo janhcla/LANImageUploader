@@ -9,15 +9,25 @@ import Foundation
 
 struct TextValidationTests {
 
-    @Test func testTextValidationLogic() {
-        // Test valid cases
-        #expect(OCRValidator.isValid("Valid Name"))
-        #expect(OCRValidator.isValid("Image 123"))
-        
-        // Test invalid cases
-        #expect(!OCRValidator.isValid(""))
-        #expect(!OCRValidator.isValid("   ")) // Whitespace only
-        #expect(!OCRValidator.isValid("A")) // Too short
-        #expect(!OCRValidator.isValid("12")) // Too short
+    @Test func fullOCRAcceptsReadableNamesAndRejectsEmptyText() {
+        #expect(OCRValidator.sanitizedText(from: "Valid Name", mode: .full) == "Valid Name")
+        #expect(OCRValidator.sanitizedText(from: " Image 123 ", mode: .full) == "Image 123")
+        #expect(OCRValidator.sanitizedText(from: "", mode: .full) == nil)
+        #expect(OCRValidator.sanitizedText(from: "   ", mode: .full) == nil)
+        #expect(OCRValidator.sanitizedText(from: "A", mode: .full) == nil)
+    }
+
+    @Test func numbersOCRExtractsDigitsOnly() {
+        #expect(OCRValidator.sanitizedText(from: "Room 12B / 34", mode: .numbers) == "1234")
+        #expect(OCRValidator.sanitizedText(from: "  987  ", mode: .numbers) == "987")
+        #expect(OCRValidator.sanitizedText(from: "No digits", mode: .numbers) == nil)
+    }
+
+    @Test func cprOCRNormalizesSupportedFormats() {
+        #expect(OCRValidator.sanitizedText(from: "120580-1234", mode: .cpr) == "120580-1234")
+        #expect(OCRValidator.sanitizedText(from: "120580–1234", mode: .cpr) == "120580-1234")
+        #expect(OCRValidator.sanitizedText(from: "1205801234", mode: .cpr) == "120580-1234")
+        #expect(OCRValidator.sanitizedText(from: "CPR 120580 1234", mode: .cpr) == nil)
+        #expect(OCRValidator.sanitizedText(from: "12345", mode: .cpr) == nil)
     }
 }

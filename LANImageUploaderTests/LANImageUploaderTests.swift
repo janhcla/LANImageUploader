@@ -28,6 +28,69 @@ struct LANImageUploaderTests {
         #expect(appData.scanStatus == "")
     }
 
+    @Test @MainActor func clearNamingDataClearsImageNameAndOCRText() async throws {
+        let appData = AppData(
+            fileService: MockFileService(),
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService()
+        )
+
+        appData.imageName = "IMG_001"
+        appData.ocrText = "scanned text"
+
+        appData.clearNamingData()
+
+        #expect(appData.imageName.isEmpty)
+        #expect(appData.ocrText.isEmpty)
+    }
+
+    @Test @MainActor func cameraSaveImageAppendsGalleryItem() async throws {
+        let mockFile = MockFileService()
+        mockFile.saveImageResult = URL(fileURLWithPath: "/tmp/mock/images/IMG_20260515_101112.jpg")
+        let appData = AppData(
+            fileService: mockFile,
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService()
+        )
+        let image = try #require(Self.makeImage())
+        var components = DateComponents()
+        components.calendar = Calendar(identifier: .gregorian)
+        components.year = 2026
+        components.month = 5
+        components.day = 15
+        components.hour = 10
+        components.minute = 11
+        components.second = 12
+        let date = try #require(components.date)
+
+        let captured = try await appData.saveCapturedImage(image, capturedAt: date)
+
+        #expect(mockFile.savedImages.count == 1)
+        #expect(mockFile.savedImages.first?.fileName == "IMG_20260515_101112.jpg")
+        #expect(captured.name == "IMG_20260515_101112")
+        #expect(appData.images.map(\.name) == ["IMG_20260515_101112"])
+    }
+
+    @Test @MainActor func cameraSaveImageFailureDoesNotAppendGalleryItem() async throws {
+        let mockFile = MockFileService()
+        mockFile.saveImageError = NSError(domain: "test", code: 2)
+        let appData = AppData(
+            fileService: mockFile,
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService()
+        )
+        let image = try #require(Self.makeImage())
+
+        await #expect(throws: (any Error).self) {
+            try await appData.saveCapturedImage(image)
+        }
+
+        #expect(appData.images.isEmpty)
+    }
+
     @Test @MainActor func appDataArchiveImages() async throws {
         let mockFile = MockFileService()
         mockFile.archiveImagesResult = (saved: 5, existing: 2)
@@ -60,6 +123,43 @@ struct LANImageUploaderTests {
         
         #expect(appData.scanStatus.contains("Failed to save images"))
         #expect(appData.scanStatus.contains("Disk Full"))
+    }
+
+    @Test @MainActor func appDataArchiveNoImagesReportsNoImagesToSave() async throws {
+        let mockFile = MockFileService()
+        mockFile.archiveImagesResult = (saved: 0, existing: 0)
+        let appData = AppData(
+            fileService: mockFile,
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService()
+        )
+
+        await appData.saveImagesToDatedFolder()
+
+        #expect(appData.scanStatus == "No images to save.")
+    }
+
+    @Test @MainActor func appDataDeleteSelectedImagesRemovesFilesAndClearsSelection() async throws {
+        let mockFile = MockFileService()
+        let haptics = MockHapticFeedbackService()
+        let appData = AppData(
+            fileService: mockFile,
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: haptics
+        )
+        let first = CapturedImage(name: "first", fileURL: URL(fileURLWithPath: "/tmp/mock/images/first.jpg"))
+        let second = CapturedImage(name: "second", fileURL: URL(fileURLWithPath: "/tmp/mock/images/second.jpg"))
+        appData.images = [first, second]
+        appData.selectedImageIDs = [first.id]
+
+        await appData.deleteSelectedImages()
+
+        #expect(appData.images.map(\.id) == [second.id])
+        #expect(appData.selectedImageIDs.isEmpty)
+        #expect(mockFile.removedItems == [first.fileURL])
+        #expect(haptics.lastNotificationType == .success)
     }
 
     @Test @MainActor func appDataGetArchivedDates() async throws {
@@ -156,4 +256,140 @@ struct LANImageUploaderTests {
         #expect(abs(offset.width - offset.height) < 0.001)
         #expect(offset.width > 0)
     }
+
+    @Test func uploadFailureDetailCombinesReasonAndGuidance() async throws {
+        let detail = UploadFailureDetail(
+            reason: "The server rejected the username or password.",
+            guidance: "Open Settings and verify your SMB credentials.",
+            action: .openSettings
+        )
+
+        #expect(detail.combinedMessage == "The server rejected the username or password.\nOpen Settings and verify your SMB credentials.")
+        #expect(detail.action == .openSettings)
+    }
+
+    @Test func uploadErrorGuidanceMapsSettingsActions() async throws {
+        #expect(ImageUploadService.UploadError.authenticationFailed.action == .openSettings)
+        #expect(ImageUploadService.UploadError.shareNotFound("Images").action == .openSettings)
+        #expect(ImageUploadService.UploadError.fileAlreadyExists("IMG_001").action == nil)
+        #expect(ImageUploadService.UploadError.timeout.guidance.contains("Wi-Fi"))
+        #expect(ImageUploadService.UploadError.accessDenied.errorDescription?.contains("Access denied") == true)
+    }
+
+    @Test @MainActor func mockUploadServiceRecordsUploadInputsAndProgress() async throws {
+        let mockUpload = MockImageUploadService()
+        var progress: [Double] = []
+        let image = CapturedImage(name: "IMG_001", fileURL: URL(fileURLWithPath: "/tmp/mock/images/IMG_001.jpg"))
+        let settings = ServerSettings(
+            serverIP: "192.168.1.10",
+            shareName: "Images",
+            targetDirectory: "Uploads",
+            username: "user",
+            port: 445
+        )
+
+        try await mockUpload.upload(
+            image: image,
+            settings: settings,
+            password: "secret",
+            overwrite: true,
+            onProgress: { progress.append($0) }
+        )
+
+        #expect(mockUpload.uploadedImages.map(\.id) == [image.id])
+        #expect(mockUpload.overwriteValues == [true])
+        #expect(mockUpload.passwords == ["secret"])
+        #expect(mockUpload.settingsValues.first?.serverIP == "192.168.1.10")
+        #expect(progress == [0.5, 1.0])
+    }
+
+    @Test @MainActor func premiumTrialStartsWithFifteenUploads() async throws {
+        let store = InMemoryPremiumAccessStore()
+        let access = PremiumAccessController(store: store)
+
+        #expect(access.state.canUpload)
+        #expect(access.state.remainingTrialUploads == 15)
+        #expect(access.state.shouldShowTrialStatus)
+    }
+
+    @Test @MainActor func premiumTrialCountsSuccessfulUploads() async throws {
+        let store = InMemoryPremiumAccessStore()
+        let access = PremiumAccessController(store: store)
+
+        access.recordSuccessfulUpload()
+        access.recordSuccessfulUpload()
+
+        #expect(access.state.successfulUploadCount == 2)
+        #expect(access.state.remainingTrialUploads == 13)
+        #expect(access.state.canUpload)
+    }
+
+    @Test @MainActor func premiumTrialBlocksAfterFifteenSuccessfulUploads() async throws {
+        let store = InMemoryPremiumAccessStore()
+        let access = PremiumAccessController(store: store)
+
+        for _ in 0..<15 {
+            access.recordSuccessfulUpload()
+        }
+
+        #expect(access.state.successfulUploadCount == 15)
+        #expect(access.state.remainingTrialUploads == 0)
+        #expect(!access.state.canUpload)
+    }
+
+    @Test @MainActor func developerModeTemporarilyUnlocksFullApp() async throws {
+        let store = InMemoryPremiumAccessStore()
+        store.successfulUploadCount = 15
+        let access = PremiumAccessController(store: store)
+
+        #expect(!access.state.canUpload)
+
+        access.setDeveloperModeEnabled(true)
+        #expect(access.state.isFullAppUnlocked)
+        #expect(access.state.canUpload)
+        #expect(!access.state.shouldShowTrialStatus)
+
+        access.setDeveloperModeEnabled(false)
+        #expect(!access.state.isFullAppUnlocked)
+        #expect(!access.state.canUpload)
+    }
+
+    @Test @MainActor func purchasedUnlockPersistsWhenDeveloperModeIsOff() async throws {
+        let store = InMemoryPremiumAccessStore()
+        store.successfulUploadCount = 15
+        let access = PremiumAccessController(store: store)
+
+        access.markPurchasedFullUnlock()
+        access.setDeveloperModeEnabled(false)
+
+        #expect(access.state.isFullAppUnlocked)
+        #expect(access.state.canUpload)
+        #expect(!access.state.shouldShowTrialStatus)
+    }
+
+    @Test @MainActor func fullUnlockDoesNotConsumeAdditionalTrialUploads() async throws {
+        let store = InMemoryPremiumAccessStore()
+        let access = PremiumAccessController(store: store)
+
+        access.markPurchasedFullUnlock()
+        access.recordSuccessfulUpload()
+
+        #expect(access.state.successfulUploadCount == 0)
+        #expect(access.state.remainingTrialUploads == 15)
+        #expect(access.state.canUpload)
+    }
+
+    private static func makeImage() -> UIImage? {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4))
+        return renderer.image { context in
+            UIColor.systemBlue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
+        }
+    }
+}
+
+private final class InMemoryPremiumAccessStore: PremiumAccessPersisting {
+    var successfulUploadCount = 0
+    var hasPurchasedFullUnlock = false
+    var isDeveloperModeEnabled = false
 }

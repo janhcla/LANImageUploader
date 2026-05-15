@@ -150,6 +150,30 @@ class AppData: ObservableObject {
         ocrText = ""
     }
 
+    @discardableResult
+    func saveCapturedImage(_ image: UIImage, capturedAt date: Date = Date()) async throws -> CapturedImage {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
+        let timestamp = dateFormatter.string(from: date)
+        let fileName = "IMG_\(timestamp).jpg"
+
+        guard let data = image.jpegData(compressionQuality: 0.8) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+
+        let fileURL = try await fileService.saveImage(data, fileName: fileName)
+        let captured = CapturedImage(
+            name: fileName.removingSuffix(".jpg"),
+            fileURL: fileURL
+        )
+
+        await MainActor.run {
+            images.append(captured)
+        }
+
+        return captured
+    }
+
     func deleteSelectedImages() async {
         let idsToDelete = selectedImageIDs
         let imagesToDelete = images.filter { idsToDelete.contains($0.id) }
