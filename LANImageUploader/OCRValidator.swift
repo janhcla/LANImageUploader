@@ -49,17 +49,16 @@ enum OCRValidator {
                 options: .regularExpression
             )
             
-            let dashedPattern = #"\d{6}-\d{4}"#
-            if let match = normalized.range(of: dashedPattern, options: .regularExpression) {
-                return String(normalized[match])
-            }
-            
-            // Fallback: accept exactly 10 digits and normalize to DDMMYY-XXXX
-            let digitsOnly = normalized.filter { $0.isNumber }
-            if digitsOnly.count == 10 && normalized.range(of: #"^\d{10}$"#, options: .regularExpression) != nil {
-                let prefix = digitsOnly.prefix(6)
-                let suffix = digitsOnly.suffix(4)
-                return "\(prefix)-\(suffix)"
+            // Matches a valid DDMMYY date format and a 4-digit sequence, optionally separated by a dash.
+            // DD: 01-31, MM: 01-12, YY: 00-99
+            // Negative lookbehind and lookahead prevent matching inside longer digit sequences.
+            let cprPattern = #"(?<!\d)((?:0[1-9]|[12]\d|3[01])(?:0[1-9]|1[0-2])\d{2})-?(\d{4})(?!\d)"#
+            if let regex = try? NSRegularExpression(pattern: cprPattern),
+               let match = regex.firstMatch(in: normalized, range: NSRange(normalized.startIndex..., in: normalized)) {
+                let nsString = normalized as NSString
+                let datePart = nsString.substring(with: match.range(at: 1))
+                let sequencePart = nsString.substring(with: match.range(at: 2))
+                return "\(datePart)-\(sequencePart)"
             }
             
             return nil
