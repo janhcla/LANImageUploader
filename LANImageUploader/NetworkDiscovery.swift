@@ -97,7 +97,7 @@ extension NetworkDiscovery {
         if let directIP = directIP, !directIP.isEmpty {
             onStatus?(.connecting(directIP))
             if let cachedInfo = getCachedServer(ip: directIP, targetFolder: targetFolder, username: username, password: password, port: port) {
-                logger.info("Using cached server information for \(directIP)")
+                logger.info("Using cached server information for \(directIP, privacy: .private)")
                 onStatus?(.connected(cachedInfo))
                 return cachedInfo
             }
@@ -115,7 +115,7 @@ extension NetworkDiscovery {
                 onStatus?(.connected(networkInfo))
                 return networkInfo
             } catch {
-                logger.warning("Direct IP (\(directIP)) connection failed: \(error.localizedDescription). Falling back to discovery.")
+                logger.warning("Direct IP (\(directIP, privacy: .private)) connection failed: \(error.localizedDescription). Falling back to discovery.")
             }
         }
         
@@ -726,7 +726,7 @@ extension NetworkDiscovery {
         port: Int? = nil,
         onStatus: (@Sendable (ConnectionStatus) -> Void)? = nil
     ) async throws -> NetworkInfo {
-        logger.info("Attempting SMB connection to Host/IP: \(ipAddress), Target Folder: '\(targetFolder)'")
+        logger.info("Attempting SMB connection to Host/IP: \(ipAddress, privacy: .private), Target Folder: \'\(targetFolder, privacy: .private)\'")
         onStatus?(.connecting(ipAddress))
 
         var components = URLComponents()
@@ -734,20 +734,20 @@ extension NetworkDiscovery {
         components.host = ipAddress
         if let port = port {
             components.port = port
-            logger.debug("Using explicit port: \(port)")
+            logger.debug("Using explicit port: \(port, privacy: .private)")
         }
         guard let serverURL = components.url else {
-            logger.critical("Failed to create URL for host: \(ipAddress)")
+            logger.critical("Failed to create URL for host: \(ipAddress, privacy: .private)")
             throw ConnectionError.hostNotFound(ipAddress)
         }
 
-        logger.debug("Connecting to URL: \(serverURL.absoluteString)")
+        logger.debug("Connecting to URL: \(serverURL.absoluteString, privacy: .private)")
 
         guard let client = SMB2Manager(
             url: serverURL,
             credential: URLCredential(user: username, password: password, persistence: .forSession)
         ) else {
-            logger.error("Failed to create SMB2Manager instance for \(serverURL.absoluteString)")
+            logger.error("Failed to create SMB2Manager instance for \(serverURL.absoluteString, privacy: .private)")
             throw ConnectionError.unknown("Failed to create SMB client instance.")
         }
 
@@ -762,14 +762,14 @@ extension NetworkDiscovery {
         var enumeratedShares: [(name: String, comment: String)] = []
         var shareEnumerationError: Error?
         do {
-            logger.debug("Connecting to IPC$ on \(ipAddress) to list shares...")
+            logger.debug("Connecting to IPC$ on \(ipAddress, privacy: .private) to list shares...")
             onStatus?(.authenticating)
             try await client.connectShare(name: "IPC$")
             enumeratedShares = try await client.listShares()
-            logger.info("Found shares on \(ipAddress): \(enumeratedShares.map { $0.name })")
+            logger.info("Found shares on \(ipAddress, privacy: .private): \(enumeratedShares.map { $0.name }, privacy: .private)")
         } catch {
             shareEnumerationError = error
-            logger.notice("Share enumeration failed on \(ipAddress): \(error.localizedDescription)")
+            logger.notice("Share enumeration failed on \(ipAddress, privacy: .private): \(error.localizedDescription)")
         }
         try? await client.disconnectShare()
 
@@ -814,46 +814,46 @@ extension NetworkDiscovery {
             do {
                 onStatus?(.connecting("Share: \(candidate.share)"))
                 try await client.connectShare(name: candidate.share)
-                logger.debug("Connected to share '\(candidate.share)' on \(ipAddress)")
+                logger.debug("Connected to share \'\(candidate.share, privacy: .private)\' on \(ipAddress, privacy: .private)")
 
                 if let directory = candidate.directory, !directory.isEmpty {
                     do {
                         try await ensureDirectoryExists(directory, in: client, shareName: candidate.share)
                         try await client.disconnectShare()
-                        logger.info("Validated share '\(candidate.share)' with directory '\(directory)'.")
+                        logger.info("Validated share \'\(candidate.share, privacy: .private)\' with directory \'\(directory, privacy: .private)\'.")
                         let info = NetworkInfo(serverIP: ipAddress, shareName: candidate.share, targetDirectory: directory)
                         onStatus?(.connected(info))
                         return info
                     } catch {
                         lastError = error
-                        logger.debug("Directory validation failed for share '\(candidate.share)': \(error.localizedDescription)")
+                        logger.debug("Directory validation failed for share \'\(candidate.share, privacy: .private)\': \(error.localizedDescription)")
                         try? await client.disconnectShare()
                     }
                 } else {
                     try await client.disconnectShare()
-                    logger.info("Validated share '\(candidate.share)' (no subdirectory required).")
+                    logger.info("Validated share \'\(candidate.share, privacy: .private)\' (no subdirectory required).")
                     let info = NetworkInfo(serverIP: ipAddress, shareName: candidate.share, targetDirectory: nil)
                     onStatus?(.connected(info) )
                     return info
                 }
             } catch {
                 lastError = error
-                logger.debug("Failed to connect to share '\(candidate.share)': \(error.localizedDescription)")
+                logger.debug("Failed to connect to share \'\(candidate.share, privacy: .private)\': \(error.localizedDescription)")
                 try? await client.disconnectShare()
             }
         }
 
         if let shareEnumerationError = shareEnumerationError, enumeratedShares.isEmpty {
-            logger.error("Share enumeration failed on \(ipAddress): \(shareEnumerationError.localizedDescription)")
+            logger.error("Share enumeration failed on \(ipAddress, privacy: .private): \(shareEnumerationError.localizedDescription)")
             throw mapToConnectionError(shareEnumerationError)
         }
 
         if let lastError = lastError {
-            logger.error("Failed to validate target '\(normalizedTarget)' on \(ipAddress): \(lastError.localizedDescription)")
+            logger.error("Failed to validate target \'\(normalizedTarget, privacy: .private)\' on \(ipAddress, privacy: .private): \(lastError.localizedDescription)")
             throw mapToConnectionError(lastError)
         }
 
-        logger.error("Target folder '\(normalizedTarget)' not found as an accessible directory within any share on server \(ipAddress)")
+        logger.error("Target folder \'\(normalizedTarget, privacy: .private)\' not found as an accessible directory within any share on server \(ipAddress, privacy: .private)")
         throw ConnectionError.folderNotFound(normalizedTarget)
     }
 
