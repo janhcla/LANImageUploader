@@ -26,13 +26,13 @@ struct NamingSheet: View {
             AppBackground()
             
             VStack(spacing: 24) {
-                Text("Name Your Image")
+                Text(title)
                     .font(.title3)
                     .fontWeight(.bold)
                     .padding(.top)
 
                 GlassContainer(cornerRadius: 16) {
-                    TextField("Enter name...", text: $appData.imageName)
+                    TextField(placeholder, text: $appData.imageName)
                         .font(.body)
                         .submitLabel(.done)
                         .focused($isTextFieldFocused)

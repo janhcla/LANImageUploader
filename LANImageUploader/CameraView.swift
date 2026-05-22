@@ -94,19 +94,10 @@ struct CameraView: View {
     }
 
     func saveImage(image: UIImage) async {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
-        let timestamp = dateFormatter.string(from: Date())
-        let fileName = "IMG_\(timestamp).jpg"
-        
         do {
-            if let data = image.jpegData(compressionQuality: 0.8) {
-                let fileURL = try await appData.fileService.saveImage(data, fileName: fileName)
-                let captured = CapturedImage(
-                    name: fileName.removingSuffix(".jpg"), fileURL: fileURL)
-                await MainActor.run {
-                    appData.images.append(captured)
-                }
+            let captured = try await appData.saveCapturedUIImage(image)
+            await MainActor.run {
+                appData.images.append(captured)
             }
         } catch {
             await MainActor.run {

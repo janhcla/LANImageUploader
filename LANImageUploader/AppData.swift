@@ -106,6 +106,16 @@ class AppData: ObservableObject {
     @Published var scanStatus: String = ""
     @Published var connectionStatus: ConnectionStatus = .disconnected
     @Published var selectedImageIDs: Set<UUID> = []
+    @Published var pendingUploadFiles: [UploadableFile]? = nil
+
+    // PDF Settings defaults
+    @AppStorage(Constants.UserDefaults.defaultGalleryOutputMode) var defaultGalleryOutputMode: GalleryOutputMode = .separateImages
+    @AppStorage(Constants.UserDefaults.pdfPageSize) var pdfPageSize: PDFPageSize = .a4
+    @AppStorage(Constants.UserDefaults.pdfImageLayout) var pdfImageLayout: PDFImageLayout = .fit
+    @AppStorage(Constants.UserDefaults.pdfIncludePageNumbers) var pdfIncludePageNumbers: Bool = true
+    @AppStorage(Constants.UserDefaults.pdfJPEGQuality) var pdfJPEGQuality: Double = 0.85
+    @AppStorage(Constants.UserDefaults.imageMaxPixelDimension) var imageMaxPixelDimension: Double = 2500
+    @AppStorage(Constants.UserDefaults.stripImageMetadata) var stripImageMetadata: Bool = true
 
     private let passwordKey = Constants.Keychain.serverPassword
     private let settingsKey = Constants.UserDefaults.serverSettings
@@ -155,6 +165,22 @@ class AppData: ObservableObject {
     }
 
     // Save images to a dated folder
+    // Save a new captured image, reusable for camera and retake
+    func saveCapturedUIImage(_ image: UIImage, suggestedPrefix: String = "IMG") async throws -> CapturedImage {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
+        let timestamp = dateFormatter.string(from: Date())
+        let fileName = "\(suggestedPrefix)_\(timestamp).jpg"
+
+        guard let data = image.jpegData(compressionQuality: 0.8) else {
+            throw NSError(domain: "ImageError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to create JPEG data"])
+        }
+
+        let fileURL = try await fileService.saveImage(data, fileName: fileName)
+        let captured = CapturedImage(name: fileName.replacingOccurrences(of: ".jpg", with: ""), fileURL: fileURL)
+        return captured
+    }
+
     func saveImagesToDatedFolder(_ imagesToSave: [CapturedImage]? = nil, for date: Date = Date()) async {
         let targetImages = imagesToSave ?? images
         do {
