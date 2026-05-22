@@ -256,9 +256,13 @@ struct GalleryView: View {
 
     func batchRenameImages() {
         guard !imageName.isEmpty else { return }
+
+        // Create an id to index dictionary for O(1) lookups
+        let imageIndexMap = Dictionary(uniqueKeysWithValues: appData.images.enumerated().map { ($1.id, $0) })
         let selectedImagesInOrder = appData.images.filter { appData.selectedImageIDs.contains($0.id) }
+
         for (index, imageToRename) in selectedImagesInOrder.enumerated() {
-            if let indexInImages = appData.images.firstIndex(where: { $0.id == imageToRename.id }) {
+            if let indexInImages = imageIndexMap[imageToRename.id] {
                 let formattedIndex = String(format: "%02d", index + 1)
                 appData.images[indexInImages].name = "\(imageName)\(formattedIndex)"
             }
@@ -271,9 +275,13 @@ struct GalleryView: View {
 
     func batchRenameAndUpload() {
         guard !imageName.isEmpty else { return }
+
+        // Create an id to index dictionary for O(1) lookups
+        let imageIndexMap = Dictionary(uniqueKeysWithValues: appData.images.enumerated().map { ($1.id, $0) })
         let selectedImagesInOrder = appData.images.filter { appData.selectedImageIDs.contains($0.id) }
+
         for (index, imageToRename) in selectedImagesInOrder.enumerated() {
-            if let indexInImages = appData.images.firstIndex(where: { $0.id == imageToRename.id }) {
+            if let indexInImages = imageIndexMap[imageToRename.id] {
                 let formattedIndex = String(format: "%02d", index + 1)
                 appData.images[indexInImages].name = "\(imageName)\(formattedIndex)"
             }
