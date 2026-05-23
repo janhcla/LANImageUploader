@@ -70,7 +70,7 @@ struct LANImageUploaderTests {
         #expect(mockFile.savedImages.count == 1)
         #expect(mockFile.savedImages.first?.fileName == "IMG_20260515_101112.jpg")
         #expect(captured.name == "IMG_20260515_101112")
-        #expect(appData.images.map(\.name) == ["IMG_20260515_101112"])
+        #expect(appData.images.map { $0.name } == ["IMG_20260515_101112"])
     }
 
     @Test @MainActor func cameraSaveImageFailureDoesNotAppendGalleryItem() async throws {
@@ -156,7 +156,7 @@ struct LANImageUploaderTests {
 
         await appData.deleteSelectedImages()
 
-        #expect(appData.images.map(\.id) == [second.id])
+        #expect(appData.images.map { $0.id } == [second.id])
         #expect(appData.selectedImageIDs.isEmpty)
         #expect(mockFile.removedItems == [first.fileURL])
         #expect(haptics.lastNotificationType == .success)
@@ -296,7 +296,7 @@ struct LANImageUploaderTests {
             onProgress: { progress.append($0) }
         )
 
-        #expect(mockUpload.uploadedImages.map(\.id) == [image.id])
+        #expect(mockUpload.uploadedImages.map { $0.id } == [image.id])
         #expect(mockUpload.overwriteValues == [true])
         #expect(mockUpload.passwords == ["secret"])
         #expect(mockUpload.settingsValues.first?.serverIP == "192.168.1.10")
