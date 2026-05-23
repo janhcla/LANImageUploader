@@ -32,7 +32,7 @@ struct NamingSheet: View {
                     .padding(.top)
 
                 GlassContainer(cornerRadius: 16) {
-                    TextField(placeholder, text: $appData.imageName)
+                    TextField(placeholder, text: $imageName)
                         .font(.body)
                         .submitLabel(.done)
                         .focused($isTextFieldFocused)

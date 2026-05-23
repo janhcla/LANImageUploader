@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct GalleryView: View {
     @EnvironmentObject var appData: AppData

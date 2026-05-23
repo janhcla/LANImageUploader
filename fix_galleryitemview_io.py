@@ -1,4 +1,10 @@
-//
+import re
+
+with open('LANImageUploader/GalleryItemView.swift', 'r') as f:
+    content = f.read()
+
+# Fix synchronous file IO and use state with an asynchronous load instead.
+new_view = """//
 //  GalleryItemView.swift
 //  LANImageUploader
 //
@@ -71,7 +77,7 @@ struct GalleryItemView: View {
             }
 
             // Index badge
-            Text("\(index + 1)")
+            Text("\\(index + 1)")
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(.white)
                 .frame(width: 24, height: 24)
@@ -125,3 +131,6 @@ struct GalleryItemView: View {
         }
     }
 }
+"""
+with open('LANImageUploader/GalleryItemView.swift', 'w') as f:
+    f.write(new_view)

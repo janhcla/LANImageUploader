@@ -178,7 +178,7 @@ class AppData: ObservableObject {
 
         let fileURL = try await fileService.saveImage(data, fileName: fileName)
         let captured = CapturedImage(name: fileName.replacingOccurrences(of: ".jpg", with: ""), fileURL: fileURL)
-        let captured = CapturedImage(name: (fileName as NSString).deletingPathExtension, fileURL: fileURL)
+        return captured
     }
 
     func saveImagesToDatedFolder(_ imagesToSave: [CapturedImage]? = nil, for date: Date = Date()) async {
