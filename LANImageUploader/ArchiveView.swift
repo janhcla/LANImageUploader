@@ -279,11 +279,11 @@ struct ArchiveView: View {
                     await self.appData.getImagesForDate(date)
                 }
             }
-            var results: [[URL]] = []
+            var allImages: [URL] = []
             for await images in group {
-                results.append(images)
+                allImages.append(contentsOf: images)
             }
-            return results.flatMap { $0 }
+            return allImages
         }
 
         for imageURL in fetchedImages {
