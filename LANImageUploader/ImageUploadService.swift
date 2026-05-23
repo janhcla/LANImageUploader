@@ -90,13 +90,19 @@ final class ImageUploadService: ImageUploadServiceProtocol {
         overwrite: Bool = false,
         onProgress: @escaping @Sendable (Double) -> Void
     ) async throws {
-        guard let originalImage = UIImage(contentsOfFile: image.fileURL.path) else {
-            throw UploadError.fileUnreadable
-        }
 
-        guard let imageData = originalImage.jpegData(compressionQuality: 1.0) else {
-            throw UploadError.dataPreparationFailed
-        }
+        // Ensure settings are available. If not, default to standard image config.
+        let applyCrop = UserDefaults.standard.object(forKey: Constants.UserDefaults.applyDocumentCropOnUpload) as? Bool ?? true
+        let applyEnhance = UserDefaults.standard.object(forKey: Constants.UserDefaults.documentEnhancementEnabled) as? Bool ?? true
+
+        let processSettings = ImageProcessingSettings(
+            applyDocumentCropOnUpload: applyCrop,
+            documentEnhancementEnabled: applyEnhance,
+            jpegQuality: 0.85,
+            maxPixelDimension: 2500
+        )
+
+        let imageData = try await ImageRenderService.shared.renderedImageDataForUpload(image: image, settings: processSettings)
 
         guard let serverURL = URL(string: "smb://\(settings.serverIP)") else {
             throw UploadError.invalidServerURL
