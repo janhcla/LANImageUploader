@@ -8,7 +8,7 @@ import UIKit
 
 struct FullscreenImageData: Identifiable {
     let id: UUID
-    var capturedImage: CapturedImage
+    let capturedImage: CapturedImage
     let uiImage: UIImage
 }
 
@@ -133,9 +133,8 @@ struct GalleryView: View {
                 UploadView().environmentObject(appData)
             }
             .fullScreenCover(item: $fullscreenData) { data in
-                let index = appData.images.firstIndex(where: { $0.id == data.id })!
                 FullscreenImageView(
-                    image: $appData.images[index],
+                    image: data.capturedImage,
                     uiImage: data.uiImage,
                     onDelete: {
                         appData.selectedImageIDs = [data.capturedImage.id]

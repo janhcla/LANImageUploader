@@ -8,7 +8,6 @@
 import Foundation
 import AMSMB2
 import UIKit
-import CoreImage
 
 /// Service responsible for uploading images to an SMB share.
 final class ImageUploadService: ImageUploadServiceProtocol {
@@ -91,42 +90,19 @@ final class ImageUploadService: ImageUploadServiceProtocol {
         overwrite: Bool = false,
         onProgress: @escaping @Sendable (Double) -> Void
     ) async throws {
-        guard let originalImage = UIImage(contentsOfFile: image.fileURL.path) else {
-            throw UploadError.fileUnreadable
-        }
 
-        var finalImage = originalImage
+        // Ensure settings are available. If not, default to standard image config.
+        let applyCrop = UserDefaults.standard.object(forKey: Constants.UserDefaults.applyDocumentCropOnUpload) as? Bool ?? true
+        let applyEnhance = UserDefaults.standard.object(forKey: Constants.UserDefaults.documentEnhancementEnabled) as? Bool ?? true
 
-        if let quad = image.documentQuad, !quad.isEmpty {
-            if let ciImage = CIImage(image: originalImage) {
-                // Denormalize points (vision is bottom-left origin)
-                let width = ciImage.extent.width
-                let height = ciImage.extent.height
+        let processSettings = ImageProcessingSettings(
+            applyDocumentCropOnUpload: applyCrop,
+            documentEnhancementEnabled: applyEnhance,
+            jpegQuality: 0.85,
+            maxPixelDimension: 2500
+        )
 
-                let filter = CIFilter(name: "CIPerspectiveCorrection")
-                filter?.setValue(ciImage, forKey: kCIInputImageKey)
-
-                // Top-left in vision is actually top-left when flipped, let's map coordinates accurately.
-                // Vision origin is bottom-left. The Quad model assumes (0,0) is bottom-left when returned by Vision.
-                // CIPerspectiveCorrection also uses bottom-left origin.
-
-                filter?.setValue(CIVector(cgPoint: CGPoint(x: quad.topLeft.x * width, y: (1 - quad.topLeft.y) * height)), forKey: "inputTopLeft")
-                filter?.setValue(CIVector(cgPoint: CGPoint(x: quad.topRight.x * width, y: (1 - quad.topRight.y) * height)), forKey: "inputTopRight")
-                filter?.setValue(CIVector(cgPoint: CGPoint(x: quad.bottomLeft.x * width, y: (1 - quad.bottomLeft.y) * height)), forKey: "inputBottomLeft")
-                filter?.setValue(CIVector(cgPoint: CGPoint(x: quad.bottomRight.x * width, y: (1 - quad.bottomRight.y) * height)), forKey: "inputBottomRight")
-
-                if let output = filter?.outputImage {
-                    let context = CIContext(options: nil)
-                    if let cgImage = context.createCGImage(output, from: output.extent) {
-                        finalImage = UIImage(cgImage: cgImage)
-                    }
-                }
-            }
-        }
-
-        guard let imageData = finalImage.jpegData(compressionQuality: 1.0) else {
-            throw UploadError.dataPreparationFailed
-        }
+        let imageData = try await ImageRenderService.shared.renderedImageDataForUpload(image: image, settings: processSettings)
 
         guard let serverURL = URL(string: "smb://\(settings.serverIP)") else {
             throw UploadError.invalidServerURL
@@ -146,8 +122,8 @@ final class ImageUploadService: ImageUploadServiceProtocol {
         do {
             try await client.connectShare(name: settings.shareName)
             
-            let targetDir = settings.targetDirectory?.trimmingCharacters(in: .init(charactersIn: "/\")) ?? ""
-            let sanitizedName = image.name.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "\", with: "_")
+            let targetDir = settings.targetDirectory?.trimmingCharacters(in: .init(charactersIn: "/\\")) ?? ""
+            let sanitizedName = image.name.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "\\", with: "_")
             let destinationPath = targetDir.isEmpty ? "\(sanitizedName).jpg" : "\(targetDir)/\(sanitizedName).jpg"
 
             // Check for duplicates if not overwriting

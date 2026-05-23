@@ -7,7 +7,7 @@ import SwiftUI
 import UIKit
 
 struct FullscreenImageView: View {
-    @Binding var image: CapturedImage
+    let image: CapturedImage
     let uiImage: UIImage
     let onDelete: () -> Void
     let onSave: () -> Void
@@ -15,7 +15,6 @@ struct FullscreenImageView: View {
     
     // For Hero Transitions
     @State private var appearAnimation = false
-    @State private var isShowingCrop = false
     @State private var dragOffset: CGSize = .zero
     
     // Zoom State
@@ -104,7 +103,7 @@ struct FullscreenImageView: View {
                 Spacer()
                 
                 GlassContainer(cornerRadius: 30) {
-                    HStack(spacing: 30) {
+                    HStack(spacing: 40) {
                         Button(action: onSave) {
                             VStack(spacing: 4) {
                                 Image(systemName: "square.and.arrow.down")
@@ -115,16 +114,6 @@ struct FullscreenImageView: View {
                             .foregroundStyle(.white)
                         }
                         
-                        Button(action: { isShowingCrop = true }) {
-                            VStack(spacing: 4) {
-                                Image(systemName: "crop")
-                                    .font(.title2)
-                                Text("Crop")
-                                    .font(.caption2)
-                            }
-                            .foregroundStyle(.white)
-                        }
-
                         Button(action: onDelete) {
                             VStack(spacing: 4) {
                                 Image(systemName: "trash")
@@ -142,9 +131,6 @@ struct FullscreenImageView: View {
                 .opacity(appearAnimation ? 1.0 : 0.0)
                 .offset(y: appearAnimation ? 0 : 50)
             }
-        }
-        .sheet(isPresented: $isShowingCrop) {
-            CroppingView(documentQuad: $image.documentQuad, uiImage: uiImage)
         }
         .onAppear {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
