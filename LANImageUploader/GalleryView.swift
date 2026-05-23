@@ -171,7 +171,6 @@ struct GalleryView: View {
                         onRetakeAgain: {
                             retakeImage = nil
                             isShowingRetakeReview = false
-                            // Reopen camera after a short delay
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                                 isShowingRetakeCamera = true
                             }
@@ -192,10 +191,9 @@ struct GalleryView: View {
                                 }
                             }
                             .pickerStyle(.segmented)
-                            
+
                             HStack(spacing: 16) {
                                 Button(action: {
-                                    // Handle logic based on output mode
                                     if outputMode == .separateImages {
                                         appData.selectedImageIDs = Set(galleryItems.compactMap { $0.capturedImage?.id })
                                         isShowingNamingSheet = true
@@ -244,7 +242,6 @@ struct GalleryView: View {
         }
     }
 
-    // Empty state
     private var emptyStateView: some View {
         VStack(spacing: 20) {
             Image(systemName: "photo.on.rectangle.angled")
@@ -258,7 +255,6 @@ struct GalleryView: View {
         .padding(.top, 100)
     }
 
-    // Item Actions
     func handleItemTap(_ item: GalleryItem) {
         if !isMultiSelectMode {
             guard let image = item.capturedImage else { return }
@@ -284,7 +280,6 @@ struct GalleryView: View {
         galleryItems[idx].rotation = galleryItems[idx].rotation.nextClockwise
     }
 
-    // Delete Logic
     func leaveEmptySpace(_ item: GalleryItem) {
         guard let idx = galleryItems.firstIndex(where: { $0.id == item.id }) else { return }
         deleteLocalImage(item.capturedImage)
@@ -310,7 +305,6 @@ struct GalleryView: View {
         }
     }
 
-    // Retake Logic
     func completeRetake(with image: UIImage) async {
         guard let targetId = retakeTargetId,
               let idx = galleryItems.firstIndex(where: { $0.id == targetId }) else {
@@ -325,17 +319,10 @@ struct GalleryView: View {
         do {
             let captured = try await appData.saveCapturedUIImage(image, suggestedPrefix: "RETAKE")
             await MainActor.run {
-                // Delete old image
                 deleteLocalImage(galleryItems[idx].capturedImage)
-
-                // Set new image
                 galleryItems[idx].capturedImage = captured
                 galleryItems[idx].rotation = .degrees0
-
-                // Add to AppData
                 appData.images.append(captured)
-
-                // Reset states
                 retakeImage = nil
                 retakeTargetId = nil
                 isShowingRetakeReview = false
@@ -349,7 +336,6 @@ struct GalleryView: View {
         }
     }
 
-    // Naming / Renaming logic
     func batchRenameAndUpload() {
         guard !imageName.isEmpty else { return }
 
@@ -361,10 +347,7 @@ struct GalleryView: View {
             }
         }
 
-        // Prepare separate image upload
         appData.pendingUploadFiles = nil
-        // We also need to apply rotations before upload for separate images if they were modified
-        // That requires physically rewriting the JPEG.
         Task {
             await applyRotationsBeforeUpload()
             await MainActor.run {
@@ -408,7 +391,6 @@ struct GalleryView: View {
         isShowingNamingSheet = false
     }
 
-    // PDF Logic
     func generateAndUploadPDF() {
         guard !imageName.isEmpty else { return }
         isGeneratingPDF = true
@@ -456,18 +438,21 @@ struct GalleryView: View {
         }
     }
 
-    // Sync appData to internal galleryItems
     private func syncItemsFromAppData() {
-        // Simple sync strategy: if appData has an image not in galleryItems, add it.
-        // We use the ID of the capturedImage as the galleryItem ID for simplicity where possible
-        // but galleryItems can have empty slots.
-
-        let existingImgIDs = Set(galleryItems.compactMap { $0.capturedImage?.id })
-        for img in appData.images {
-            if !existingImgIDs.contains(img.id) {
-                galleryItems.append(GalleryItem(id: img.id, capturedImage: img, rotation: .degrees0))
+        let appDataIDs = Set(appData.images.map { $0.id })
+        var updatedItems = galleryItems.filter { item in
+            if let image = item.capturedImage {
+                return appDataIDs.contains(image.id)
             }
+            return true
         }
+
+        let existingImageIDs = Set(updatedItems.compactMap { $0.capturedImage?.id })
+        for image in appData.images where !existingImageIDs.contains(image.id) {
+            updatedItems.append(GalleryItem(id: image.id, capturedImage: image, rotation: .degrees0))
+        }
+
+        galleryItems = updatedItems
     }
 }
 
