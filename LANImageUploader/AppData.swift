@@ -152,7 +152,7 @@ class AppData: ObservableObject {
 
     @discardableResult
     func saveCapturedImage(_ image: UIImage, capturedAt date: Date = Date()) async throws -> CapturedImage {
-        let dateFormatter = DateFormatter()
+        let timestamp = date.formatted(.verbatim("\(year: .padded(digits: 4))\(month: .twoDigits)\(day: .twoDigits)_\(hour: .twoDigits(clock: .twentyFourHour, hourCycle: .oneBased))\(minute: .twoDigits)\(second: .twoDigits)", timeZone: .current, calendar: .current))
         dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
         let timestamp = dateFormatter.string(from: date)
         let fileName = "IMG_\(timestamp).jpg"
