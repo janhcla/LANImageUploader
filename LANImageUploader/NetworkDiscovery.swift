@@ -766,7 +766,7 @@ extension NetworkDiscovery {
             onStatus?(.authenticating)
             try await client.connectShare(name: "IPC$")
             enumeratedShares = try await client.listShares()
-            logger.info("Found shares on \(ipAddress, privacy: .private): \(enumeratedShares.map { $0.name }, privacy: .private)")
+            logger.info("Found \(enumeratedShares.count) shares on \(ipAddress, privacy: .private): \(enumeratedShares.map { $0.name }, privacy: .private)")
         } catch {
             shareEnumerationError = error
             logger.notice("Share enumeration failed on \(ipAddress, privacy: .private): \(error.localizedDescription)")
