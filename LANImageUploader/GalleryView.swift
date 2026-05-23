@@ -254,37 +254,62 @@ struct GalleryView: View {
         }
     }
 
+    private func performBatchRename() async {
+        let baseName = imageName
+        let targetIDs = appData.selectedImageIDs
+        let currentImages = appData.images
+
+        let renamedTuples = await withTaskGroup(of: (Int, String)?.self) { group in
+            var selectedCount = 0
+            for i in currentImages.indices {
+                if targetIDs.contains(currentImages[i].id) {
+                    let currentCount = selectedCount + 1
+                    group.addTask {
+                        let formattedIndex = String(format: "%02d", currentCount)
+                        return (i, "\(baseName)\(formattedIndex)")
+                    }
+                    selectedCount += 1
+                }
+            }
+
+            var results: [(Int, String)] = []
+            for await result in group {
+                if let result = result {
+                    results.append(result)
+                }
+            }
+            return results
+        }
+
+        await MainActor.run {
+            for (index, newName) in renamedTuples {
+                appData.images[index].name = newName
+            }
+            appData.selectedImageIDs.removeAll()
+            isMultiSelectMode = false
+            imageName = ""
+        }
+    }
+
     func batchRenameImages() {
         guard !imageName.isEmpty else { return }
-        let selectedImagesInOrder = appData.images.filter { appData.selectedImageIDs.contains($0.id) }
-        for (index, imageToRename) in selectedImagesInOrder.enumerated() {
-            if let indexInImages = appData.images.firstIndex(where: { $0.id == imageToRename.id }) {
-                let formattedIndex = String(format: "%02d", index + 1)
-                appData.images[indexInImages].name = "\(imageName)\(formattedIndex)"
+        Task {
+            await performBatchRename()
+            await MainActor.run {
+                appData.hapticService.playNotification(type: .success)
             }
         }
-        appData.selectedImageIDs.removeAll()
-        isMultiSelectMode = false
-        imageName = ""
-        appData.hapticService.playNotification(type: .success)
     }
-
     func batchRenameAndUpload() {
         guard !imageName.isEmpty else { return }
-        let selectedImagesInOrder = appData.images.filter { appData.selectedImageIDs.contains($0.id) }
-        for (index, imageToRename) in selectedImagesInOrder.enumerated() {
-            if let indexInImages = appData.images.firstIndex(where: { $0.id == imageToRename.id }) {
-                let formattedIndex = String(format: "%02d", index + 1)
-                appData.images[indexInImages].name = "\(imageName)\(formattedIndex)"
+        Task {
+            await performBatchRename()
+            await MainActor.run {
+                isBatchRenameUpload = false
+                navigateToUpload = true
             }
         }
-        appData.selectedImageIDs.removeAll()
-        isMultiSelectMode = false
-        isBatchRenameUpload = false
-        imageName = ""
-        navigateToUpload = true
     }
-
     func renameImage() {
         guard let image = selectedImage,
             let index = appData.images.firstIndex(where: { $0.id == image.id })
