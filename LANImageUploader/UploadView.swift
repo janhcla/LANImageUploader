@@ -352,7 +352,7 @@ struct UploadView: View {
         }
         
         return UploadFailureDetail(
-            reason: "Upload failed: \\(error.localizedDescription)",
+            reason: "Upload failed: \(error.localizedDescription)",
             guidance: "Review the server settings and your network connection, then retry the upload.",
             action: .openSettings
         )
@@ -375,7 +375,7 @@ struct UploadView: View {
     }
 
     func renameFile(_ file: UploadableFile) {
-        let newName = "\\(file.name)_\\(Int(Date().timeIntervalSince1970))"
+        let newName = "\(file.name)_\(Int(Date().timeIntervalSince1970))"
 
         if appData.pendingUploadFiles != nil {
             if let index = appData.pendingUploadFiles?.firstIndex(where: { $0.id == file.id }) {
