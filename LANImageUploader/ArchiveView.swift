@@ -34,10 +34,29 @@ struct ArchiveView: View {
         BackgroundContainerView {
             NavigationStack {
                 List {
-                    ForEach(archivedDates, id: \.self) { date in
-                        archiveRow(for: date)
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
+                    if archivedDates.isEmpty {
+                        VStack(spacing: 12) {
+                            Image(systemName: "archivebox")
+                                .font(.system(size: 48))
+                                .foregroundStyle(.secondary)
+                            Text("No archives yet")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                            Text("Archived gallery images will appear here.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 80)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    } else {
+                        ForEach(archivedDates, id: \.self) { date in
+                            archiveRow(for: date)
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                        }
                     }
                 }
                 .scrollContentBackground(.hidden)

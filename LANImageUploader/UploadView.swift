@@ -31,6 +31,7 @@ struct UploadView: View {
     @State private var showDuplicatePrompt = false
     @State private var duplicateFile: UploadableFile?
     @State private var overwriteConfirmed = false
+    @State private var navigateToFullUnlock = false
 
     var areSettingsComplete: Bool {
         !appData.settings.serverIP.isEmpty && !appData.settings.shareName.isEmpty &&
@@ -61,13 +62,18 @@ struct UploadView: View {
                     .background(Color.clear)
                     .scrollContentBackground(.hidden)
                     .navigationTitle(appData.pendingUploadFiles != nil ? "Upload PDF" : "Upload Images")
+                    .safeAreaInset(edge: .top) {
+                        trialStatusView
+                    }
                     .toolbar {
                         ToolbarItem(placement: .primaryAction) {
                             if hasActiveUploads {
                                 Button("Abort Upload", role: .destructive) { abortUploads() }
                             } else if !uploadFiles.isEmpty {
                                 Button("Start Upload") {
-                                    if areSettingsComplete {
+                                    if !appData.premiumAccess.state.canUpload {
+                                        navigateToFullUnlock = true
+                                    } else if areSettingsComplete {
                                         startUpload()
                                     } else {
                                         showSettingsPrompt = true
@@ -146,6 +152,9 @@ struct UploadView: View {
                 .navigationDestination(isPresented: $navigateToSettings) {
                     SettingsView().environmentObject(appData)
                 }
+                .navigationDestination(isPresented: $navigateToFullUnlock) {
+                    FullAppUnlockView().environmentObject(appData)
+                }
                 .safeAreaInset(edge: .bottom) {
                     if areAllUploadsSuccessful {
                         Button("Clear queue & delete all images", role: .destructive) {
@@ -175,6 +184,25 @@ struct UploadView: View {
                     }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var trialStatusView: some View {
+        if appData.premiumAccess.state.shouldShowTrialStatus {
+            HStack {
+                Text("\(appData.premiumAccess.state.remainingTrialUploads) trial uploads remaining")
+                    .font(.caption)
+                    .foregroundStyle(appData.premiumAccess.state.canUpload ? Color.secondary : Color.red)
+                Spacer()
+                Button("Full App Unlock") {
+                    navigateToFullUnlock = true
+                }
+                .font(.caption)
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(.thinMaterial)
         }
     }
 
@@ -219,15 +247,49 @@ struct UploadView: View {
     }
 
     func startUpload() {
-        for file in uploadFiles {
-            Task { await uploadFile(file) }
+        guard appData.premiumAccess.state.canUpload else {
+            navigateToFullUnlock = true
+            return
+        }
+
+        if appData.premiumAccess.state.isFullAppUnlocked {
+            for file in uploadFiles {
+                Task { await uploadFile(file) }
+            }
+            return
+        }
+
+        Task {
+            for file in uploadFiles {
+                guard appData.premiumAccess.state.canUpload else {
+                    await MainActor.run { navigateToFullUnlock = true }
+                    return
+                }
+                await uploadFile(file)
+            }
         }
     }
 
     func retryFailedUploads() {
-        for file in uploadFiles {
-            if case .failure = uploadStatuses[file.id] {
+        let failedFiles = uploadFiles.filter {
+            if case .failure = uploadStatuses[$0.id] { return true }
+            return false
+        }
+
+        if appData.premiumAccess.state.isFullAppUnlocked {
+            for file in failedFiles {
                 Task { await uploadFile(file) }
+            }
+            return
+        }
+
+        Task {
+            for file in failedFiles {
+                guard appData.premiumAccess.state.canUpload else {
+                    await MainActor.run { navigateToFullUnlock = true }
+                    return
+                }
+                await uploadFile(file)
             }
         }
     }
@@ -291,6 +353,21 @@ struct UploadView: View {
     }
 
     func uploadFile(_ file: UploadableFile, overwrite: Bool = false) async {
+        guard appData.premiumAccess.state.canUpload else {
+            await presentFailure(
+                UploadFailureDetail(
+                    reason: "Trial upload limit reached.",
+                    guidance: "Unlock the full app to continue uploading files to your server.",
+                    action: nil
+                ),
+                for: file
+            )
+            await MainActor.run {
+                navigateToFullUnlock = true
+            }
+            return
+        }
+
         guard let password = appData.getPassword() else {
             await presentFailure(
                 UploadFailureDetail(
@@ -321,6 +398,7 @@ struct UploadView: View {
             }
 
             await MainActor.run {
+                appData.premiumAccess.recordSuccessfulUpload()
                 uploadStatuses[file.id] = .success
                 uploadTasks.removeValue(forKey: file.id)
             }

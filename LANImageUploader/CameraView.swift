@@ -95,10 +95,7 @@ struct CameraView: View {
 
     func saveImage(image: UIImage) async {
         do {
-            let captured = try await appData.saveCapturedUIImage(image)
-            await MainActor.run {
-                appData.images.append(captured)
-            }
+            try await appData.saveCapturedImage(image)
         } catch {
             await MainActor.run {
                 showError = true

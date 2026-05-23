@@ -26,10 +26,6 @@ enum OCRMode: String, CaseIterable, Identifiable {
 }
 
 enum OCRValidator {
-    // Matches a valid DDMMYY date format and a 4-digit sequence, optionally separated by a dash.
-    // DD: 01-31, MM: 01-12, YY: 00-99
-    private static let cprRegex = /(?<date>(?:0[1-9]|[12]\d|3[01])(?:0[1-9]|1[0-2])\d{2})-?(?<sequence>\d{4})/
-
     private static let logger = Logger(subsystem: Constants.bundleIdentifier, category: "OCRValidator")
 
     private static func isValidDate(_ dateString: Substring) -> Bool {
@@ -70,12 +66,21 @@ enum OCRValidator {
             )
             
             do {
-                guard normalized.wholeMatch(of: cprRegex) != nil,
-                      let match = try cprRegex.firstMatch(in: normalized),
-                      isValidDate(match.date)
-                else { return nil }
+                let pattern = #"(^|\D)((?:0[1-9]|[12]\d|3[01])(?:0[1-9]|1[0-2])\d{2})-?(\d{4})(\D|$)"#
+                let regex = try NSRegularExpression(pattern: pattern)
+                let range = NSRange(normalized.startIndex..<normalized.endIndex, in: normalized)
+                let matches = regex.matches(in: normalized, range: range)
 
-                return "\(match.date)-\(match.sequence)"
+                for match in matches {
+                    guard match.numberOfRanges >= 4,
+                          let dateRange = Range(match.range(at: 2), in: normalized),
+                          let sequenceRange = Range(match.range(at: 3), in: normalized)
+                    else { continue }
+
+                    let date = normalized[dateRange]
+                    guard isValidDate(date) else { continue }
+                    return "\(date)-\(normalized[sequenceRange])"
+                }
             } catch {
                 logger.error("Regex matching failed: \(error.localizedDescription)")
             }

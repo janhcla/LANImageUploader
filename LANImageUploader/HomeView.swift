@@ -29,8 +29,6 @@ struct HomeView: View {
     
     var areSettingsComplete: Bool {
         !appData.settings.serverIP.isEmpty && !appData.settings.shareName.isEmpty
-            && !(appData.settings.targetDirectory?.trimmingCharacters(in: .whitespaces).isEmpty
-                ?? true)
             && !appData.settings.username.isEmpty && appData.getPassword() != nil
     }
 

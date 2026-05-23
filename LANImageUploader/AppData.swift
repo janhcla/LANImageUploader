@@ -6,10 +6,10 @@
 //
 
 import Foundation
+import Combine
 import Security
 import SwiftUI
 
-// Add this struct
 struct NetworkInfo: Equatable {
     let serverIP: String
     let shareName: String
@@ -17,9 +17,9 @@ struct NetworkInfo: Equatable {
 }
 
 struct DiscoveredHost: Identifiable, Equatable {
-    let id: String // IP Address
-    let name: String? // Hostname/Bonjour name
-    
+    let id: String
+    let name: String?
+
     var displayName: String {
         if let name = name {
             return "\(name) (\(id))"
@@ -28,29 +28,18 @@ struct DiscoveredHost: Identifiable, Equatable {
     }
 }
 
-/// Represents the granular state of the SMB connection process.
 enum ConnectionStatus: Equatable {
-    /// No active connection attempt.
     case disconnected
-    /// Actively searching for servers via Bonjour or Subnet scan.
     case discovery(DiscoveryState)
-    /// Connecting to a specific IP or Hostname.
     case connecting(String)
-    /// Authenticating with the server.
     case authenticating
-    /// Successfully connected and validated.
     case connected(NetworkInfo)
-    /// Connection failed with a reason.
     case failure(ConnectionError)
 }
 
-/// Represents the specific sub-state of the discovery process.
 enum DiscoveryState: Equatable {
-    /// Scanning the local subnet for open port 445.
     case subnetScan(progress: Double)
-    /// Browsing for _smb._tcp services via Bonjour.
     case bonjourSearch
-    /// Resolving a Bonjour service name to an IP address.
     case resolving(String)
 }
 
@@ -69,7 +58,7 @@ struct ServerSettings: Codable {
     var shareName: String
     var targetDirectory: String?
     var username: String
-    var port: Int?  // Add this line
+    var port: Int?
 }
 
 enum UploadStatus: Equatable {
@@ -97,9 +86,7 @@ struct UploadFailureDetail: Equatable {
 class AppData: ObservableObject {
     @Published var images: [CapturedImage] = []
     @Published var settings: ServerSettings {
-        didSet {
-            saveSettingsToUserDefaults()
-        }
+        didSet { saveSettingsToUserDefaults() }
     }
     @Published var ocrText: String = ""
     @Published var imageName: String = ""
@@ -119,41 +106,69 @@ class AppData: ObservableObject {
 
     private let passwordKey = Constants.Keychain.serverPassword
     private let settingsKey = Constants.UserDefaults.serverSettings
-    
-    // Injected Services
+
     internal let fileService: FileServiceProtocol
     internal let uploadService: ImageUploadServiceProtocol
     internal let discoveryService: NetworkDiscoveryProtocol
     internal let hapticService: HapticFeedbackServiceProtocol
+    let premiumAccess: PremiumAccessController
+    private var cancellables: Set<AnyCancellable> = []
 
     init(
         fileService: FileServiceProtocol,
         uploadService: ImageUploadServiceProtocol,
         discoveryService: NetworkDiscoveryProtocol,
-        hapticService: HapticFeedbackServiceProtocol
+        hapticService: HapticFeedbackServiceProtocol,
+        premiumAccess: PremiumAccessController = PremiumAccessController(store: KeychainPremiumAccessStore())
     ) {
         self.fileService = fileService
         self.uploadService = uploadService
         self.discoveryService = discoveryService
         self.hapticService = hapticService
-        
-        self.settings = ServerSettings(
-            serverIP: "", shareName: "", targetDirectory: nil, username: "")
+        self.premiumAccess = premiumAccess
+
+        self.settings = ServerSettings(serverIP: "", shareName: "", targetDirectory: nil, username: "", port: nil)
         if let savedSettings = loadSettingsFromUserDefaults() {
             self.settings = savedSettings
         }
+
+        self.premiumAccess.objectWillChange
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
     }
 
-    // Add function to clear naming data
     func clearNamingData() {
         imageName = ""
         ocrText = ""
     }
 
+    @discardableResult
+    func saveCapturedImage(_ image: UIImage, capturedAt date: Date = Date()) async throws -> CapturedImage {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd_HHmmss"
+        let timestamp = formatter.string(from: date)
+        let fileName = "IMG_\(timestamp).jpg"
+
+        guard let data = image.jpegData(compressionQuality: 0.8) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+
+        let fileURL = try await fileService.saveImage(data, fileName: fileName)
+        let captured = CapturedImage(name: fileName.removingSuffix(".jpg"), fileURL: fileURL)
+
+        await MainActor.run {
+            images.append(captured)
+        }
+
+        return captured
+    }
+
     func deleteSelectedImages() async {
         let idsToDelete = selectedImageIDs
         let imagesToDelete = images.filter { idsToDelete.contains($0.id) }
-        
+
         for image in imagesToDelete {
             try? await fileService.removeItem(at: image.fileURL)
         }
@@ -185,8 +200,6 @@ class AppData: ObservableObject {
         let targetImages = imagesToSave ?? images
         do {
             let (savedCount, alreadySavedCount) = try await fileService.archiveImages(targetImages, for: date)
-
-            // Update scan status based on results
             await MainActor.run {
                 if savedCount > 0 && alreadySavedCount > 0 {
                     scanStatus = "\(savedCount) images saved to archive. \(alreadySavedCount) images were already saved."
@@ -205,12 +218,10 @@ class AppData: ObservableObject {
         }
     }
 
-    // Get list of archived dates
     func getArchivedDates() async -> [String] {
         await fileService.getArchivedDates()
     }
 
-    // Get image URLs for a specific date
     func getImagesForDate(_ dateString: String) async -> [URL] {
         await fileService.getImagesForDate(dateString)
     }
@@ -233,9 +244,7 @@ class AppData: ObservableObject {
 
         let status = SecItemAdd(addQuery as CFDictionary, nil)
         guard status == errSecSuccess else {
-            throw NSError(
-                domain: "KeychainError", code: Int(status),
-                userInfo: [NSLocalizedDescriptionKey: "Failed to save password"])
+            throw NSError(domain: "KeychainError", code: Int(status), userInfo: [NSLocalizedDescriptionKey: "Failed to save password"])
         }
     }
 
