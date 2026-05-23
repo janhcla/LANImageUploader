@@ -124,11 +124,10 @@ extension UIImage {
             newSize = CGSize(width: size.width * ratio, height: size.height * ratio)
         }
 
-        let renderer = UIGraphicsImageRenderer(size: newSize)
-        let normalizedImage = renderer.image { _ in
-            draw(in: CGRect(origin: .zero, size: newSize))
-        }
-        return normalizedImage
+        UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
+        draw(in: CGRect(origin: .zero, size: newSize))
+        let normalizedImage = UIGraphicsGetImageFromCurrentImageContext()!
+        UIGraphicsEndImageContext()
 
         return normalizedImage
     }
