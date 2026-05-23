@@ -457,25 +457,16 @@ struct GalleryView: View {
 
     // Sync appData to internal galleryItems
     private func syncItemsFromAppData() {
-        let appDataIDs = Set(appData.images.map { $0.id })
-        var updatedItems = galleryItems.filter { item in
-            if let img = item.capturedImage {
-    private func syncItemsFromAppData() {
-        let appDataIDs = Set(appData.images.map { $0.id })
-        var updatedItems = galleryItems.filter { item in
-            if let img = item.capturedImage {
-                return appDataIDs.contains(img.id)
-            }
-            return true
-        }
+        // Simple sync strategy: if appData has an image not in galleryItems, add it.
+        // We use the ID of the capturedImage as the galleryItem ID for simplicity where possible
+        // but galleryItems can have empty slots.
 
-        let existingImgIDs = Set(updatedItems.compactMap { $0.capturedImage?.id })
+        let existingImgIDs = Set(galleryItems.compactMap { $0.capturedImage?.id })
         for img in appData.images {
             if !existingImgIDs.contains(img.id) {
-                updatedItems.append(GalleryItem(id: img.id, capturedImage: img, rotation: .degrees0))
+                galleryItems.append(GalleryItem(id: img.id, capturedImage: img, rotation: .degrees0))
             }
         }
-        galleryItems = updatedItems
     }
 }
 

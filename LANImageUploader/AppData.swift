@@ -168,7 +168,6 @@ class AppData: ObservableObject {
     // Save a new captured image, reusable for camera and retake
     func saveCapturedUIImage(_ image: UIImage, suggestedPrefix: String = "IMG") async throws -> CapturedImage {
         let dateFormatter = DateFormatter()
-        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
         let timestamp = dateFormatter.string(from: Date())
         let fileName = "\(suggestedPrefix)_\(timestamp).jpg"
