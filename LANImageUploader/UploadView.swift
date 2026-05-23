@@ -49,23 +49,23 @@ struct UploadView: View {
         BackgroundContainerView {
             NavigationStack {
                 ZStack {
-                    List(appData.images) { image in
+                    List(uploadFiles) { file in
                         HStack {
-                            Text(image.name)
+                            Text(file.name)
                                 .lineLimit(1)
                             Spacer()
-                            statusView(for: image)
+                            statusView(for: file)
                         }
                         .padding(.vertical, 4)
                     }
                     .background(Color.clear)
                     .scrollContentBackground(.hidden)
-                    .navigationTitle("Upload Images")
+                    .navigationTitle(appData.pendingUploadFiles != nil ? "Upload PDF" : "Upload Images")
                     .toolbar {
                         ToolbarItem(placement: .primaryAction) {
                             if hasActiveUploads {
                                 Button("Abort Upload", role: .destructive) { abortUploads() }
-                            } else if !appData.images.isEmpty {
+                            } else if !uploadFiles.isEmpty {
                                 Button("Start Upload") {
                                     if areSettingsComplete {
                                         startUpload()

@@ -113,15 +113,10 @@ struct GalleryItemView: View {
     }
 
     private func loadImage(from url: URL) async {
-        do {
-            let data = try Data(contentsOf: url)
-            if let image = UIImage(data: data) {
-                await MainActor.run {
-                    self.uiImage = image
-                }
+        if let image = UIImage(contentsOfFile: url.path) {
+            await MainActor.run {
+                self.uiImage = image
             }
-        } catch {
-            // handle error if needed
         }
     }
 }
