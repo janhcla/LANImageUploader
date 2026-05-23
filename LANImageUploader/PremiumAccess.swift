@@ -51,9 +51,14 @@ final class PremiumAccessController: ObservableObject {
     ) {
         self.store = store
         self.trialUploadLimit = trialUploadLimit
+        #if DEBUG
+        let developerModeEnabled = store.isDeveloperModeEnabled
+        #else
+        let developerModeEnabled = false
+        #endif
         self.state = PremiumAccessState(
-            isFullAppUnlocked: store.hasPurchasedFullUnlock || store.isDeveloperModeEnabled,
-            isDeveloperModeEnabled: store.isDeveloperModeEnabled,
+            isFullAppUnlocked: store.hasPurchasedFullUnlock || developerModeEnabled,
+            isDeveloperModeEnabled: developerModeEnabled,
             successfulUploadCount: store.successfulUploadCount,
             trialUploadLimit: trialUploadLimit
         )
@@ -65,10 +70,12 @@ final class PremiumAccessController: ObservableObject {
         reload()
     }
 
+    #if DEBUG
     func setDeveloperModeEnabled(_ isEnabled: Bool) {
         store.isDeveloperModeEnabled = isEnabled
         reload()
     }
+    #endif
 
     func markPurchasedFullUnlock() {
         store.hasPurchasedFullUnlock = true
@@ -76,9 +83,14 @@ final class PremiumAccessController: ObservableObject {
     }
 
     func reload() {
+        #if DEBUG
+        let developerModeEnabled = store.isDeveloperModeEnabled
+        #else
+        let developerModeEnabled = false
+        #endif
         state = PremiumAccessState(
-            isFullAppUnlocked: store.hasPurchasedFullUnlock || store.isDeveloperModeEnabled,
-            isDeveloperModeEnabled: store.isDeveloperModeEnabled,
+            isFullAppUnlocked: store.hasPurchasedFullUnlock || developerModeEnabled,
+            isDeveloperModeEnabled: developerModeEnabled,
             successfulUploadCount: store.successfulUploadCount,
             trialUploadLimit: trialUploadLimit
         )
@@ -103,10 +115,17 @@ final class KeychainPremiumAccessStore: PremiumAccessPersisting {
         set { setString(newValue ? "true" : "false", for: Constants.Keychain.premiumFullUnlockPurchased) }
     }
 
+    #if DEBUG
     var isDeveloperModeEnabled: Bool {
         get { userDefaults.bool(forKey: Constants.UserDefaults.developerModeEnabled) }
         set { userDefaults.set(newValue, forKey: Constants.UserDefaults.developerModeEnabled) }
     }
+    #else
+    var isDeveloperModeEnabled: Bool {
+        get { false }
+        set { }
+    }
+    #endif
 
     private func intValue(for account: String) -> Int {
         guard let value = stringValue(for: account), let intValue = Int(value) else { return 0 }

@@ -8,6 +8,8 @@
 import Foundation
 
 enum Constants {
+    static let bundleIdentifier = Bundle.main.bundleIdentifier ?? "com.janhagenclausen.LANImageUploader"
+
     enum Keychain {
         static let serverPassword = "serverPassword"
         static let premiumSuccessfulUploadCount = "premiumSuccessfulUploadCount"
@@ -20,6 +22,15 @@ enum Constants {
         static let archiveCustomNames = "archiveCustomNames"
         static let ocrMode = "ocrMode"
         static let developerModeEnabled = "developerModeEnabled"
+
+        // Gallery & PDF Settings
+        static let defaultGalleryOutputMode = "defaultGalleryOutputMode"
+        static let pdfPageSize = "pdfPageSize"
+        static let pdfImageLayout = "pdfImageLayout"
+        static let pdfIncludePageNumbers = "pdfIncludePageNumbers"
+        static let pdfJPEGQuality = "pdfJPEGQuality"
+        static let imageMaxPixelDimension = "imageMaxPixelDimension"
+        static let stripImageMetadata = "stripImageMetadata"
     }
     
     enum Notifications {

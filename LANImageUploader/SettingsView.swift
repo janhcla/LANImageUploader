@@ -188,6 +188,41 @@ struct SettingsView: View {
                 TextField("Port (optional)", text: $port)
                     .keyboardType(.numberPad)
             }
+            Section("Gallery") {
+                Picker("Default Handling", selection: $appData.defaultGalleryOutputMode) {
+                    ForEach(GalleryOutputMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+            }
+
+            Section("PDF Output") {
+                Picker("Page Size", selection: $appData.pdfPageSize) {
+                    Text("A4").tag(PDFPageSize.a4)
+                    Text("Letter").tag(PDFPageSize.letter)
+                }
+                Picker("Image Layout", selection: $appData.pdfImageLayout) {
+                    Text("Fit Whole Image").tag(PDFImageLayout.fit)
+                    Text("Fill Page").tag(PDFImageLayout.fill)
+                }
+                Toggle("Include Page Numbers", isOn: $appData.pdfIncludePageNumbers)
+
+                VStack(alignment: .leading) {
+                    Text("Image Quality: \(Int(appData.pdfJPEGQuality * 100))%")
+                    Slider(value: $appData.pdfJPEGQuality, in: 0.1...1.0, step: 0.05)
+                }
+            }
+
+            Section("Image Handling") {
+                Picker("Max Image Size", selection: $appData.imageMaxPixelDimension) {
+                    Text("2048 px").tag(Double(2048))
+                    Text("2500 px").tag(Double(2500))
+                    Text("3000 px").tag(Double(3000))
+                    Text("Original").tag(Double.greatestFiniteMagnitude)
+                }
+                Toggle("Strip Image Metadata Before Upload", isOn: $appData.stripImageMetadata)
+            }
+
             ocrSection
             premiumSection
             Section {
@@ -291,6 +326,41 @@ struct SettingsView: View {
                 SecureField("Password", text: $password)
                     .textContentType(.password)
             }
+            Section("Gallery") {
+                Picker("Default Handling", selection: $appData.defaultGalleryOutputMode) {
+                    ForEach(GalleryOutputMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+            }
+
+            Section("PDF Output") {
+                Picker("Page Size", selection: $appData.pdfPageSize) {
+                    Text("A4").tag(PDFPageSize.a4)
+                    Text("Letter").tag(PDFPageSize.letter)
+                }
+                Picker("Image Layout", selection: $appData.pdfImageLayout) {
+                    Text("Fit Whole Image").tag(PDFImageLayout.fit)
+                    Text("Fill Page").tag(PDFImageLayout.fill)
+                }
+                Toggle("Include Page Numbers", isOn: $appData.pdfIncludePageNumbers)
+
+                VStack(alignment: .leading) {
+                    Text("Image Quality: \(Int(appData.pdfJPEGQuality * 100))%")
+                    Slider(value: $appData.pdfJPEGQuality, in: 0.1...1.0, step: 0.05)
+                }
+            }
+
+            Section("Image Handling") {
+                Picker("Max Image Size", selection: $appData.imageMaxPixelDimension) {
+                    Text("2048 px").tag(Double(2048))
+                    Text("2500 px").tag(Double(2500))
+                    Text("3000 px").tag(Double(3000))
+                    Text("Original").tag(Double.greatestFiniteMagnitude)
+                }
+                Toggle("Strip Image Metadata Before Upload", isOn: $appData.stripImageMetadata)
+            }
+
             ocrSection
             premiumSection
             Section {
@@ -324,10 +394,12 @@ struct SettingsView: View {
 
     var premiumSection: some View {
         Section("Premium") {
+            #if DEBUG
             Toggle("Developer Mode", isOn: $developerModeEnabled)
                 .onChange(of: developerModeEnabled) { _, newValue in
                     appData.premiumAccess.setDeveloperModeEnabled(newValue)
                 }
+            #endif
 
             if appData.premiumAccess.state.isFullAppUnlocked {
                 Label("Full App Unlock active", systemImage: "checkmark.seal.fill")
@@ -433,7 +505,9 @@ struct SettingsView: View {
         username = appData.settings.username
         port = appData.settings.port.map(String.init) ?? ""
         password = appData.getPassword() ?? ""
+        #if DEBUG
         developerModeEnabled = appData.premiumAccess.state.isDeveloperModeEnabled
+        #endif
         if !isSetupComplete && (serverIP.isEmpty && shareName.isEmpty && username.isEmpty && password.isEmpty) {
             isFirstSetup = true
         }

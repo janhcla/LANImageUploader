@@ -13,6 +13,8 @@ struct NamingSheet: View {
     @Binding var imageName: String
     @EnvironmentObject var appData: AppData
     @AppStorage(Constants.UserDefaults.ocrMode) private var ocrModeRawValue: String = OCRMode.full.rawValue
+    var title: String = "Name Your Image"
+    var placeholder: String = "Enter name..."
     var onSave: () -> Void
     var saveButtonLabel: String
     @Environment(\.dismiss) var dismiss
@@ -26,13 +28,13 @@ struct NamingSheet: View {
             AppBackground()
             
             VStack(spacing: 24) {
-                Text("Name Your Image")
+                Text(title)
                     .font(.title3)
                     .fontWeight(.bold)
                     .padding(.top)
 
                 GlassContainer(cornerRadius: 16) {
-                    TextField("Enter name...", text: $appData.imageName)
+                    TextField(placeholder, text: $imageName)
                         .font(.body)
                         .submitLabel(.done)
                         .focused($isTextFieldFocused)
@@ -40,10 +42,10 @@ struct NamingSheet: View {
                         .animation(.spring(response: 0.3, dampingFraction: 0.5), value: isHighlighted)
                         .overlay(alignment: .trailing) {
                             HStack {
-                                if !appData.imageName.isEmpty {
+                                if !imageName.isEmpty {
                                     Button(action: { 
                                         appData.hapticService.playSelection()
-                                        appData.imageName = "" 
+                                        imageName = ""
                                     }) {
                                         Image(systemName: "xmark.circle.fill")
                                             .foregroundStyle(.gray)
@@ -106,7 +108,6 @@ struct NamingSheet: View {
                 }
 
                 Button(action: {
-                    imageName = appData.imageName
                     appData.hapticService.playLiquidBounce()
                     onSave()
                     dismiss()
