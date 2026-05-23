@@ -27,7 +27,17 @@ struct ArchiveImagesBenchmarkTests {
 
         #expect(result.saved == 100)
 
-        // Cleanup
+        // Cleanup temp images
         try FileManager.default.removeItem(at: tempDir)
+
+        // Cleanup destination archived images to avoid leaking disk space and failing subsequent runs
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let dateString = formatter.string(from: Date())
+        let docs = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
+        let datedFolderURL = docs.appendingPathComponent(dateString)
+        if FileManager.default.fileExists(atPath: datedFolderURL.path) {
+            try FileManager.default.removeItem(at: datedFolderURL)
+        }
     }
 }
