@@ -32,8 +32,7 @@ struct FileServiceTests {
         ("2024-1-1", false)
     ])
     func testArchiveImagesDateRegex(dateString: String, isValid: Bool) {
-        let expectedFormat = #"^\d{4}-\d{2}-\d{2}$"#
-        let isMatch = dateString.range(of: expectedFormat, options: .regularExpression) != nil
+        let isMatch = (try? dateString.wholeMatch(of: /^\d{4}-\d{2}-\d{2}$/)) != nil
 
         #expect(isMatch == isValid)
     }
