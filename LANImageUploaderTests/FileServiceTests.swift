@@ -9,7 +9,7 @@ import Foundation
 
 struct FileServiceTests {
 
-    @Test func sharedInitialization() async throws {
+    @Test func testSharedInitialization() async throws {
         // Test that the singleton can be accessed
         let shared = FileService.shared
         // FileService is a reference type, shared always exists, no need for #expect(shared != nil)
@@ -17,14 +17,14 @@ struct FileServiceTests {
         let _ = shared
     }
 
-    @Test func documentsDirectoryExists() async throws {
+    @Test func testDocumentsDirectoryExists() async throws {
         // Test that the documents directory URL can be retrieved and is valid
         let shared = FileService.shared
         let url = await shared.documentsDirectory
         #expect(url.isFileURL)
     }
 
-    @Test func archiveImagesDateRegex() async throws {
+    @Test func testArchiveImagesDateRegex() async throws {
         let expectedFormat = #"^\d{4}-\d{2}-\d{2}$"#
 
         let date1 = "2024-01-01"
