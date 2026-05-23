@@ -71,15 +71,12 @@ final class FileService: FileServiceProtocol {
                     do {
                         try await self.actor.copyItem(at: image.fileURL, to: destinationURL)
                         return true
-                    } catch {
+                    } catch let error as CocoaError where error.code == .fileWriteFileExists {
                         // If file exists error, it's fine, we treat it as already saved.
+                        return false
+                    } catch {
                         // Other errors will be thrown and fail the group.
-                        let nsError = error as NSError
-                        if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileWriteFileExistsError {
-                            return false
-                        } else {
-                            throw error
-                        }
+                        throw error
                     }
                 }
             }

@@ -20,7 +20,7 @@ struct ArchiveImagesBenchmarkTests {
 
         let startTime = CFAbsoluteTimeGetCurrent()
 
-        let result = try await fileService.archiveImages(images)
+        let result = try await fileService.archiveImages(images, for: Date())
 
         let timeElapsed = CFAbsoluteTimeGetCurrent() - startTime
         print("Archive 100 1MB images took: \(timeElapsed) seconds")
