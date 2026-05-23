@@ -15,7 +15,7 @@ struct FileServiceTests {
         let instance2 = FileService.shared
 
         // Verify it is indeed a singleton
-        #expect(instance1 === instance2)
+        #expect(ObjectIdentifier(instance1) == ObjectIdentifier(instance2))
     }
 
     @Test func testDocumentsDirectoryExists() async throws {
