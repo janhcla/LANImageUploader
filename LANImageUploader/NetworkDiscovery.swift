@@ -726,7 +726,7 @@ extension NetworkDiscovery {
         port: Int? = nil,
         onStatus: (@Sendable (ConnectionStatus) -> Void)? = nil
     ) async throws -> NetworkInfo {
-        logger.info("Attempting SMB connection to Host/IP: \(ipAddress, privacy: .private), Target Folder: \'\(targetFolder, privacy: .private)\'")
+        logger.info("Attempting SMB connection to Host/IP: \(ipAddress, privacy: .private), Target Folder: '\(targetFolder, privacy: .private)'")
         onStatus?(.connecting(ipAddress))
 
         var components = URLComponents()
