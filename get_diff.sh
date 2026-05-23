@@ -1,1 +1,1 @@
-git diff HEAD~1 HEAD LANImageUploader/UploadView.swift LANImageUploader/AppData.swift
+cat LANImageUploader/UploadView.swift | grep -C 5 renameImage

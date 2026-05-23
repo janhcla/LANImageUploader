@@ -96,11 +96,11 @@ struct UploadView: View {
                     }
                     .alert("Duplicate File", isPresented: $showDuplicatePrompt) {
                         Button("Rename") {
-                            renameImage(duplicateFile!)
+                            if let file = duplicateFile { renameFile(file) }
                         }
                         Button("Overwrite", role: .destructive) {
                             overwriteConfirmed = true
-                            Task { await uploadImage(duplicateFile!, overwrite: true) }
+                            if let file = duplicateFile { Task { await uploadFile(file, overwrite: true) } }
                         }
                         Button("Cancel", role: .cancel) { duplicateFile = nil }
                     } message: {
