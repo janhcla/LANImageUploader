@@ -9,6 +9,7 @@ struct ArchiveImagesBenchmarkTests {
         // Setup mock images
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
 
         var images: [CapturedImage] = []
         for i in 0..<100 {
