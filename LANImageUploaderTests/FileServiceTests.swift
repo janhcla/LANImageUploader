@@ -17,7 +17,7 @@ struct FileServiceTests {
         let _ = shared
     }
 
-    @Test func testDocumentsDirectoryExists() async throws {
+    @Test func documentsDirectoryExists() async {
         // Test that the documents directory URL can be retrieved and is valid
         let shared = FileService.shared
         let url = await shared.documentsDirectory
