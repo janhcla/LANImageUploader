@@ -24,7 +24,7 @@ struct FileServiceTests {
         #expect(url.isFileURL)
     }
 
-    @Test func archiveImagesDateRegex() {
+    @Test func testArchiveImagesDateRegex() async throws {
         let expectedFormat = #"^\d{4}-\d{2}-\d{2}$"#
 
         let date1 = "2024-01-01"
