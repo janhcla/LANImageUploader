@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import OSLog
 
 enum OCRMode: String, CaseIterable, Identifiable {
     case full
@@ -25,6 +26,26 @@ enum OCRMode: String, CaseIterable, Identifiable {
 }
 
 enum OCRValidator {
+    // Matches a valid DDMMYY date format and a 4-digit sequence, optionally separated by a dash.
+    // DD: 01-31, MM: 01-12, YY: 00-99
+    // Negative lookbehind and lookahead prevent matching inside longer digit sequences.
+    private static let cprRegex = /(?<!\d)(?<date>(?:0[1-9]|[12]\d|3[01])(?:0[1-9]|1[0-2])\d{2})-?(?<sequence>\d{4})(?!\d)/
+
+    private static let logger = Logger(subsystem: Constants.bundleIdentifier, category: "OCRValidator")
+
+    private static func isValidDate(_ dateString: Substring) -> Bool {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "ddMMyy"
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        // Strict parsing so "310224" (Feb 31) fails
+        formatter.isLenient = false
+
+        if let _ = formatter.date(from: String(dateString)) {
+            return true
+        }
+        return false
+    }
+
     static func sanitizedText(from text: String, mode: OCRMode) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
@@ -49,19 +70,13 @@ enum OCRValidator {
                 options: .regularExpression
             )
             
-            let dashedPattern = #"\d{6}-\d{4}"#
-            if let match = normalized.range(of: dashedPattern, options: .regularExpression) {
-                return String(normalized[match])
+            do {
+                if let match = try cprRegex.firstMatch(in: normalized), isValidDate(match.date) {
+                    return "\(match.date)-\(match.sequence)"
+                }
+            } catch {
+                logger.error("Regex matching failed: \(error.localizedDescription)")
             }
-            
-            // Fallback: accept exactly 10 digits and normalize to DDMMYY-XXXX
-            let digitsOnly = normalized.filter { $0.isNumber }
-            if digitsOnly.count == 10 && normalized.range(of: #"^\d{10}$"#, options: .regularExpression) != nil {
-                let prefix = digitsOnly.prefix(6)
-                let suffix = digitsOnly.suffix(4)
-                return "\(prefix)-\(suffix)"
-            }
-            
             return nil
         }
     }
