@@ -58,9 +58,10 @@ struct CapturedImage: Identifiable, Codable {
     let id = UUID()
     var name: String
     var fileURL: URL
+    var documentQuad: DocumentQuad?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, fileURL
+        case id, name, fileURL, documentQuad
     }
 }
 
