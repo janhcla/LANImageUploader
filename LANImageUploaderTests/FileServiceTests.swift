@@ -18,7 +18,7 @@ struct FileServiceTests {
         #expect(ObjectIdentifier(instance1) == ObjectIdentifier(instance2))
     }
 
-    @Test func testDocumentsDirectoryExists() async throws {
+    @Test func testDocumentsDirectoryExists() async {
         // Test that the documents directory URL can be retrieved and is valid
         let shared = FileService.shared
         let url = await shared.documentsDirectory
