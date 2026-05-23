@@ -43,6 +43,9 @@ struct TextValidationTests {
         #expect(OCRValidator.sanitizedText(from: "321299-1234", mode: .cpr) == nil) // Invalid day
         #expect(OCRValidator.sanitizedText(from: "311399-1234", mode: .cpr) == nil) // Invalid month
         #expect(OCRValidator.sanitizedText(from: "001299-1234", mode: .cpr) == nil) // Invalid day
+        #expect(OCRValidator.sanitizedText(from: "310224-1234", mode: .cpr) == nil) // Feb 31st
+        #expect(OCRValidator.sanitizedText(from: "290223-1234", mode: .cpr) == nil) // Feb 29th non-leap year
+        #expect(OCRValidator.sanitizedText(from: "290224-1234", mode: .cpr) == "290224-1234") // Feb 29th leap year
 
         // Too short / Too long
         #expect(OCRValidator.sanitizedText(from: "123456789", mode: .cpr) == nil) // 9 digits
