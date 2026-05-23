@@ -9,32 +9,32 @@ import Foundation
 
 struct FileServiceTests {
 
-    @Test func testSharedInitialization() async throws {
+    @Test func testSharedInitialization() {
         // Test that the singleton can be accessed
-        let shared = FileService.shared
-        // FileService is a reference type, shared always exists, no need for #expect(shared != nil)
-        // just making sure it's accessible.
-        let _ = shared
+        let instance1 = FileService.shared
+        let instance2 = FileService.shared
+
+        // Verify it is indeed a singleton
+        #expect(instance1 === instance2)
     }
 
-    @Test func documentsDirectoryExists() async {
+    @Test func testDocumentsDirectoryExists() async throws {
         // Test that the documents directory URL can be retrieved and is valid
         let shared = FileService.shared
         let url = await shared.documentsDirectory
         #expect(url.isFileURL)
     }
 
-    @Test func testArchiveImagesDateRegex() async throws {
+    @Test("Test archive images date regex with valid and invalid dates", arguments: [
+        ("2024-01-01", true),
+        ("2024-12-31", true),
+        ("invalid-date", false),
+        ("2024-1-1", false)
+    ])
+    func testArchiveImagesDateRegex(dateString: String, isValid: Bool) {
         let expectedFormat = #"^\d{4}-\d{2}-\d{2}$"#
+        let isMatch = dateString.range(of: expectedFormat, options: .regularExpression) != nil
 
-        let date1 = "2024-01-01"
-        let date2 = "2024-12-31"
-        let date3 = "invalid-date"
-        let date4 = "2024-1-1"
-
-        #expect(date1.range(of: expectedFormat, options: .regularExpression) != nil)
-        #expect(date2.range(of: expectedFormat, options: .regularExpression) != nil)
-        #expect(date3.range(of: expectedFormat, options: .regularExpression) == nil)
-        #expect(date4.range(of: expectedFormat, options: .regularExpression) == nil)
+        #expect(isMatch == isValid)
     }
 }
