@@ -137,8 +137,8 @@
 		                                                                                A1F11E6E2D68B563001D57FD /* MockNetworkDiscovery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mocks/MockNetworkDiscovery.swift; sourceTree = "<group>"; };
 		                                                                      D2988FBC6891402F823C8784 /* UploadModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadModels.swift; sourceTree = "<group>"; };
       3BF4E97B303D4D8FB1DC4785 /* GalleryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryModels.swift; sourceTree = "<group>"; };
-      0C025A1826F64444B44CD995 /* PDFGenerationServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFGenerationServiceProtocol.swift; sourceTree = "<group>"; };
-      B9774F2F1B2748D3965BA4CC /* PDFGenerationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFGenerationService.swift; sourceTree = "<group>"; };
+      0C025A1826F64444B44CD995 /* PDFGenerationServiceProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LANImageUploader/Services/PDFGenerationServiceProtocol.swift; sourceTree = SOURCE_ROOT; };
+      B9774F2F1B2748D3965BA4CC /* PDFGenerationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LANImageUploader/Services/PDFGenerationService.swift; sourceTree = SOURCE_ROOT; };
       62ACD5EB1C1841048A880FBE /* GalleryItemView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryItemView.swift; sourceTree = "<group>"; };
       3756349C4CC9493AB85FAAEC /* RetakeReviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetakeReviewSheet.swift; sourceTree = "<group>"; };
       BB8CECC1C94B45D8BFE52199 /* GalleryModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryModelsTests.swift; sourceTree = "<group>"; };

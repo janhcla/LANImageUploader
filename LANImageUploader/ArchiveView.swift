@@ -273,15 +273,25 @@ struct ArchiveView: View {
         var imagesToRestore: [(source: URL, destination: URL)] = []
         var skippedCount = 0
 
-        for date in datesToRestore {
-            let images = await appData.getImagesForDate(date)
-            for imageURL in images {
-                let destinationURL = imagesFolderURL.appendingPathComponent(imageURL.lastPathComponent)
-                if seenDestinationURLs.insert(destinationURL).inserted {
-                    imagesToRestore.append((source: imageURL, destination: destinationURL))
-                } else {
-                    skippedCount += 1
+        let fetchedImages = await withTaskGroup(of: [URL].self) { group in
+            for date in datesToRestore {
+                group.addTask {
+                    await self.appData.getImagesForDate(date)
                 }
+            }
+            var allImages: [URL] = []
+            for await images in group {
+                allImages.append(contentsOf: images)
+            }
+            return allImages
+        }
+
+        for imageURL in fetchedImages {
+            let destinationURL = imagesFolderURL.appendingPathComponent(imageURL.lastPathComponent)
+            if seenDestinationURLs.insert(destinationURL).inserted {
+                imagesToRestore.append((source: imageURL, destination: destinationURL))
+            } else {
+                skippedCount += 1
             }
         }
 

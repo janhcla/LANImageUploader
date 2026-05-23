@@ -124,12 +124,11 @@ extension UIImage {
             newSize = CGSize(width: size.width * ratio, height: size.height * ratio)
         }
 
-        UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
-        draw(in: CGRect(origin: .zero, size: newSize))
-        let normalizedImage = UIGraphicsGetImageFromCurrentImageContext()!
-        UIGraphicsEndImageContext()
-
-        return normalizedImage
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1.0
+        return UIGraphicsImageRenderer(size: newSize, format: format).image { _ in
+            draw(in: CGRect(origin: .zero, size: newSize))
+        }
     }
 
     func rotatedClockwise(by rotation: ImageRotation) -> UIImage {
@@ -140,16 +139,13 @@ extension UIImage {
         newSize.width = floor(newSize.width)
         newSize.height = floor(newSize.height)
 
-        UIGraphicsBeginImageContextWithOptions(newSize, false, scale)
-        guard let context = UIGraphicsGetCurrentContext() else { return self }
-
-        context.translateBy(x: newSize.width / 2, y: newSize.height / 2)
-        context.rotate(by: radians)
-        draw(in: CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height))
-
-        let rotatedImage = UIGraphicsGetImageFromCurrentImageContext()!
-        UIGraphicsEndImageContext()
-
-        return rotatedImage
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        return UIGraphicsImageRenderer(size: newSize, format: format).image { rendererContext in
+            let context = rendererContext.cgContext
+            context.translateBy(x: newSize.width / 2, y: newSize.height / 2)
+            context.rotate(by: radians)
+            draw(in: CGRect(x: -size.width / 2, y: -size.height / 2, width: size.width, height: size.height))
+        }
     }
 }

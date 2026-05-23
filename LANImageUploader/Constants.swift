@@ -8,6 +8,8 @@
 import Foundation
 
 enum Constants {
+    static let bundleIdentifier = Bundle.main.bundleIdentifier ?? "com.janhagenclausen.LANImageUploader"
+
     enum Keychain {
         static let serverPassword = "serverPassword"
     }

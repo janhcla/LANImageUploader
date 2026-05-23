@@ -57,21 +57,40 @@ final class FileService: FileServiceProtocol {
         let docs = await actor.documentsDirectory
         let datedFolderURL = docs.appendingPathComponent(dateString)
 
-        var savedCount = 0
-        var alreadySavedCount = 0
-
         try await actor.createDirectory(at: datedFolderURL)
-        for image in images {
-            let destinationURL = datedFolderURL.appendingPathComponent(image.fileURL.lastPathComponent)
-            if await !actor.fileExists(at: destinationURL) {
-                try await actor.copyItem(at: image.fileURL, to: destinationURL)
-                savedCount += 1
-            } else {
-                alreadySavedCount += 1
+
+        return try await withThrowingTaskGroup(of: Bool.self) { group in
+            var savedCount = 0
+            var alreadySavedCount = 0
+
+            for image in images {
+                group.addTask {
+                    let destinationURL = datedFolderURL.appendingPathComponent(image.fileURL.lastPathComponent)
+
+                    // To avoid TOCTOU race condition when parallelizing
+                    do {
+                        try await self.actor.copyItem(at: image.fileURL, to: destinationURL)
+                        return true
+                    } catch let error as CocoaError where error.code == .fileWriteFileExists {
+                        // If file exists error, it's fine, we treat it as already saved.
+                        return false
+                    } catch {
+                        // Other errors will be thrown and fail the group.
+                        throw error
+                    }
+                }
             }
+
+            for try await wasSaved in group {
+                if wasSaved {
+                    savedCount += 1
+                } else {
+                    alreadySavedCount += 1
+                }
+            }
+
+            return (savedCount, alreadySavedCount)
         }
-        
-        return (savedCount, alreadySavedCount)
     }
 
     /// Gets a list of archived date strings (YYYY-MM-DD).

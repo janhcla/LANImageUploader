@@ -106,7 +106,7 @@ struct UploadView: View {
                     } message: {
                         Text("A file named '\(duplicateFile?.name ?? "")' already exists. Do you want to rename it or overwrite the existing file?")
                     }
-                    if appData.images.isEmpty {
+                    if uploadFiles.isEmpty {
                         VStack {
                             Spacer()
                             Text("Nothing to upload - capture images first")

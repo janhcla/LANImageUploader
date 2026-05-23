@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct GalleryItemView: View {
     let index: Int
@@ -113,10 +114,12 @@ struct GalleryItemView: View {
     }
 
     private func loadImage(from url: URL) async {
-        if let image = UIImage(contentsOfFile: url.path) {
-            await MainActor.run {
-                self.uiImage = image
-            }
+        let image = await Task.detached(priority: .userInitiated) {
+            UIImage(contentsOfFile: url.path)
+        }.value
+
+        await MainActor.run {
+            self.uiImage = image
         }
     }
 }

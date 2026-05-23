@@ -13,6 +13,8 @@ struct NamingSheet: View {
     @Binding var imageName: String
     @EnvironmentObject var appData: AppData
     @AppStorage(Constants.UserDefaults.ocrMode) private var ocrModeRawValue: String = OCRMode.full.rawValue
+    var title: String = "Name Your Image"
+    var placeholder: String = "Enter name..."
     var onSave: () -> Void
     var saveButtonLabel: String
     @Environment(\.dismiss) var dismiss
@@ -40,10 +42,10 @@ struct NamingSheet: View {
                         .animation(.spring(response: 0.3, dampingFraction: 0.5), value: isHighlighted)
                         .overlay(alignment: .trailing) {
                             HStack {
-                                if !appData.imageName.isEmpty {
+                                if !imageName.isEmpty {
                                     Button(action: { 
                                         appData.hapticService.playSelection()
-                                        appData.imageName = "" 
+                                        imageName = ""
                                     }) {
                                         Image(systemName: "xmark.circle.fill")
                                             .foregroundStyle(.gray)
@@ -106,7 +108,6 @@ struct NamingSheet: View {
                 }
 
                 Button(action: {
-                    imageName = appData.imageName
                     appData.hapticService.playLiquidBounce()
                     onSave()
                     dismiss()

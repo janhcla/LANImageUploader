@@ -67,4 +67,10 @@ struct GalleryItem: Identifiable, Codable, Equatable {
     let id: UUID
     var capturedImage: CapturedImage?
     var rotation: ImageRotation
+
+    static func == (lhs: GalleryItem, rhs: GalleryItem) -> Bool {
+        lhs.id == rhs.id
+            && lhs.capturedImage?.id == rhs.capturedImage?.id
+            && lhs.rotation == rhs.rotation
+    }
 }

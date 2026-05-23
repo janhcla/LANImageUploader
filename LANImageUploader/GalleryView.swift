@@ -6,6 +6,12 @@
 import SwiftUI
 import UIKit
 
+struct FullscreenImageData: Identifiable {
+    let id: UUID
+    let capturedImage: CapturedImage
+    let uiImage: UIImage
+}
+
 struct GalleryView: View {
     @EnvironmentObject var appData: AppData
     @State private var isMultiSelectMode = false
@@ -48,28 +54,8 @@ struct GalleryView: View {
                 } else {
                     ScrollView {
                         LazyVGrid(columns: columns, spacing: 16) {
-                            ForEach(Array(galleryItems.enumerated()), id: \.element.id) { index, item in
-                                GalleryItemView(
-                                    index: index,
-                                    item: item,
-                                    isSelected: isMultiSelectMode && appData.selectedImageIDs.contains(item.id),
-                                    isMultiSelectMode: isMultiSelectMode,
-                                    onTap: { handleItemTap(item) },
-                                    onRotate: { rotateItem(item) },
-                                    onDelete: {
-                                        itemToDelete = item
-                                        showDeleteConfirmation = true
-                                    },
-                                    onRetake: {
-                                        retakeTargetId = item.id
-                                        isShowingRetakeCamera = true
-                                    }
-                                )
-                                .onDrag {
-                                    self.draggedItem = item
-                                    return NSItemProvider(object: item.id.uuidString as NSString)
-                                }
-                                .onDrop(of: [.text], delegate: ReorderDropDelegate(item: item, items: $galleryItems, draggedItem: $draggedItem))
+                            ForEach(galleryItems.indices, id: \.self) { index in
+                                galleryItemCell(index: index, item: galleryItems[index])
                             }
                         }
                         .padding()
@@ -237,9 +223,37 @@ struct GalleryView: View {
             syncItemsFromAppData()
             outputMode = appData.defaultGalleryOutputMode
         }
-        .onChange(of: appData.images) { _, _ in
+        .onChange(of: appData.images.map(\.id)) { _, _ in
             syncItemsFromAppData()
         }
+    }
+
+    @ViewBuilder
+    private func galleryItemCell(index: Int, item: GalleryItem) -> some View {
+        GalleryItemView(
+            index: index,
+            item: item,
+            isSelected: isMultiSelectMode && appData.selectedImageIDs.contains(item.id),
+            isMultiSelectMode: isMultiSelectMode,
+            onTap: { handleItemTap(item) },
+            onRotate: { rotateItem(item) },
+            onDelete: {
+                itemToDelete = item
+                showDeleteConfirmation = true
+            },
+            onRetake: {
+                retakeTargetId = item.id
+                isShowingRetakeCamera = true
+            }
+        )
+        .onDrag {
+            draggedItem = item
+            return NSItemProvider(object: item.id.uuidString as NSString)
+        }
+        .onDrop(
+            of: [.text],
+            delegate: ReorderDropDelegate(item: item, items: $galleryItems, draggedItem: $draggedItem)
+        )
     }
 
     private var emptyStateView: some View {
@@ -336,21 +350,51 @@ struct GalleryView: View {
         }
     }
 
+    @MainActor
+    private func renameSelectedImagesInGalleryOrder(baseName: String) -> [UploadableFile] {
+        let selectedIDs = appData.selectedImageIDs
+        let orderedItems = galleryItems.filter { item in
+            selectedIDs.contains(item.id) && item.capturedImage != nil
+        }
+
+        var uploadFiles: [UploadableFile] = []
+        for (index, item) in orderedItems.enumerated() {
+            guard let image = item.capturedImage,
+                  let appIndex = appData.images.firstIndex(where: { $0.id == image.id })
+            else { continue }
+
+            let formattedIndex = String(format: "%02d", index + 1)
+            let renamedImage = "\(baseName)\(formattedIndex)"
+            appData.images[appIndex].name = renamedImage
+            uploadFiles.append(
+                UploadableFile(
+                    id: image.id,
+                    name: renamedImage,
+                    fileURL: appData.images[appIndex].fileURL,
+                    kind: .jpeg
+                )
+            )
+        }
+
+        return uploadFiles
+    }
+
+    func batchRenameImages() {
+        guard !imageName.isEmpty else { return }
+        _ = renameSelectedImagesInGalleryOrder(baseName: imageName)
+        appData.selectedImageIDs.removeAll()
+        isMultiSelectMode = false
+        imageName = ""
+        appData.hapticService.playNotification(type: .success)
+    }
+
     func batchRenameAndUpload() {
         guard !imageName.isEmpty else { return }
 
-        let orderedItems = galleryItems.filter { appData.selectedImageIDs.contains($0.id) && $0.capturedImage != nil }
-        for (index, item) in orderedItems.enumerated() {
-            if let img = item.capturedImage, let appIdx = appData.images.firstIndex(where: { $0.id == img.id }) {
-                let formattedIndex = String(format: "%02d", index + 1)
-                appData.images[appIdx].name = "\(imageName)\(formattedIndex)"
-            }
-        }
-
-        appData.pendingUploadFiles = nil
         Task {
             await applyRotationsBeforeUpload()
             await MainActor.run {
+                appData.pendingUploadFiles = renameSelectedImagesInGalleryOrder(baseName: imageName)
                 appData.selectedImageIDs.removeAll()
                 isMultiSelectMode = false
                 imageName = ""
