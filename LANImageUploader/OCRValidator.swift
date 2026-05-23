@@ -28,8 +28,7 @@ enum OCRMode: String, CaseIterable, Identifiable {
 enum OCRValidator {
     // Matches a valid DDMMYY date format and a 4-digit sequence, optionally separated by a dash.
     // DD: 01-31, MM: 01-12, YY: 00-99
-    // Negative lookbehind and lookahead prevent matching inside longer digit sequences.
-    private static let cprRegex = /(?<!\d)(?<date>(?:0[1-9]|[12]\d|3[01])(?:0[1-9]|1[0-2])\d{2})-?(?<sequence>\d{4})(?!\d)/
+    private static let cprRegex = /(?<date>(?:0[1-9]|[12]\d|3[01])(?:0[1-9]|1[0-2])\d{2})-?(?<sequence>\d{4})/
 
     private static let logger = Logger(subsystem: Constants.bundleIdentifier, category: "OCRValidator")
 
@@ -71,9 +70,12 @@ enum OCRValidator {
             )
             
             do {
-                if let match = try cprRegex.firstMatch(in: normalized), isValidDate(match.date) {
-                    return "\(match.date)-\(match.sequence)"
-                }
+                guard normalized.wholeMatch(of: cprRegex) != nil,
+                      let match = try cprRegex.firstMatch(in: normalized),
+                      isValidDate(match.date)
+                else { return nil }
+
+                return "\(match.date)-\(match.sequence)"
             } catch {
                 logger.error("Regex matching failed: \(error.localizedDescription)")
             }

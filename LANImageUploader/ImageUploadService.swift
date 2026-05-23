@@ -82,27 +82,32 @@ final class ImageUploadService: ImageUploadServiceProtocol {
         }
     }
 
-    /// Uploads a single image to the specified SMB share.
+    /// Uploads a single file to the specified SMB share.
     func upload(
-        image: CapturedImage,
+        file: UploadableFile,
         settings: ServerSettings,
         password: String,
         overwrite: Bool = false,
         onProgress: @escaping @Sendable (Double) -> Void
     ) async throws {
+        let fileData: Data
 
-        // Ensure settings are available. If not, default to standard image config.
-        let applyCrop = UserDefaults.standard.object(forKey: Constants.UserDefaults.applyDocumentCropOnUpload) as? Bool ?? true
-        let applyEnhance = UserDefaults.standard.object(forKey: Constants.UserDefaults.documentEnhancementEnabled) as? Bool ?? true
-
-        let processSettings = ImageProcessingSettings(
-            applyDocumentCropOnUpload: applyCrop,
-            documentEnhancementEnabled: applyEnhance,
-            jpegQuality: 0.85,
-            maxPixelDimension: 2500
-        )
-
-        let imageData = try await ImageRenderService.shared.renderedImageDataForUpload(image: image, settings: processSettings)
+        switch file.kind {
+        case .jpeg:
+            guard let originalImage = UIImage(contentsOfFile: file.fileURL.path) else {
+                throw UploadError.fileUnreadable
+            }
+            guard let data = originalImage.jpegData(compressionQuality: 1.0) else {
+                throw UploadError.dataPreparationFailed
+            }
+            fileData = data
+        case .pdf:
+            do {
+                fileData = try Data(contentsOf: file.fileURL)
+            } catch {
+                throw UploadError.fileUnreadable
+            }
+        }
 
         guard let serverURL = URL(string: "smb://\(settings.serverIP)") else {
             throw UploadError.invalidServerURL
@@ -123,17 +128,31 @@ final class ImageUploadService: ImageUploadServiceProtocol {
             try await client.connectShare(name: settings.shareName)
             
             let targetDir = settings.targetDirectory?.trimmingCharacters(in: .init(charactersIn: "/\\")) ?? ""
-            let sanitizedName = image.name.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "\\", with: "_")
-            let destinationPath = targetDir.isEmpty ? "\(sanitizedName).jpg" : "\(targetDir)/\(sanitizedName).jpg"
+
+            // Name sanitization and extension handling
+            var sanitizedName = file.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            sanitizedName = sanitizedName.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "\\", with: "_")
+            if sanitizedName.isEmpty {
+                sanitizedName = file.kind.displayName
+            }
+
+            // Remove duplicate extension if user typed it
+            let lowerName = sanitizedName.lowercased()
+            if lowerName.hasSuffix("." + file.kind.fileExtension) {
+                sanitizedName = String(sanitizedName.dropLast(file.kind.fileExtension.count + 1))
+            }
+
+            let destinationName = "\(sanitizedName).\(file.kind.fileExtension)"
+            let destinationPath = targetDir.isEmpty ? destinationName : "\(targetDir)/\(destinationName)"
 
             // Check for duplicates if not overwriting
             if !overwrite {
                 let parentPath = targetDir.isEmpty ? "" : targetDir
                 do {
                     let contents = try await client.contentsOfDirectory(atPath: parentPath)
-                    if contents.contains(where: { $0.name == "\(sanitizedName).jpg" }) {
+                    if contents.contains(where: { $0.name == destinationName }) {
                         try? await client.disconnectShare()
-                        throw UploadError.fileAlreadyExists(image.name)
+                        throw UploadError.fileAlreadyExists(destinationName)
                     }
                 } catch {
                     // Ignore if parentPath doesn't exist yet, we'll catch it below
@@ -145,13 +164,13 @@ final class ImageUploadService: ImageUploadServiceProtocol {
                 do {
                     _ = try await client.contentsOfDirectory(atPath: targetDir)
                 } catch {
-                    throw mapUnderlyingError(error, image: image)
+                    throw mapUnderlyingError(error, fileName: destinationName)
                 }
             }
 
             // Perform the upload
-            try await client.write(data: imageData, toPath: destinationPath) { progressBytes in
-                let totalSize = Double(imageData.count)
+            try await client.write(data: fileData, toPath: destinationPath) { progressBytes in
+                let totalSize = Double(fileData.count)
                 let progressFraction = totalSize > 0 ? Double(progressBytes) / totalSize : 0.0
                 onProgress(progressFraction)
                 return true
@@ -160,11 +179,11 @@ final class ImageUploadService: ImageUploadServiceProtocol {
             try? await client.disconnectShare()
         } catch {
             try? await client.disconnectShare()
-            throw mapUnderlyingError(error, image: image)
+            throw mapUnderlyingError(error, fileName: "\(file.name).\(file.kind.fileExtension)")
         }
     }
     
-    private func mapUnderlyingError(_ error: Error, image: CapturedImage) -> UploadError {
+    private func mapUnderlyingError(_ error: Error, fileName: String) -> UploadError {
         if let uploadError = error as? UploadError {
             return uploadError
         }
@@ -179,7 +198,7 @@ final class ImageUploadService: ImageUploadServiceProtocol {
             case 0xC0000022: // STATUS_ACCESS_DENIED
                 return .accessDenied
             case 0xC0000035: // STATUS_OBJECT_NAME_COLLISION
-                return .fileAlreadyExists(image.name)
+                return .fileAlreadyExists(fileName)
             default:
                 break
             }

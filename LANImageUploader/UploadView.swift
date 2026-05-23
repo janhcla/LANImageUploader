@@ -14,6 +14,14 @@ struct UploadView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var uploadTasks: [UUID: Bool] = [:]
+    var uploadFiles: [UploadableFile] {
+        if let pending = appData.pendingUploadFiles {
+            return pending
+        }
+        return appData.images.map {
+            UploadableFile(id: $0.id, name: $0.name, fileURL: $0.fileURL, kind: .jpeg)
+        }
+    }
     @State private var autoUploadTriggered = false
     @State private var showSettingsPrompt = false
     @State private var showSuccessBanner = false
@@ -21,7 +29,7 @@ struct UploadView: View {
     @State private var showClearSuccess = false
     @State private var navigateToHome = false
     @State private var showDuplicatePrompt = false
-    @State private var duplicateImage: CapturedImage?
+    @State private var duplicateFile: UploadableFile?
     @State private var overwriteConfirmed = false
 
     var areSettingsComplete: Bool {
@@ -41,23 +49,23 @@ struct UploadView: View {
         BackgroundContainerView {
             NavigationStack {
                 ZStack {
-                    List(appData.images) { image in
+                    List(uploadFiles) { file in
                         HStack {
-                            Text(image.name)
+                            Text(file.name)
                                 .lineLimit(1)
                             Spacer()
-                            statusView(for: image)
+                            statusView(for: file)
                         }
                         .padding(.vertical, 4)
                     }
                     .background(Color.clear)
                     .scrollContentBackground(.hidden)
-                    .navigationTitle("Upload Images")
+                    .navigationTitle(appData.pendingUploadFiles != nil ? "Upload PDF" : "Upload Images")
                     .toolbar {
                         ToolbarItem(placement: .primaryAction) {
                             if hasActiveUploads {
                                 Button("Abort Upload", role: .destructive) { abortUploads() }
-                            } else if !appData.images.isEmpty {
+                            } else if !uploadFiles.isEmpty {
                                 Button("Start Upload") {
                                     if areSettingsComplete {
                                         startUpload()
@@ -88,17 +96,17 @@ struct UploadView: View {
                     }
                     .alert("Duplicate File", isPresented: $showDuplicatePrompt) {
                         Button("Rename") {
-                            renameImage(duplicateImage!)
+                            if let file = duplicateFile { renameFile(file) }
                         }
                         Button("Overwrite", role: .destructive) {
                             overwriteConfirmed = true
-                            Task { await uploadImage(duplicateImage!, overwrite: true) }
+                            if let file = duplicateFile { Task { await uploadFile(file, overwrite: true) } }
                         }
-                        Button("Cancel", role: .cancel) { duplicateImage = nil }
+                        Button("Cancel", role: .cancel) { duplicateFile = nil }
                     } message: {
-                        Text("A file named '\(duplicateImage?.name ?? "")' already exists. Do you want to rename it or overwrite the existing file?")
+                        Text("A file named '\(duplicateFile?.name ?? "")' already exists. Do you want to rename it or overwrite the existing file?")
                     }
-                    if appData.images.isEmpty {
+                    if uploadFiles.isEmpty {
                         VStack {
                             Spacer()
                             Text("Nothing to upload - capture images first")
@@ -108,7 +116,7 @@ struct UploadView: View {
                         }
                     }
                     if showSuccessBanner {
-                        SuccessBanner(message: "All images have been uploaded successfully!")
+                        SuccessBanner(message: appData.pendingUploadFiles != nil ? "PDF uploaded successfully!" : "All images have been uploaded successfully!")
                             .transition(.move(edge: .top).combined(with: .opacity))
                             .animation(.easeInOut(duration: 0.5), value: showSuccessBanner)
                             .onAppear {
@@ -157,8 +165,7 @@ struct UploadView: View {
                 }
                 .onChange(of: uploadStatuses) { _, _ in checkUploadStatus() }
                 .onAppear {
-                    uploadStatuses = Dictionary(
-                        uniqueKeysWithValues: appData.images.map { ($0.id, .idle) })
+                    uploadStatuses = Dictionary(uniqueKeysWithValues: uploadFiles.map { ($0.id, .idle) })
                     if !autoUploadTriggered && areSettingsComplete {
                         startUpload()
                         autoUploadTriggered = true
@@ -172,8 +179,8 @@ struct UploadView: View {
     }
 
     @ViewBuilder
-    func statusView(for image: CapturedImage) -> some View {
-        switch uploadStatuses[image.id] ?? .idle {
+    func statusView(for file: UploadableFile) -> some View {
+        switch uploadStatuses[file.id] ?? .idle {
         case .idle:
             Text("Ready").font(.caption).foregroundStyle(.gray)
         case .uploading(let progress):
@@ -212,15 +219,15 @@ struct UploadView: View {
     }
 
     func startUpload() {
-        for image in appData.images {
-            Task { await uploadImage(image) }
+        for file in uploadFiles {
+            Task { await uploadFile(file) }
         }
     }
 
     func retryFailedUploads() {
-        for image in appData.images {
-            if case .failure = uploadStatuses[image.id] {
-                Task { await uploadImage(image) }
+        for file in uploadFiles {
+            if case .failure = uploadStatuses[file.id] {
+                Task { await uploadFile(file) }
             }
         }
     }
@@ -239,7 +246,7 @@ struct UploadView: View {
     }
 
     func checkUploadStatus() {
-        let totalImages = appData.images.count
+        let totalImages = uploadFiles.count
         let successfulUploads = uploadStatuses.values.filter {
             if case .success = $0 { return true }
             return false
@@ -253,20 +260,37 @@ struct UploadView: View {
     }
 
     func clearAndDeleteAllImages() async {
-        for image in appData.images {
-            try? await appData.fileService.removeItem(at: image.fileURL)
-        }
-        await MainActor.run {
-            appData.images.removeAll()
-            uploadStatuses.removeAll()
-            uploadTasks.removeAll()
-            areAllUploadsSuccessful = false
-            appData.clearNamingData()
-            showClearSuccess = true
+        if appData.pendingUploadFiles != nil {
+            // Only clear pending files, not original images
+            if let pending = appData.pendingUploadFiles {
+                for file in pending {
+                    try? await appData.fileService.removeItem(at: file.fileURL)
+                }
+            }
+            await MainActor.run {
+                appData.pendingUploadFiles = nil
+                uploadStatuses.removeAll()
+                uploadTasks.removeAll()
+                areAllUploadsSuccessful = false
+                appData.clearNamingData()
+                showClearSuccess = true
+            }
+        } else {
+            for image in appData.images {
+                try? await appData.fileService.removeItem(at: image.fileURL)
+            }
+            await MainActor.run {
+                appData.images.removeAll()
+                uploadStatuses.removeAll()
+                uploadTasks.removeAll()
+                areAllUploadsSuccessful = false
+                appData.clearNamingData()
+                showClearSuccess = true
+            }
         }
     }
 
-    func uploadImage(_ image: CapturedImage, overwrite: Bool = false) async {
+    func uploadFile(_ file: UploadableFile, overwrite: Bool = false) async {
         guard let password = appData.getPassword() else {
             await presentFailure(
                 UploadFailureDetail(
@@ -274,51 +298,51 @@ struct UploadView: View {
                     guidance: "Open Settings and enter the correct SMB password, then try the upload again.",
                     action: .openSettings
                 ),
-                for: image
+                for: file
             )
             return
         }
 
         await MainActor.run {
-            uploadStatuses[image.id] = .uploading(0)
-            uploadTasks[image.id] = true
+            uploadStatuses[file.id] = .uploading(0)
+            uploadTasks[file.id] = true
         }
 
         do {
             try await appData.uploadService.upload(
-                image: image,
+                file: file,
                 settings: appData.settings,
                 password: password,
                 overwrite: overwrite
             ) { progress in
                 DispatchQueue.main.async {
-                    uploadStatuses[image.id] = .uploading(progress)
+                    uploadStatuses[file.id] = .uploading(progress)
                 }
             }
 
             await MainActor.run {
-                uploadStatuses[image.id] = .success
-                uploadTasks.removeValue(forKey: image.id)
+                uploadStatuses[file.id] = .success
+                uploadTasks.removeValue(forKey: file.id)
             }
         } catch {
             if let uploadError = error as? ImageUploadService.UploadError {
                 if case .fileAlreadyExists = uploadError {
                     await MainActor.run {
-                        duplicateImage = image
+                        duplicateFile = file
                         showDuplicatePrompt = true
-                        uploadTasks.removeValue(forKey: image.id)
-                        uploadStatuses[image.id] = .idle
+                        uploadTasks.removeValue(forKey: file.id)
+                        uploadStatuses[file.id] = .idle
                     }
                     return
                 }
             }
             
-            let detail = detailForUploadError(error, image: image)
-            await presentFailure(detail, for: image, clearTask: true)
+            let detail = detailForUploadError(error, file: file)
+            await presentFailure(detail, for: file, clearTask: true)
         }
     }
 
-    private func detailForUploadError(_ error: Error, image: CapturedImage) -> UploadFailureDetail {
+    private func detailForUploadError(_ error: Error, file: UploadableFile) -> UploadFailureDetail {
         if let uploadError = error as? ImageUploadService.UploadError {
             return UploadFailureDetail(
                 reason: uploadError.errorDescription ?? "Unknown upload error",
@@ -336,30 +360,41 @@ struct UploadView: View {
 
     private func presentFailure(
         _ detail: UploadFailureDetail,
-        for image: CapturedImage,
+        for file: UploadableFile,
         clearTask: Bool = false
     ) async {
         await MainActor.run {
             if clearTask {
-                uploadTasks.removeValue(forKey: image.id)
+                uploadTasks.removeValue(forKey: file.id)
             }
-            uploadStatuses[image.id] = .failure(detail)
+            uploadStatuses[file.id] = .failure(detail)
             errorMessage = detail.combinedMessage
             showError = true
             showSuccessBanner = false
         }
     }
 
-    func renameImage(_ image: CapturedImage) {
-        let newName = "\(image.name)_\(Int(Date().timeIntervalSince1970))"
-        if let index = appData.images.firstIndex(where: { $0.id == image.id }) {
-            // Update existing CapturedImage without passing id
-            appData.images[index] = CapturedImage(name: newName, fileURL: image.fileURL)
-        }
-        if let updatedImage = appData.images.first(where: { $0.name == newName }) {
-            Task { await uploadImage(updatedImage) }
+    func renameFile(_ file: UploadableFile) {
+        let newName = "\(file.name)_\(Int(Date().timeIntervalSince1970))"
+
+        if appData.pendingUploadFiles != nil {
+            if let index = appData.pendingUploadFiles?.firstIndex(where: { $0.id == file.id }) {
+                appData.pendingUploadFiles?[index].name = newName
+            }
+            if let updatedFile = appData.pendingUploadFiles?.first(where: { $0.name == newName }) {
+                Task { await uploadFile(updatedFile) }
+            }
+        } else {
+            if let index = appData.images.firstIndex(where: { $0.id == file.id }) {
+                appData.images[index] = CapturedImage(name: newName, fileURL: file.fileURL)
+            }
+            if let updatedImage = appData.images.first(where: { $0.name == newName }) {
+                let updatedFile = UploadableFile(id: updatedImage.id, name: updatedImage.name, fileURL: updatedImage.fileURL, kind: .jpeg)
+                Task { await uploadFile(updatedFile) }
+            }
         }
     }
+
 }
 
 struct SuccessBanner: View {
