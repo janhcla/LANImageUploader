@@ -460,10 +460,15 @@ struct GalleryView: View {
         let appDataIDs = Set(appData.images.map { $0.id })
         var updatedItems = galleryItems.filter { item in
             if let img = item.capturedImage {
+    private func syncItemsFromAppData() {
+        let appDataIDs = Set(appData.images.map { $0.id })
+        var updatedItems = galleryItems.filter { item in
+            if let img = item.capturedImage {
                 return appDataIDs.contains(img.id)
             }
             return true
         }
+
         let existingImgIDs = Set(updatedItems.compactMap { $0.capturedImage?.id })
         for img in appData.images {
             if !existingImgIDs.contains(img.id) {
