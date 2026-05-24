@@ -16,6 +16,6 @@
 		<string>com.janhagenclausen.LANImageUploader.dailyImageSave</string>
 	</array>
 	<key>CFBundleIdentifier</key>
-	<string>$(com.janhagenclausen.LANImageUploader)</string>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 </dict>
 </plist>
