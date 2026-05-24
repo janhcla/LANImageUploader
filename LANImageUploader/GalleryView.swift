@@ -12,6 +12,11 @@ struct FullscreenImageData: Identifiable {
     let uiImage: UIImage
 }
 
+private struct RetakeReviewData: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
+
 private enum GalleryNamingIntent {
     case singleRename
     case batchRenameOnly
@@ -44,7 +49,7 @@ struct GalleryView: View {
     @State private var retakeTargetId: UUID? = nil
     @State private var isShowingRetakeCamera = false
     @State private var retakeImage: UIImage? = nil
-    @State private var isShowingRetakeReview = false
+    @State private var retakeReviewData: RetakeReviewData?
 
     // Grid presentation
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 16)]
@@ -144,35 +149,35 @@ struct GalleryView: View {
                 )
             }
             .fullScreenCover(isPresented: $isShowingRetakeCamera, onDismiss: {
-                if retakeImage != nil {
-                    isShowingRetakeReview = true
+                if let retakeImage {
+                    DispatchQueue.main.async {
+                        retakeReviewData = RetakeReviewData(image: retakeImage)
+                    }
                 } else {
                     retakeTargetId = nil
                 }
             }) {
                 CameraPickerWrapper(image: $retakeImage)
             }
-            .sheet(isPresented: $isShowingRetakeReview) {
-                if let newImage = retakeImage {
-                    RetakeReviewSheet(
-                        newImage: newImage,
-                        onUseNew: {
-                            Task { await completeRetake(with: newImage) }
-                        },
-                        onDiscard: {
-                            retakeImage = nil
-                            retakeTargetId = nil
-                            isShowingRetakeReview = false
-                        },
-                        onRetakeAgain: {
-                            retakeImage = nil
-                            isShowingRetakeReview = false
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                isShowingRetakeCamera = true
-                            }
+            .sheet(item: $retakeReviewData) { data in
+                RetakeReviewSheet(
+                    newImage: data.image,
+                    onUseNew: {
+                        Task { await completeRetake(with: data.image) }
+                    },
+                    onDiscard: {
+                        retakeImage = nil
+                        retakeTargetId = nil
+                        retakeReviewData = nil
+                    },
+                    onRetakeAgain: {
+                        retakeImage = nil
+                        retakeReviewData = nil
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            isShowingRetakeCamera = true
                         }
-                    )
-                }
+                    }
+                )
             }
             .navigationDestination(isPresented: $navigateToUpload) {
                 UploadView().environmentObject(appData)
@@ -262,8 +267,14 @@ struct GalleryView: View {
             syncItemsFromAppData()
             outputMode = appData.defaultGalleryOutputMode
         }
-        .onChange(of: appData.images.map(\.id)) { _, _ in
+        .onChange(of: gallerySyncTokens) { _, _ in
             syncItemsFromAppData()
+        }
+    }
+
+    private var gallerySyncTokens: [String] {
+        appData.images.map { image in
+            "\(image.id.uuidString)|\(image.name)|\(image.fileURL.path)"
         }
     }
 
@@ -281,12 +292,18 @@ struct GalleryView: View {
                 itemToDelete = item
                 showDeleteConfirmation = true
             },
+            onRename: {
+                guard let image = item.capturedImage else { return }
+                selectedImage = image
+                imageName = image.name
+                namingIntent = .singleRename
+                isShowingNamingSheet = true
+            },
             onRetake: {
                 retakeTargetId = item.id
                 isShowingRetakeCamera = true
             }
         )
-        .opacity(draggedItem?.id == item.id ? 0.55 : 1)
         .onDrag {
             guard !isMultiSelectMode else {
                 return NSItemProvider()
@@ -499,7 +516,7 @@ struct GalleryView: View {
             await MainActor.run {
                 retakeImage = nil
                 retakeTargetId = nil
-                isShowingRetakeReview = false
+                retakeReviewData = nil
             }
             return
         }
@@ -512,13 +529,13 @@ struct GalleryView: View {
                 appData.images.append(captured)
                 retakeImage = nil
                 retakeTargetId = nil
-                isShowingRetakeReview = false
+                retakeReviewData = nil
             }
         } catch {
             await MainActor.run {
                 retakeImage = nil
                 retakeTargetId = nil
-                isShowingRetakeReview = false
+                retakeReviewData = nil
             }
         }
     }
@@ -555,6 +572,7 @@ struct GalleryView: View {
     func batchRenameImages() {
         guard !imageName.isEmpty else { return }
         _ = renameSelectedImagesInGalleryOrder(baseName: imageName)
+        syncItemsFromAppData()
         appData.selectedImageIDs.removeAll()
         isMultiSelectMode = false
         imageName = ""
@@ -568,6 +586,7 @@ struct GalleryView: View {
             await applyRotationsBeforeUpload()
             await MainActor.run {
                 appData.pendingUploadFiles = renameSelectedImagesInGalleryOrder(baseName: imageName)
+                syncItemsFromAppData()
                 appData.selectedImageIDs.removeAll()
                 isMultiSelectMode = false
                 imageName = ""
@@ -602,6 +621,7 @@ struct GalleryView: View {
             let index = appData.images.firstIndex(where: { $0.id == image.id })
         else { return }
         appData.images[index].name = imageName.isEmpty ? "Image" : imageName
+        syncItemsFromAppData()
         selectedImage = nil
         imageName = ""
         isShowingNamingSheet = false
@@ -655,12 +675,13 @@ struct GalleryView: View {
     }
 
     private func syncItemsFromAppData() {
-        let appDataIDs = Set(appData.images.map { $0.id })
-        var updatedItems = galleryItems.filter { item in
+        let appDataImagesByID = Dictionary(uniqueKeysWithValues: appData.images.map { ($0.id, $0) })
+        var updatedItems = galleryItems.compactMap { item -> GalleryItem? in
             if let image = item.capturedImage {
-                return appDataIDs.contains(image.id)
+                guard let updatedImage = appDataImagesByID[image.id] else { return nil }
+                return GalleryItem(id: item.id, capturedImage: updatedImage, rotation: item.rotation)
             }
-            return true
+            return item
         }
 
         let existingImageIDs = Set(updatedItems.compactMap { $0.capturedImage?.id })

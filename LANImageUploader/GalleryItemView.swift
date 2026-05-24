@@ -16,6 +16,7 @@ struct GalleryItemView: View {
     let onUpload: () -> Void
     let onRotate: () -> Void
     let onDelete: () -> Void
+    let onRename: () -> Void
     let onRetake: () -> Void
 
     @State private var uiImage: UIImage? = nil
@@ -106,6 +107,12 @@ struct GalleryItemView: View {
                     onRotate()
                 } label: {
                     Label("Rotate", systemImage: "rotate.right")
+                }
+
+                Button {
+                    onRename()
+                } label: {
+                    Label("Rename Photo", systemImage: "pencil")
                 }
 
                 Button {
