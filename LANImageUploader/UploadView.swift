@@ -22,6 +22,10 @@ struct UploadView: View {
             UploadableFile(id: $0.id, name: $0.name, fileURL: $0.fileURL, kind: .jpeg)
         }
     }
+    var isPendingPDFUpload: Bool {
+        guard let pending = appData.pendingUploadFiles else { return false }
+        return pending.contains { $0.kind == .pdf }
+    }
     @State private var autoUploadTriggered = false
     @State private var showSettingsPrompt = false
     @State private var showSuccessBanner = false
@@ -61,7 +65,7 @@ struct UploadView: View {
                     }
                     .background(Color.clear)
                     .scrollContentBackground(.hidden)
-                    .navigationTitle(appData.pendingUploadFiles != nil ? "Upload PDF" : "Upload Images")
+                    .navigationTitle(isPendingPDFUpload ? "Upload PDF" : "Upload Images")
                     .safeAreaInset(edge: .top) {
                         trialStatusView
                     }
@@ -122,7 +126,7 @@ struct UploadView: View {
                         }
                     }
                     if showSuccessBanner {
-                        SuccessBanner(message: appData.pendingUploadFiles != nil ? "PDF uploaded successfully!" : "All images have been uploaded successfully!")
+                        SuccessBanner(message: isPendingPDFUpload ? "PDF uploaded successfully!" : "All images have been uploaded successfully!")
                             .transition(.move(edge: .top).combined(with: .opacity))
                             .animation(.easeInOut(duration: 0.5), value: showSuccessBanner)
                             .onAppear {
@@ -157,7 +161,7 @@ struct UploadView: View {
                 }
                 .safeAreaInset(edge: .bottom) {
                     if areAllUploadsSuccessful {
-                        Button("Clear queue & delete all images", role: .destructive) {
+                        Button(appData.pendingUploadFiles != nil ? "Clear upload queue" : "Clear queue & delete all images", role: .destructive) {
                             Task {
                                 await clearAndDeleteAllImages()
                             }
@@ -323,8 +327,8 @@ struct UploadView: View {
 
     func clearAndDeleteAllImages() async {
         if appData.pendingUploadFiles != nil {
-            // Only clear pending files, not original images
-            if let pending = appData.pendingUploadFiles {
+            // PDF uploads are temporary files; pending JPEG uploads point at gallery originals.
+            if isPendingPDFUpload, let pending = appData.pendingUploadFiles {
                 for file in pending {
                     try? await appData.fileService.removeItem(at: file.fileURL)
                 }

@@ -13,6 +13,7 @@ struct GalleryItemView: View {
     let isMultiSelectMode: Bool
 
     let onTap: () -> Void
+    let onUpload: () -> Void
     let onRotate: () -> Void
     let onDelete: () -> Void
     let onRetake: () -> Void
@@ -70,6 +71,9 @@ struct GalleryItemView: View {
             .onTapGesture {
                 onTap()
             }
+            .task(id: imageReloadID) {
+                await loadImage(from: item.capturedImage?.fileURL)
+            }
 
             // Index badge
             Text("\(index + 1)")
@@ -93,6 +97,12 @@ struct GalleryItemView: View {
         .contextMenu {
             if item.capturedImage != nil {
                 Button {
+                    onUpload()
+                } label: {
+                    Label("Upload", systemImage: "square.and.arrow.up")
+                }
+
+                Button {
                     onRotate()
                 } label: {
                     Label("Rotate", systemImage: "rotate.right")
@@ -113,7 +123,19 @@ struct GalleryItemView: View {
         }
     }
 
-    private func loadImage(from url: URL) async {
+    private var imageReloadID: String {
+        guard let image = item.capturedImage else { return item.id.uuidString }
+        return "\(image.id.uuidString)-\(image.fileURL.path)-\(item.rotation.rawValue)"
+    }
+
+    private func loadImage(from url: URL?) async {
+        guard let url else {
+            await MainActor.run {
+                self.uiImage = nil
+            }
+            return
+        }
+
         let image = await Task.detached(priority: .userInitiated) {
             UIImage(contentsOfFile: url.path)
         }.value

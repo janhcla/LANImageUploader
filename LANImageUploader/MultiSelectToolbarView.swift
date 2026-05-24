@@ -7,16 +7,20 @@ import SwiftUI
 
 struct MultiSelectToolbarView: View {
     @ObservedObject var appData: AppData
+    var onUpload: () -> Void
     var onDelete: () -> Void
     var onRename: () -> Void
+    var onRotate: () -> Void
     var onArchive: () -> Void
     
     var body: some View {
         GlassContainer(cornerRadius: 20) {
-            HStack(spacing: 30) {
+            HStack(spacing: 12) {
+                ActionButton(systemImage: "square.and.arrow.up", title: "Upload", color: .green, action: onUpload)
                 ActionButton(systemImage: "trash", title: "Delete", color: .red, action: onDelete)
                 ActionButton(systemImage: "pencil.and.outline", title: "Rename", color: .blue, action: onRename)
-                ActionButton(systemImage: "archivebox", title: "Archive", color: .green, action: onArchive)
+                ActionButton(systemImage: "rotate.right", title: "Rotate", color: .orange, action: onRotate)
+                ActionButton(systemImage: "archivebox", title: "Archive", color: .teal, action: onArchive)
             }
             .padding(.horizontal, 10)
         }
@@ -41,7 +45,7 @@ private struct ActionButton: View {
                     .fontWeight(.medium)
             }
             .foregroundStyle(color)
-            .frame(minWidth: 60)
+            .frame(minWidth: 48)
         }
         .buttonStyle(.plain) // Use plain to not conflict with the GlassContainer
     }
