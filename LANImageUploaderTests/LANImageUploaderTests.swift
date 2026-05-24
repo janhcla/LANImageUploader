@@ -10,6 +10,23 @@ import Foundation
 import UIKit
 @testable import LANImageUploader
 
+private final class ProgressRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recordedValues: [Double] = []
+
+    func append(_ value: Double) {
+        lock.withLock {
+            recordedValues.append(value)
+        }
+    }
+
+    var values: [Double] {
+        lock.withLock {
+            recordedValues
+        }
+    }
+}
+
 struct LANImageUploaderTests {
 
     @Test @MainActor func appDataInitialization() async throws {
@@ -278,7 +295,7 @@ struct LANImageUploaderTests {
 
     @Test @MainActor func mockUploadServiceRecordsUploadInputsAndProgress() async throws {
         let mockUpload = MockImageUploadService()
-        var progress: [Double] = []
+        let progress = ProgressRecorder()
         let image = CapturedImage(name: "IMG_001", fileURL: URL(fileURLWithPath: "/tmp/mock/images/IMG_001.jpg"))
         let settings = ServerSettings(
             serverIP: "192.168.1.10",
@@ -300,7 +317,7 @@ struct LANImageUploaderTests {
         #expect(mockUpload.overwriteValues == [true])
         #expect(mockUpload.passwords == ["secret"])
         #expect(mockUpload.settingsValues.first?.serverIP == "192.168.1.10")
-        #expect(progress == [0.5, 1.0])
+        #expect(progress.values == [0.5, 1.0])
     }
 
     @Test @MainActor func premiumTrialStartsWithFifteenUploads() async throws {
