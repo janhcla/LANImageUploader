@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct CameraView: View {
-    @State private var isShowingCamera = false
+    let initialMode: CameraCaptureMode
     @State private var showError = false
     @State private var errorMessage = ""
     @EnvironmentObject var appData: AppData
@@ -16,84 +16,44 @@ struct CameraView: View {
     @State private var navigateToGallery = false
 
     var body: some View {
-        BackgroundContainerView {
+        ScannerCaptureView(
+            initialMode: initialMode,
+            keptPhotoCount: appData.images.filter { !$0.isDocumentScan }.count,
+            scannedPageCount: appData.images.filter(\.isDocumentScan).count,
+            onScanCapture: { image, crop in
+                Task {
+                    await saveImage(image: image, crop: crop)
+                }
+            },
+            onKeepPhoto: { image in
+                Task {
+                    await saveImage(image: image)
+                }
+            },
+            onCountdownTick: {
+                appData.hapticService.playImpact(style: .medium)
+            },
+            onOpenGallery: {
+                navigateToGallery = true
+            },
+            onCancel: { dismiss() }
+        )
+        .alert("Error", isPresented: $showError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage)
+        }
+        .fullScreenCover(isPresented: $navigateToGallery) {
             NavigationStack {
-                VStack {
-                    Spacer()
-                    
-                    GlassContainer(cornerRadius: 24) {
-                        VStack(spacing: 20) {
-                            Image(systemName: "camera.shutter.button.fill")
-                                .font(.system(size: 60))
-                                .foregroundStyle(.blue)
-                                .symbolEffect(.bounce, value: isShowingCamera)
-                            
-                            Text("Ready to Capture")
-                                .font(.headline)
-                                .foregroundStyle(.secondary)
-                            
-                            Button(action: { 
-                                appData.hapticService.playLiquidBounce()
-                                isShowingCamera = true 
-                            }) {
-                                Label("Take Photo", systemImage: "camera.fill")
-                                    .frame(maxWidth: .infinity)
+                GalleryView()
+                    .environmentObject(appData)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Close") {
+                                navigateToGallery = false
                             }
-                            .buttonStyle(BlueButtonStyle())
                         }
                     }
-                    .padding(30)
-                    
-                    Spacer()
-                }
-                .navigationTitle("Capture")
-                .fullScreenCover(
-                    isPresented: $isShowingCamera
-                ) {
-                    ScannerCaptureView(
-                        capturedPageCount: appData.images.count,
-                        onScanCapture: { image, crop in
-                            Task {
-                                await saveImage(image: image, crop: crop)
-                            }
-                        },
-                        onKeepPhoto: { image in
-                            Task {
-                                await saveImage(image: image)
-                            }
-                        },
-                        onCountdownTick: {
-                            appData.hapticService.playImpact(style: .medium)
-                        },
-                        onOpenGallery: {
-                            isShowingCamera = false
-                            navigateToGallery = true
-                        },
-                        onCancel: { isShowingCamera = false }
-                    )
-                }
-                .alert("Error", isPresented: $showError) {
-                    Button("OK", role: .cancel) {}
-                } message: {
-                    Text(errorMessage)
-                }
-                .navigationDestination(isPresented: $navigateToGallery) {
-                    GalleryView().environmentObject(appData)
-                }
-                .safeAreaInset(edge: .bottom) {
-                    if !appData.images.isEmpty {
-                        Button(action: { 
-                            appData.hapticService.playSelection()
-                            navigateToGallery = true 
-                        }) {
-                            Label("View Gallery", systemImage: "photo.on.rectangle")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(LiquidButtonStyle(backgroundColor: .green))
-                        .padding()
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
-                }
             }
         }
     }
@@ -114,6 +74,6 @@ struct CameraView: View {
 }
 
 #Preview {
-    CameraView()
+    CameraView(initialMode: .photo)
         .environmentObject(AppData.preview)
 }

@@ -25,14 +25,22 @@
 ### Task 2: Implement Photo Review and Scan UX
 
 **Files:**
+- Modify: `LANImageUploader/HomeView.swift`
 - Modify: `LANImageUploader/CameraPicker.swift`
 - Modify: `LANImageUploader/CameraView.swift`
 
 **Steps:**
-1. Add an accessible mode selector to the full-screen camera.
-2. Present manual Photo capture with `Retake`, `Discard`, and `Keep Photo`.
-3. Keep scan page counter, Gallery access, auto-capture toggle, and document overlay only in Scan mode.
-4. Surface countdown guidance and haptics while Scan auto-capture is qualified.
+1. Launch `CameraView(initialMode: .photo)` directly from `Capture Image` and
+   add `Scan Documents` launching `CameraView(initialMode: .scan)` directly.
+2. Remove the intermediate Ready to Capture screen from `CameraView`.
+3. Add an accessible, localizable mode selector to the full-screen camera.
+4. Present manual Photo capture with `Retake`, `Discard`, and `Keep Photo`;
+   discard and retake both return to the live Photo preview.
+5. Expose a mode-specific Gallery badge in both Photo and Scan modes while
+   keeping auto-capture and document overlay Scan-only.
+6. Synchronize `DocumentCameraViewController.mode` access between SwiftUI and
+   its detection queue.
+7. Surface countdown guidance and haptics while Scan auto-capture is qualified.
 
 ### Task 3: Update Release Metadata
 

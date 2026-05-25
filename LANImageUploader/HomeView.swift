@@ -25,6 +25,7 @@ extension View {
 struct HomeView: View {
     @EnvironmentObject var appData: AppData
     @State private var hasAppeared = false
+    @State private var activeCameraMode: CameraCaptureMode?
     @Environment(\.colorScheme) private var colorScheme
     
     var areSettingsComplete: Bool {
@@ -52,7 +53,9 @@ struct HomeView: View {
                         Spacer()
                         
                         VStack(spacing: 20) {
-                            NavigationLink(destination: CameraView()) {
+                            Button {
+                                activeCameraMode = .photo
+                            } label: {
                                 Label("Capture Image", systemImage: "camera")
                                     .frame(maxWidth: .infinity)
                                     .padding()
@@ -60,7 +63,18 @@ struct HomeView: View {
                                     .foregroundColor(.white)
                                     .clipShape(RoundedRectangle(cornerRadius: 8))
                             }
-                            
+
+                            Button {
+                                activeCameraMode = .scan
+                            } label: {
+                                Label("Scan Documents", systemImage: "doc.viewfinder")
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color.indigo)
+                                    .foregroundColor(.white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+
                             NavigationLink(destination: GalleryView()) {
                                 Label("View Gallery", systemImage: "photo.on.rectangle")
                                     .frame(maxWidth: .infinity)
@@ -107,6 +121,10 @@ struct HomeView: View {
                 .navigationTitle("ImageDropX")
                 .toolbarColorScheme(colorScheme, for: .navigationBar)
                 .toolbarBackground(.hidden, for: .navigationBar)
+                .fullScreenCover(item: $activeCameraMode) { mode in
+                    CameraView(initialMode: mode)
+                        .environmentObject(appData)
+                }
         }
         .onAppear {
             if !hasAppeared {

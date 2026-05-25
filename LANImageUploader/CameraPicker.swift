@@ -66,6 +66,7 @@ enum CameraCaptureMode: String, CaseIterable, Identifiable {
     case scan = "Scan"
 
     var id: String { rawValue }
+    var localizedTitleKey: LocalizedStringKey { LocalizedStringKey(rawValue) }
 }
 
 struct DocumentCaptureQuality {
@@ -93,7 +94,8 @@ struct DocumentCaptureQuality {
 }
 
 struct ScannerCaptureView: View {
-    let capturedPageCount: Int
+    let keptPhotoCount: Int
+    let scannedPageCount: Int
     let onScanCapture: (UIImage, DocumentCrop) -> Void
     let onKeepPhoto: (UIImage) -> Void
     let onCountdownTick: () -> Void
@@ -101,12 +103,32 @@ struct ScannerCaptureView: View {
     let onCancel: () -> Void
 
     @AppStorage(Constants.UserDefaults.scannerAutoCaptureEnabled) private var autoCapture = true
-    @State private var mode: CameraCaptureMode = .scan
+    @State private var mode: CameraCaptureMode
     @State private var captureRequest = UUID()
     @State private var guidance = "Point the camera at a document"
     @State private var documentFound = false
     @State private var countdown: Int?
     @State private var photoReviewImage: UIImage?
+
+    init(
+        initialMode: CameraCaptureMode,
+        keptPhotoCount: Int,
+        scannedPageCount: Int,
+        onScanCapture: @escaping (UIImage, DocumentCrop) -> Void,
+        onKeepPhoto: @escaping (UIImage) -> Void,
+        onCountdownTick: @escaping () -> Void,
+        onOpenGallery: @escaping () -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        self.keptPhotoCount = keptPhotoCount
+        self.scannedPageCount = scannedPageCount
+        self.onScanCapture = onScanCapture
+        self.onKeepPhoto = onKeepPhoto
+        self.onCountdownTick = onCountdownTick
+        self.onOpenGallery = onOpenGallery
+        self.onCancel = onCancel
+        _mode = State(initialValue: initialMode)
+    }
 
     var body: some View {
         ZStack {
@@ -167,25 +189,23 @@ struct ScannerCaptureView: View {
 
             Spacer()
 
-            if mode == .scan {
-                Button(action: onOpenGallery) {
-                    ZStack(alignment: .topTrailing) {
-                        Image(systemName: "photo.stack")
-                            .font(.title3.weight(.semibold))
-                            .frame(width: 52, height: 44)
-                            .background(.black.opacity(0.55), in: Capsule())
-                        if capturedPageCount > 0 {
-                            Text("\(capturedPageCount)")
-                                .font(.caption2.weight(.bold))
-                                .foregroundStyle(.white)
-                                .padding(5)
-                                .background(.blue, in: Circle())
-                                .offset(x: 4, y: -5)
-                        }
+            Button(action: onOpenGallery) {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "photo.stack")
+                        .font(.title3.weight(.semibold))
+                        .frame(width: 52, height: 44)
+                        .background(.black.opacity(0.55), in: Capsule())
+                    if retainedItemCount > 0 {
+                        Text("\(retainedItemCount)")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.white)
+                            .padding(5)
+                            .background(.blue, in: Circle())
+                            .offset(x: 4, y: -5)
                     }
                 }
-                .accessibilityLabel("Open gallery, \(capturedPageCount) scanned pages")
             }
+            .accessibilityLabel(galleryAccessibilityLabel)
         }
         .foregroundStyle(.white)
     }
@@ -215,7 +235,7 @@ struct ScannerCaptureView: View {
         VStack(spacing: 18) {
             Picker("Capture mode", selection: $mode) {
                 ForEach(CameraCaptureMode.allCases) { mode in
-                    Text(mode.rawValue).tag(mode)
+                    Text(mode.localizedTitleKey).tag(mode)
                 }
             }
             .pickerStyle(.segmented)
@@ -256,7 +276,7 @@ struct ScannerCaptureView: View {
         VStack(spacing: 0) {
             HStack {
                 Button {
-                    onCancel()
+                    photoReviewImage = nil
                 } label: {
                     Label("Discard", systemImage: "xmark")
                         .labelStyle(.iconOnly)
@@ -293,6 +313,17 @@ struct ScannerCaptureView: View {
         }
         .padding(20)
         .background(.black)
+    }
+
+    private var retainedItemCount: Int {
+        mode == .photo ? keptPhotoCount : scannedPageCount
+    }
+
+    private var galleryAccessibilityLabel: String {
+        if mode == .photo {
+            return "Open gallery, \(keptPhotoCount) kept photos"
+        }
+        return "Open gallery, \(scannedPageCount) scanned pages"
     }
 }
 
@@ -339,12 +370,23 @@ struct DocumentCameraPreview: UIViewControllerRepresentable {
 }
 
 final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVCaptureVideoDataOutputSampleBufferDelegate {
-    var mode: CameraCaptureMode = .scan {
-        didSet {
-            guard mode != oldValue else { return }
+    private let modeLock = NSLock()
+    private var storedMode: CameraCaptureMode = .scan
+    var mode: CameraCaptureMode {
+        get {
+            modeLock.lock()
+            defer { modeLock.unlock() }
+            return storedMode
+        }
+        set {
+            modeLock.lock()
+            let changed = storedMode != newValue
+            storedMode = newValue
+            modeLock.unlock()
+            guard changed else { return }
             resetAutoCaptureState()
             boundaryLayer.path = nil
-            onDetectionChanged?(mode == .scan ? "Point the camera at a document" : "", false)
+            onDetectionChanged?(newValue == .scan ? "Point the camera at a document" : "", false)
         }
     }
     var onScanCapture: ((UIImage, DocumentCrop) -> Void)?
