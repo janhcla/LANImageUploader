@@ -327,8 +327,8 @@ struct UploadView: View {
 
     func clearAndDeleteAllImages() async {
         if appData.pendingUploadFiles != nil {
-            // PDF uploads are temporary files; pending JPEG uploads point at gallery originals.
-            if isPendingPDFUpload, let pending = appData.pendingUploadFiles {
+            // Prepared uploads are temporary derivatives; original scans remain in Gallery.
+            if let pending = appData.pendingUploadFiles {
                 for file in pending {
                     try? await appData.fileService.removeItem(at: file.fileURL)
                 }
@@ -468,7 +468,7 @@ struct UploadView: View {
             }
         } else {
             if let index = appData.images.firstIndex(where: { $0.id == file.id }) {
-                appData.images[index] = CapturedImage(name: newName, fileURL: file.fileURL)
+                appData.images[index].name = newName
             }
             if let updatedImage = appData.images.first(where: { $0.name == newName }) {
                 let updatedFile = UploadableFile(id: updatedImage.id, name: updatedImage.name, fileURL: updatedImage.fileURL, kind: .jpeg)

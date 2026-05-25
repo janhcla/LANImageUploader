@@ -12,11 +12,14 @@ This note records the app features, the expected behavior, and the tests that co
 
 ## Capture
 
-- Capture starts from `CameraView` and presents the camera.
+- Capture starts a multi-page document scanner from `CameraView`.
+- Vision detects a document quadrilateral and displays a white/yellow boundary plus straightness guidance.
+- Auto-capture can be enabled or disabled; manual shutter remains available.
+- Each accepted page is saved immediately and the live badge opens Gallery with the current page count.
 - A successful capture is saved under `Documents/images` as `IMG_yyyyMMdd_HHmmss.jpg`.
-- The saved file is appended to the in-memory gallery with the `.jpg` suffix removed from the display name.
+- The original JPEG and editable crop quadrilateral are retained non-destructively in the persistent gallery queue.
 - A save failure shows an error and does not append a gallery item.
-- Covered by `cameraSaveImageAppendsGalleryItem` and `cameraSaveImageFailureDoesNotAppendGalleryItem`.
+- Covered by `cameraSaveImageAppendsGalleryItem`, `cameraSaveImageFailureDoesNotAppendGalleryItem`, and crop metadata tests.
 
 ## Gallery
 
@@ -29,6 +32,9 @@ This note records the app features, the expected behavior, and the tests that co
 - Batch rename applies the user prefix plus a two-digit sequence in gallery order.
 - Archive All saves gallery images into today's archive without removing them from the queue.
 - Batch Upload renames selected images and navigates to Upload.
+- Scanned pages render with perspective correction from stored crop metadata without rewriting the source JPEG.
+- Long press offers Edit Crop; four corners and four edge handles can be moved with a live magnifier.
+- The queue and crop metadata persist across backgrounding, locking, and app relaunch until explicit deletion.
 - Covered by AppData delete/archive tests and direct gallery behavior tests.
 
 ## Naming And OCR
@@ -53,6 +59,7 @@ This note records the app features, the expected behavior, and the tests that co
 - Retry Failed only retries failed images.
 - Abort marks active uploads as failed.
 - When all uploads succeed, the queue can be cleared and local files are deleted.
+- Image/PDF upload derivatives receive the final perspective crop and rotation only during export; original scans remain unchanged.
 - Covered by premium access tests, mock upload service behavior tests, and upload failure-detail tests.
 
 ## Premium

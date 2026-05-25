@@ -31,6 +31,8 @@ enum Constants {
         static let pdfJPEGQuality = "pdfJPEGQuality"
         static let imageMaxPixelDimension = "imageMaxPixelDimension"
         static let stripImageMetadata = "stripImageMetadata"
+        static let capturedImageQueue = "capturedImageQueue"
+        static let scannerAutoCaptureEnabled = "scannerAutoCaptureEnabled"
     }
     
     enum Notifications {

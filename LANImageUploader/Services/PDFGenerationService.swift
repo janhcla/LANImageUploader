@@ -46,19 +46,16 @@ final class PDFGenerationService: PDFGenerationServiceProtocol {
         try renderer.writePDF(to: fileURL) { context in
             for (index, item) in validItems.enumerated() {
                 autoreleasepool {
-                    let imagePath = item.0.fileURL.path
-                    guard let rawImage = UIImage(contentsOfFile: imagePath) else { return }
-
-                    // First, fix the EXIF orientation
-                    let normalizedImage = rawImage.normalizedForUpload(maxPixelDimension: settings.maxPixelDimension, jpegQuality: settings.jpegQuality)
-
-                    // Apply user's rotation
-                    let rotatedImage = normalizedImage.rotatedClockwise(by: item.1)
+                    guard let correctedImage = DocumentImageProcessor.renderedImage(
+                        for: item.0,
+                        rotation: item.1,
+                        maxPixelDimension: settings.maxPixelDimension
+                    ) else { return }
 
                     context.beginPage()
                     let pageRect = settings.pageSize.pageRect
 
-                    let imageAspectRatio = rotatedImage.size.width / rotatedImage.size.height
+                    let imageAspectRatio = correctedImage.size.width / correctedImage.size.height
                     let pageContentRect = pageRect.insetBy(dx: settings.margin, dy: settings.margin)
                     let pageAspectRatio = pageContentRect.width / pageContentRect.height
 
@@ -87,7 +84,7 @@ final class PDFGenerationService: PDFGenerationServiceProtocol {
                         drawRect = pageContentRect
                     }
 
-                    rotatedImage.draw(in: drawRect)
+                    correctedImage.draw(in: drawRect)
 
                     if settings.includePageNumbers {
                         let pageNumberText = "\(index + 1) / \(validItems.count)"

@@ -108,6 +108,51 @@ struct LANImageUploaderTests {
         #expect(appData.images.isEmpty)
     }
 
+    @Test @MainActor func persistentGalleryRestoresScannedPagesAndCropMetadata() throws {
+        UserDefaults.standard.removeObject(forKey: Constants.UserDefaults.capturedImageQueue)
+        let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).jpg")
+        try Data([0x01]).write(to: sourceURL)
+        defer {
+            UserDefaults.standard.removeObject(forKey: Constants.UserDefaults.capturedImageQueue)
+            try? FileManager.default.removeItem(at: sourceURL)
+        }
+        let crop = DocumentCrop(
+            topLeft: CGPoint(x: 0.1, y: 0.1),
+            topRight: CGPoint(x: 0.9, y: 0.1),
+            bottomRight: CGPoint(x: 0.9, y: 0.9),
+            bottomLeft: CGPoint(x: 0.1, y: 0.9)
+        )
+        let original = CapturedImage(
+            name: "persisted",
+            fileURL: sourceURL,
+            crop: crop,
+            isDocumentScan: true,
+            rotation: .degrees270
+        )
+
+        let first = AppData(
+            fileService: MockFileService(),
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService(),
+            persistsImageQueue: true
+        )
+        first.images = [original]
+
+        let restored = AppData(
+            fileService: MockFileService(),
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService(),
+            persistsImageQueue: true
+        )
+
+        #expect(restored.images.count == 1)
+        #expect(restored.images.first?.id == original.id)
+        #expect(restored.images.first?.crop == crop)
+        #expect(restored.images.first?.rotation == .degrees270)
+    }
+
     @Test @MainActor func appDataArchiveImages() async throws {
         let mockFile = MockFileService()
         mockFile.archiveImagesResult = (saved: 5, existing: 2)

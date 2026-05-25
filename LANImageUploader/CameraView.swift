@@ -9,7 +9,6 @@ import SwiftUI
 
 struct CameraView: View {
     @State private var isShowingCamera = false
-    @State private var capturedImage: UIImage?
     @State private var showError = false
     @State private var errorMessage = ""
     @EnvironmentObject var appData: AppData
@@ -49,28 +48,26 @@ struct CameraView: View {
                 }
                 .navigationTitle("Capture")
                 .fullScreenCover(
-                    isPresented: $isShowingCamera,
-                    onDismiss: {
-                        if capturedImage != nil {
-                            capturedImage = nil
-                        }
-                    }
+                    isPresented: $isShowingCamera
                 ) {
-                    CameraPickerWrapper(image: $capturedImage)
+                    ScannerCaptureView(
+                        capturedPageCount: appData.images.count,
+                        onCapture: { image, crop in
+                            Task {
+                                await saveImage(image: image, crop: crop)
+                            }
+                        },
+                        onOpenGallery: {
+                            isShowingCamera = false
+                            navigateToGallery = true
+                        },
+                        onCancel: { isShowingCamera = false }
+                    )
                 }
                 .alert("Error", isPresented: $showError) {
                     Button("OK", role: .cancel) {}
                 } message: {
                     Text(errorMessage)
-                }
-                .onChange(of: capturedImage) {
-                    if let image = capturedImage {
-                        Task {
-                            await saveImage(image: image)
-                        }
-                        capturedImage = nil
-                        appData.hapticService.playNotification(type: .success)
-                    }
                 }
                 .navigationDestination(isPresented: $navigateToGallery) {
                     GalleryView().environmentObject(appData)
@@ -93,9 +90,12 @@ struct CameraView: View {
         }
     }
 
-    func saveImage(image: UIImage) async {
+    func saveImage(image: UIImage, crop: DocumentCrop? = nil) async {
         do {
-            try await appData.saveCapturedImage(image)
+            try await appData.saveCapturedImage(image, crop: crop)
+            await MainActor.run {
+                appData.hapticService.playNotification(type: .success)
+            }
         } catch {
             await MainActor.run {
                 showError = true

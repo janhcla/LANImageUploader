@@ -15,6 +15,7 @@ struct GalleryItemView: View {
     let onTap: () -> Void
     let onUpload: () -> Void
     let onRotate: () -> Void
+    let onEditCrop: () -> Void
     let onDelete: () -> Void
     let onRename: () -> Void
     let onRetake: () -> Void
@@ -30,7 +31,6 @@ struct GalleryItemView: View {
                             .resizable()
                             .scaledToFill()
                             .frame(height: 150)
-                            .rotationEffect(.degrees(Double(item.rotation.rawValue)))
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
@@ -51,9 +51,6 @@ struct GalleryItemView: View {
                             .fill(Color.gray.opacity(0.1))
                             .frame(height: 150)
                             .overlay(ProgressView())
-                            .task(id: image.fileURL) {
-                                await loadImage(from: image.fileURL)
-                            }
                     }
 
                 } else {
@@ -73,7 +70,7 @@ struct GalleryItemView: View {
                 onTap()
             }
             .task(id: imageReloadID) {
-                await loadImage(from: item.capturedImage?.fileURL)
+                await loadImage()
             }
 
             // Index badge
@@ -110,6 +107,12 @@ struct GalleryItemView: View {
                 }
 
                 Button {
+                    onEditCrop()
+                } label: {
+                    Label("Edit Crop", systemImage: "crop.rotate")
+                }
+
+                Button {
                     onRename()
                 } label: {
                     Label("Rename Photo", systemImage: "pencil")
@@ -132,19 +135,19 @@ struct GalleryItemView: View {
 
     private var imageReloadID: String {
         guard let image = item.capturedImage else { return item.id.uuidString }
-        return "\(image.id.uuidString)-\(image.fileURL.path)-\(item.rotation.rawValue)"
+        return "\(image.id.uuidString)-\(image.fileURL.path)-\(String(describing: image.crop))-\(item.rotation.rawValue)"
     }
 
-    private func loadImage(from url: URL?) async {
-        guard let url else {
+    private func loadImage() async {
+        guard let capturedImage = item.capturedImage else {
             await MainActor.run {
                 self.uiImage = nil
             }
             return
         }
 
-        let image = await Task.detached(priority: .userInitiated) {
-            UIImage(contentsOfFile: url.path)
+        let image: UIImage? = await Task.detached(priority: .userInitiated) { () -> UIImage? in
+            DocumentImageProcessor.renderedImage(for: capturedImage, rotation: item.rotation)
         }.value
 
         await MainActor.run {
