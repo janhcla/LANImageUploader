@@ -315,11 +315,16 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         didFinishProcessingPhoto photo: AVCapturePhoto,
         error: Error?
     ) {
-        defer { captureInProgress = false }
-        guard error == nil, let data = photo.fileDataRepresentation(), let image = UIImage(data: data) else {
-            return
+        let image = error == nil
+            ? photo.fileDataRepresentation().flatMap(UIImage.init(data:))
+            : nil
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.captureInProgress = false
+            if let image {
+                self.onCapture?(image, self.pendingCaptureCrop)
+            }
         }
-        onCapture?(image, pendingCaptureCrop)
     }
 
     func captureOutput(
@@ -332,7 +337,17 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         let request = VNDetectRectanglesRequest { [weak self] request, _ in
             guard let self else { return }
             let observation = (request.results as? [VNRectangleObservation])?.first
-            self.handleRectangle(observation)
+            let crop = observation.map {
+                DocumentCrop(
+                    topLeft: CGPoint(x: $0.topLeft.x, y: 1 - $0.topLeft.y),
+                    topRight: CGPoint(x: $0.topRight.x, y: 1 - $0.topRight.y),
+                    bottomRight: CGPoint(x: $0.bottomRight.x, y: 1 - $0.bottomRight.y),
+                    bottomLeft: CGPoint(x: $0.bottomLeft.x, y: 1 - $0.bottomLeft.y)
+                ).clamped()
+            }
+            DispatchQueue.main.async { [weak self] in
+                self?.handleDetectedCrop(crop)
+            }
         }
         request.maximumObservations = 1
         request.minimumConfidence = 0.6
@@ -341,24 +356,16 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         try? VNImageRequestHandler(cmSampleBuffer: sampleBuffer, orientation: .up).perform([request])
     }
 
-    private func handleRectangle(_ observation: VNRectangleObservation?) {
-        guard let observation else {
-            DispatchQueue.main.async { [weak self] in
-                self?.latestCrop = nil
-                self?.boundaryLayer.path = nil
-                self?.onDetectionChanged?("Point the camera at a document", false)
-            }
+    private func handleDetectedCrop(_ detectedCrop: DocumentCrop?) {
+        guard let crop = detectedCrop else {
+            latestCrop = nil
+            boundaryLayer.path = nil
+            onDetectionChanged?("Point the camera at a document", false)
             stableSince = nil
             previousCrop = nil
             waitingForNextAutoPage = false
             return
         }
-        let crop = DocumentCrop(
-            topLeft: CGPoint(x: observation.topLeft.x, y: 1 - observation.topLeft.y),
-            topRight: CGPoint(x: observation.topRight.x, y: 1 - observation.topRight.y),
-            bottomRight: CGPoint(x: observation.bottomRight.x, y: 1 - observation.bottomRight.y),
-            bottomLeft: CGPoint(x: observation.bottomLeft.x, y: 1 - observation.bottomLeft.y)
-        ).clamped()
         let aligned = documentAppearsStraight(crop)
         updateStability(with: crop)
         if waitingForNextAutoPage,
@@ -366,27 +373,24 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
            averageMovement(from: capturedCrop, to: crop) > 0.08 {
             waitingForNextAutoPage = false
         }
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.latestCrop = crop
-            self.drawBoundary(crop, aligned: aligned)
-            let message: String
-            if self.waitingForNextAutoPage {
-                message = "Page saved - position the next page"
-            } else {
-                message = aligned ? "Ready to scan" : "Hold straight"
-            }
-            self.onDetectionChanged?(message, true)
-            if self.autoCaptureEnabled,
-               !self.waitingForNextAutoPage,
-               aligned,
-               let stableSince = self.stableSince,
-               Date().timeIntervalSince(stableSince) > 0.8,
-               Date().timeIntervalSince(self.lastAutoCaptureAt) > 1.8 {
-                self.lastAutoCaptureAt = Date()
-                self.stableSince = nil
-                self.capturePage(autoTriggered: true)
-            }
+        latestCrop = crop
+        drawBoundary(crop, aligned: aligned)
+        let message: String
+        if waitingForNextAutoPage {
+            message = "Page saved - position the next page"
+        } else {
+            message = aligned ? "Ready to scan" : "Hold straight"
+        }
+        onDetectionChanged?(message, true)
+        if autoCaptureEnabled,
+           !waitingForNextAutoPage,
+           aligned,
+           let stableSince,
+           Date().timeIntervalSince(stableSince) > 0.8,
+           Date().timeIntervalSince(lastAutoCaptureAt) > 1.8 {
+            lastAutoCaptureAt = Date()
+            self.stableSince = nil
+            capturePage(autoTriggered: true)
         }
     }
 
