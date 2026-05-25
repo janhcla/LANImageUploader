@@ -44,12 +44,37 @@ enum DiscoveryState: Equatable {
 }
 
 struct CapturedImage: Identifiable, Codable {
-    let id = UUID()
+    let id: UUID
     var name: String
     var fileURL: URL
+    var crop: DocumentCrop?
+    var isDocumentScan: Bool
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        fileURL: URL,
+        crop: DocumentCrop? = nil,
+        isDocumentScan: Bool = false
+    ) {
+        self.id = id
+        self.name = name
+        self.fileURL = fileURL
+        self.crop = crop
+        self.isDocumentScan = isDocumentScan
+    }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, fileURL
+        case id, name, fileURL, crop, isDocumentScan
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try container.decode(String.self, forKey: .name)
+        fileURL = try container.decode(URL.self, forKey: .fileURL)
+        crop = try container.decodeIfPresent(DocumentCrop.self, forKey: .crop)
+        isDocumentScan = try container.decodeIfPresent(Bool.self, forKey: .isDocumentScan) ?? false
     }
 }
 
@@ -84,7 +109,9 @@ struct UploadFailureDetail: Equatable {
 }
 
 class AppData: ObservableObject {
-    @Published var images: [CapturedImage] = []
+    @Published var images: [CapturedImage] = [] {
+        didSet { saveImageQueue() }
+    }
     @Published var settings: ServerSettings {
         didSet { saveSettingsToUserDefaults() }
     }
@@ -106,6 +133,8 @@ class AppData: ObservableObject {
 
     private let passwordKey = Constants.Keychain.serverPassword
     private let settingsKey = Constants.UserDefaults.serverSettings
+    private let imageQueueKey = Constants.UserDefaults.capturedImageQueue
+    private let persistsImageQueue: Bool
 
     internal let fileService: FileServiceProtocol
     internal let uploadService: ImageUploadServiceProtocol
@@ -119,24 +148,33 @@ class AppData: ObservableObject {
         uploadService: ImageUploadServiceProtocol,
         discoveryService: NetworkDiscoveryProtocol,
         hapticService: HapticFeedbackServiceProtocol,
-        premiumAccess: PremiumAccessController = PremiumAccessController(store: KeychainPremiumAccessStore())
+        premiumAccess: PremiumAccessController = PremiumAccessController(store: KeychainPremiumAccessStore()),
+        persistsImageQueue: Bool = NSClassFromString("XCTestCase") == nil
     ) {
         self.fileService = fileService
         self.uploadService = uploadService
         self.discoveryService = discoveryService
         self.hapticService = hapticService
         self.premiumAccess = premiumAccess
+        self.persistsImageQueue = persistsImageQueue
 
         self.settings = ServerSettings(serverIP: "", shareName: "", targetDirectory: nil, username: "", port: nil)
         if let savedSettings = loadSettingsFromUserDefaults() {
             self.settings = savedSettings
         }
+        self.images = loadImageQueue()
 
         self.premiumAccess.objectWillChange
             .sink { [weak self] _ in
                 self?.objectWillChange.send()
             }
             .store(in: &cancellables)
+
+        if persistsImageQueue && images.isEmpty {
+            Task { @MainActor [weak self] in
+                await self?.restoreLegacyImageQueueIfNeeded()
+            }
+        }
     }
 
     func clearNamingData() {
@@ -145,7 +183,11 @@ class AppData: ObservableObject {
     }
 
     @discardableResult
-    func saveCapturedImage(_ image: UIImage, capturedAt date: Date = Date()) async throws -> CapturedImage {
+    func saveCapturedImage(
+        _ image: UIImage,
+        crop: DocumentCrop? = nil,
+        capturedAt date: Date = Date()
+    ) async throws -> CapturedImage {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd_HHmmss"
         let timestamp = formatter.string(from: date)
@@ -156,7 +198,12 @@ class AppData: ObservableObject {
         }
 
         let fileURL = try await fileService.saveImage(data, fileName: fileName)
-        let captured = CapturedImage(name: fileName.removingSuffix(".jpg"), fileURL: fileURL)
+        let captured = CapturedImage(
+            name: fileName.removingSuffix(".jpg"),
+            fileURL: fileURL,
+            crop: crop,
+            isDocumentScan: crop != nil
+        )
 
         await MainActor.run {
             images.append(captured)
@@ -177,6 +224,12 @@ class AppData: ObservableObject {
             selectedImageIDs.removeAll()
             hapticService.playNotification(type: .success)
         }
+    }
+
+    func updateCrop(for id: UUID, crop: DocumentCrop) {
+        guard let index = images.firstIndex(where: { $0.id == id }) else { return }
+        images[index].crop = crop.clamped()
+        images[index].isDocumentScan = true
     }
 
     // Save images to a dated folder
@@ -275,9 +328,46 @@ class AppData: ObservableObject {
         }
         return nil
     }
+
+    private func saveImageQueue() {
+        guard persistsImageQueue else { return }
+        guard let data = try? JSONEncoder().encode(images) else { return }
+        UserDefaults.standard.set(data, forKey: imageQueueKey)
+    }
+
+    private func loadImageQueue() -> [CapturedImage] {
+        guard persistsImageQueue else { return [] }
+        guard let data = UserDefaults.standard.data(forKey: imageQueueKey),
+              let savedImages = try? JSONDecoder().decode([CapturedImage].self, from: data)
+        else {
+            return []
+        }
+        return savedImages.filter { FileManager.default.fileExists(atPath: $0.fileURL.path) }
+    }
+
+    @MainActor
+    private func restoreLegacyImageQueueIfNeeded() async {
+        guard images.isEmpty else { return }
+        let documentsDirectory = await fileService.documentsDirectory
+        let imagesDirectory = documentsDirectory.appendingPathComponent("images")
+        guard let urls = try? await fileService.contentsOfDirectory(at: imagesDirectory) else { return }
+        let restored = urls
+            .filter { ["jpg", "jpeg", "png"].contains($0.pathExtension.lowercased()) }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+            .map {
+                CapturedImage(
+                    name: $0.deletingPathExtension().lastPathComponent,
+                    fileURL: $0
+                )
+            }
+        if !restored.isEmpty {
+            images = restored
+        }
+    }
 }
 
 extension AppData {
+    @MainActor
     static var preview: AppData {
         AppData(
             fileService: FileService.shared,

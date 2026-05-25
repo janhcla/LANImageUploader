@@ -61,7 +61,7 @@ struct UploadView: View {
                     }
                     .background(Color.clear)
                     .scrollContentBackground(.hidden)
-                    .navigationTitle(appData.pendingUploadFiles != nil ? "Upload PDF" : "Upload Images")
+                    .navigationTitle(uploadFiles.first?.kind == .pdf ? "Upload PDF" : "Upload Images")
                     .safeAreaInset(edge: .top) {
                         trialStatusView
                     }
@@ -122,7 +122,7 @@ struct UploadView: View {
                         }
                     }
                     if showSuccessBanner {
-                        SuccessBanner(message: appData.pendingUploadFiles != nil ? "PDF uploaded successfully!" : "All images have been uploaded successfully!")
+                        SuccessBanner(message: uploadFiles.first?.kind == .pdf ? "PDF uploaded successfully!" : "All images have been uploaded successfully!")
                             .transition(.move(edge: .top).combined(with: .opacity))
                             .animation(.easeInOut(duration: 0.5), value: showSuccessBanner)
                             .onAppear {

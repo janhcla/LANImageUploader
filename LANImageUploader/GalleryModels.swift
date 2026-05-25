@@ -5,6 +5,8 @@
 
 import Foundation
 import CoreGraphics
+import UIKit
+import CoreImage
 
 enum GalleryOutputMode: String, CaseIterable, Identifiable, Codable {
     case separateImages
@@ -63,6 +65,36 @@ enum ImageRotation: Int, Codable, CaseIterable {
     }
 }
 
+struct DocumentCrop: Codable, Equatable {
+    var topLeft: CGPoint
+    var topRight: CGPoint
+    var bottomRight: CGPoint
+    var bottomLeft: CGPoint
+
+    static let fullFrame = DocumentCrop(
+        topLeft: CGPoint(x: 0, y: 0),
+        topRight: CGPoint(x: 1, y: 0),
+        bottomRight: CGPoint(x: 1, y: 1),
+        bottomLeft: CGPoint(x: 0, y: 1)
+    )
+
+    var points: [CGPoint] {
+        [topLeft, topRight, bottomRight, bottomLeft]
+    }
+
+    func clamped() -> DocumentCrop {
+        func clamp(_ point: CGPoint) -> CGPoint {
+            CGPoint(x: min(max(point.x, 0), 1), y: min(max(point.y, 0), 1))
+        }
+        return DocumentCrop(
+            topLeft: clamp(topLeft),
+            topRight: clamp(topRight),
+            bottomRight: clamp(bottomRight),
+            bottomLeft: clamp(bottomLeft)
+        )
+    }
+}
+
 struct GalleryItem: Identifiable, Codable, Equatable {
     let id: UUID
     var capturedImage: CapturedImage?
@@ -72,5 +104,67 @@ struct GalleryItem: Identifiable, Codable, Equatable {
         lhs.id == rhs.id
             && lhs.capturedImage?.id == rhs.capturedImage?.id
             && lhs.rotation == rhs.rotation
+    }
+}
+
+enum DocumentImageProcessor {
+    private static let context = CIContext(options: [.useSoftwareRenderer: false])
+
+    static func renderedImage(for capturedImage: CapturedImage, rotation: ImageRotation = .degrees0) -> UIImage? {
+        guard let source = UIImage(contentsOfFile: capturedImage.fileURL.path) else { return nil }
+        return renderedImage(source, crop: capturedImage.crop, rotation: rotation)
+    }
+
+    static func renderedImage(_ source: UIImage, crop: DocumentCrop?, rotation: ImageRotation = .degrees0) -> UIImage {
+        let normalized = source.normalizedForUpload(maxPixelDimension: nil, jpegQuality: 1)
+        let corrected = crop.flatMap { perspectiveCorrected(normalized, crop: $0) } ?? normalized
+        return corrected.rotatedClockwise(by: rotation)
+    }
+
+    static func exportJPEG(
+        for capturedImage: CapturedImage,
+        rotation: ImageRotation,
+        name: String,
+        maxPixelDimension: CGFloat,
+        jpegQuality: CGFloat
+    ) throws -> URL {
+        guard let rendered = renderedImage(for: capturedImage, rotation: rotation) else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        let uploadImage = rendered.normalizedForUpload(
+            maxPixelDimension: maxPixelDimension,
+            jpegQuality: jpegQuality
+        )
+        guard let data = uploadImage.jpegData(compressionQuality: jpegQuality) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        let safeName = name.replacingOccurrences(of: "/", with: "_")
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(safeName)_\(UUID().uuidString).jpg")
+        try data.write(to: url, options: .atomic)
+        return url
+    }
+
+    private static func perspectiveCorrected(_ source: UIImage, crop: DocumentCrop) -> UIImage? {
+        guard let image = CIImage(image: source) else { return nil }
+        let extent = image.extent
+        let normalizedCrop = crop.clamped()
+        func vector(_ point: CGPoint) -> CIVector {
+            CIVector(
+                x: extent.minX + point.x * extent.width,
+                y: extent.minY + (1 - point.y) * extent.height
+            )
+        }
+        guard let filter = CIFilter(name: "CIPerspectiveCorrection") else { return nil }
+        filter.setValue(image, forKey: kCIInputImageKey)
+        filter.setValue(vector(normalizedCrop.topLeft), forKey: "inputTopLeft")
+        filter.setValue(vector(normalizedCrop.topRight), forKey: "inputTopRight")
+        filter.setValue(vector(normalizedCrop.bottomRight), forKey: "inputBottomRight")
+        filter.setValue(vector(normalizedCrop.bottomLeft), forKey: "inputBottomLeft")
+        guard let output = filter.outputImage,
+              let cgImage = context.createCGImage(output, from: output.extent) else {
+            return nil
+        }
+        return UIImage(cgImage: cgImage)
     }
 }

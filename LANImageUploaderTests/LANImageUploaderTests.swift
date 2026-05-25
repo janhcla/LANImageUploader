@@ -91,6 +91,44 @@ struct LANImageUploaderTests {
         #expect(appData.images.isEmpty)
     }
 
+    @Test @MainActor func persistentGalleryRestoresScannedPagesAndCropMetadata() throws {
+        UserDefaults.standard.removeObject(forKey: Constants.UserDefaults.capturedImageQueue)
+        let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).jpg")
+        try Data([0x01]).write(to: sourceURL)
+        defer {
+            UserDefaults.standard.removeObject(forKey: Constants.UserDefaults.capturedImageQueue)
+            try? FileManager.default.removeItem(at: sourceURL)
+        }
+        let crop = DocumentCrop(
+            topLeft: CGPoint(x: 0.1, y: 0.1),
+            topRight: CGPoint(x: 0.9, y: 0.1),
+            bottomRight: CGPoint(x: 0.9, y: 0.9),
+            bottomLeft: CGPoint(x: 0.1, y: 0.9)
+        )
+        let original = CapturedImage(name: "persisted", fileURL: sourceURL, crop: crop, isDocumentScan: true)
+
+        let first = AppData(
+            fileService: MockFileService(),
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService(),
+            persistsImageQueue: true
+        )
+        first.images = [original]
+
+        let restored = AppData(
+            fileService: MockFileService(),
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService(),
+            persistsImageQueue: true
+        )
+
+        #expect(restored.images.count == 1)
+        #expect(restored.images.first?.id == original.id)
+        #expect(restored.images.first?.crop == crop)
+    }
+
     @Test @MainActor func appDataArchiveImages() async throws {
         let mockFile = MockFileService()
         mockFile.archiveImagesResult = (saved: 5, existing: 2)
@@ -277,8 +315,25 @@ struct LANImageUploaderTests {
     }
 
     @Test @MainActor func mockUploadServiceRecordsUploadInputsAndProgress() async throws {
+        final class ProgressRecorder: @unchecked Sendable {
+            private let lock = NSLock()
+            private var storage: [Double] = []
+
+            func append(_ value: Double) {
+                lock.lock()
+                storage.append(value)
+                lock.unlock()
+            }
+
+            var values: [Double] {
+                lock.lock()
+                defer { lock.unlock() }
+                return storage
+            }
+        }
+
         let mockUpload = MockImageUploadService()
-        var progress: [Double] = []
+        let progress = ProgressRecorder()
         let image = CapturedImage(name: "IMG_001", fileURL: URL(fileURLWithPath: "/tmp/mock/images/IMG_001.jpg"))
         let settings = ServerSettings(
             serverIP: "192.168.1.10",
@@ -300,7 +355,7 @@ struct LANImageUploaderTests {
         #expect(mockUpload.overwriteValues == [true])
         #expect(mockUpload.passwords == ["secret"])
         #expect(mockUpload.settingsValues.first?.serverIP == "192.168.1.10")
-        #expect(progress == [0.5, 1.0])
+        #expect(progress.values == [0.5, 1.0])
     }
 
     @Test @MainActor func premiumTrialStartsWithFifteenUploads() async throws {

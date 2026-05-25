@@ -20,6 +20,7 @@ struct GalleryView: View {
     @State private var selectedImage: CapturedImage?
     @State private var navigateToUpload = false
     @State private var fullscreenData: FullscreenImageData?
+    @State private var cropEditingItem: GalleryItem?
 
     // Deletion states
     @State private var showDeleteConfirmation = false
@@ -133,6 +134,24 @@ struct GalleryView: View {
                     onSave: { }
                 )
             }
+            .sheet(item: $cropEditingItem) { item in
+                if let capturedImage = item.capturedImage,
+                   let source = UIImage(contentsOfFile: capturedImage.fileURL.path) {
+                    CropEditorView(
+                        sourceImage: source,
+                        initialCrop: capturedImage.crop ?? .fullFrame,
+                        onCancel: { cropEditingItem = nil },
+                        onSave: { crop in
+                            appData.updateCrop(for: capturedImage.id, crop: crop)
+                            if let index = galleryItems.firstIndex(where: { $0.id == capturedImage.id }) {
+                                galleryItems[index].capturedImage?.crop = crop
+                                galleryItems[index].capturedImage?.isDocumentScan = true
+                            }
+                            cropEditingItem = nil
+                        }
+                    )
+                }
+            }
             .fullScreenCover(isPresented: $isShowingRetakeCamera, onDismiss: {
                 if retakeImage != nil {
                     isShowingRetakeReview = true
@@ -237,6 +256,7 @@ struct GalleryView: View {
             isMultiSelectMode: isMultiSelectMode,
             onTap: { handleItemTap(item) },
             onRotate: { rotateItem(item) },
+            onEditCrop: { cropEditingItem = item },
             onDelete: {
                 itemToDelete = item
                 showDeleteConfirmation = true
@@ -273,9 +293,7 @@ struct GalleryView: View {
         if !isMultiSelectMode {
             guard let image = item.capturedImage else { return }
             appData.hapticService.playSelection()
-            if let imageData = try? Data(contentsOf: image.fileURL),
-                let uiImage = UIImage(data: imageData)
-            {
+            if let uiImage = DocumentImageProcessor.renderedImage(for: image, rotation: item.rotation) {
                 fullscreenData = FullscreenImageData(
                     id: image.id, capturedImage: image, uiImage: uiImage)
             }
@@ -351,7 +369,7 @@ struct GalleryView: View {
     }
 
     @MainActor
-    private func renameSelectedImagesInGalleryOrder(baseName: String) -> [UploadableFile] {
+    private func prepareSelectedUploads(baseName: String) throws -> [UploadableFile] {
         let selectedIDs = appData.selectedImageIDs
         let orderedItems = galleryItems.filter { item in
             selectedIDs.contains(item.id) && item.capturedImage != nil
@@ -366,14 +384,14 @@ struct GalleryView: View {
             let formattedIndex = String(format: "%02d", index + 1)
             let renamedImage = "\(baseName)\(formattedIndex)"
             appData.images[appIndex].name = renamedImage
-            uploadFiles.append(
-                UploadableFile(
-                    id: image.id,
-                    name: renamedImage,
-                    fileURL: appData.images[appIndex].fileURL,
-                    kind: .jpeg
-                )
+            let exportURL = try DocumentImageProcessor.exportJPEG(
+                for: appData.images[appIndex],
+                rotation: item.rotation,
+                name: renamedImage,
+                maxPixelDimension: CGFloat(appData.imageMaxPixelDimension),
+                jpegQuality: CGFloat(appData.pdfJPEGQuality)
             )
+            uploadFiles.append(UploadableFile(id: image.id, name: renamedImage, fileURL: exportURL, kind: .jpeg))
         }
 
         return uploadFiles
@@ -381,7 +399,13 @@ struct GalleryView: View {
 
     func batchRenameImages() {
         guard !imageName.isEmpty else { return }
-        _ = renameSelectedImagesInGalleryOrder(baseName: imageName)
+        let selectedItems = galleryItems.filter {
+            $0.capturedImage != nil && appData.selectedImageIDs.contains($0.id)
+        }
+        for (index, item) in selectedItems.enumerated() {
+            guard let appIndex = appData.images.firstIndex(where: { $0.id == item.id }) else { continue }
+            appData.images[appIndex].name = "\(imageName)\(String(format: "%02d", index + 1))"
+        }
         appData.selectedImageIDs.removeAll()
         isMultiSelectMode = false
         imageName = ""
@@ -392,37 +416,25 @@ struct GalleryView: View {
         guard !imageName.isEmpty else { return }
 
         Task {
-            await applyRotationsBeforeUpload()
-            await MainActor.run {
-                appData.pendingUploadFiles = renameSelectedImagesInGalleryOrder(baseName: imageName)
-                appData.selectedImageIDs.removeAll()
-                isMultiSelectMode = false
-                imageName = ""
-                navigateToUpload = true
+            do {
+                let files = try prepareSelectedUploads(baseName: imageName)
+                await MainActor.run {
+                    appData.pendingUploadFiles = files
+                    appData.selectedImageIDs.removeAll()
+                    isMultiSelectMode = false
+                    imageName = ""
+                    navigateToUpload = true
+                }
+            } catch {
+                await MainActor.run {
+                    pdfGenerationError = "Could not prepare cropped pages for upload: \(error.localizedDescription)"
+                }
             }
         }
     }
 
     func applyRotationsBeforeUpload() async {
-        for item in galleryItems {
-            guard let img = item.capturedImage, item.rotation != .degrees0 else { continue }
-            guard let idx = appData.images.firstIndex(where: { $0.id == img.id }) else { continue }
-
-            if let uiImage = UIImage(contentsOfFile: img.fileURL.path) {
-                let rotated = uiImage.rotatedClockwise(by: item.rotation)
-                if let data = rotated.jpegData(compressionQuality: 0.8) {
-                    try? await appData.fileService.removeItem(at: img.fileURL)
-                    if let newURL = try? await appData.fileService.saveImage(data, fileName: img.fileURL.lastPathComponent) {
-                        await MainActor.run {
-                            appData.images[idx].fileURL = newURL
-                            if let galleryIdx = galleryItems.firstIndex(where: { $0.id == item.id }) {
-                                galleryItems[galleryIdx].rotation = .degrees0
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        // Kept for source compatibility. Rotation is now applied to exported derivatives only.
     }
 
     func renameImage() {
@@ -520,5 +532,206 @@ struct ReorderDropDelegate: DropDelegate {
     func performDrop(info: DropInfo) -> Bool {
         draggedItem = nil
         return true
+    }
+}
+
+struct CropEditorView: View {
+    let sourceImage: UIImage
+    let onCancel: () -> Void
+    let onSave: (DocumentCrop) -> Void
+
+    @State private var crop: DocumentCrop
+    @State private var dragOrigin: DocumentCrop?
+    @State private var activePoint: CGPoint?
+
+    init(
+        sourceImage: UIImage,
+        initialCrop: DocumentCrop,
+        onCancel: @escaping () -> Void,
+        onSave: @escaping (DocumentCrop) -> Void
+    ) {
+        self.sourceImage = sourceImage
+        self.onCancel = onCancel
+        self.onSave = onSave
+        _crop = State(initialValue: initialCrop.clamped())
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Color.black.ignoresSafeArea()
+                GeometryReader { geometry in
+                    let frame = aspectFitFrame(in: geometry.size)
+                    Image(uiImage: sourceImage)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: frame.width, height: frame.height)
+                        .position(x: frame.midX, y: frame.midY)
+
+                    CropPolygon(crop: crop, imageFrame: frame)
+
+                    ForEach(CropControl.allCases) { control in
+                        let position = position(for: control, in: frame)
+                        Circle()
+                            .fill(control.isCorner ? .white : .yellow)
+                            .frame(width: control.isCorner ? 26 : 30, height: control.isCorner ? 26 : 16)
+                            .position(position)
+                            .gesture(dragGesture(for: control, in: frame))
+                            .accessibilityLabel(control.accessibilityLabel)
+                            .accessibilityHint("Drag to adjust document crop")
+                    }
+
+                    if let activePoint {
+                        CropMagnifier(
+                            image: sourceImage,
+                            focus: activePoint,
+                            frame: frame
+                        )
+                    }
+                }
+                .padding(.vertical, 18)
+            }
+            .navigationTitle("Edit Crop")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", action: onCancel)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { onSave(crop.clamped()) }
+                        .fontWeight(.semibold)
+                }
+            }
+        }
+    }
+
+    private func aspectFitFrame(in available: CGSize) -> CGRect {
+        let horizontalPadding: CGFloat = 16
+        let width = available.width - horizontalPadding * 2
+        let height = max(available.height - 80, 1)
+        let scale = min(width / sourceImage.size.width, height / sourceImage.size.height)
+        let size = CGSize(width: sourceImage.size.width * scale, height: sourceImage.size.height * scale)
+        return CGRect(
+            x: (available.width - size.width) / 2,
+            y: (available.height - size.height) / 2,
+            width: size.width,
+            height: size.height
+        )
+    }
+
+    private func position(for control: CropControl, in frame: CGRect) -> CGPoint {
+        let point = control.point(in: crop)
+        return CGPoint(x: frame.minX + point.x * frame.width, y: frame.minY + point.y * frame.height)
+    }
+
+    private func dragGesture(for control: CropControl, in frame: CGRect) -> some Gesture {
+        DragGesture()
+            .onChanged { value in
+                if dragOrigin == nil { dragOrigin = crop }
+                guard let startCrop = dragOrigin else { return }
+                let delta = CGPoint(
+                    x: value.translation.width / frame.width,
+                    y: value.translation.height / frame.height
+                )
+                crop = control.moving(in: startCrop, delta: delta).clamped()
+                activePoint = control.point(in: crop)
+            }
+            .onEnded { _ in
+                dragOrigin = nil
+                activePoint = nil
+            }
+    }
+}
+
+private struct CropPolygon: View {
+    let crop: DocumentCrop
+    let imageFrame: CGRect
+
+    var body: some View {
+        Path { path in
+            let points = crop.points.map {
+                CGPoint(x: imageFrame.minX + $0.x * imageFrame.width, y: imageFrame.minY + $0.y * imageFrame.height)
+            }
+            path.move(to: points[0])
+            points.dropFirst().forEach { path.addLine(to: $0) }
+            path.closeSubpath()
+        }
+        .stroke(.yellow, style: StrokeStyle(lineWidth: 2.5, lineJoin: .round))
+    }
+}
+
+private struct CropMagnifier: View {
+    let image: UIImage
+    let focus: CGPoint
+    let frame: CGRect
+
+    var body: some View {
+        Image(uiImage: image)
+            .resizable()
+            .scaledToFill()
+            .frame(width: 110, height: 110)
+            .scaleEffect(2.5, anchor: UnitPoint(x: focus.x, y: focus.y))
+            .clipShape(Circle())
+            .overlay(Circle().stroke(.white, lineWidth: 3))
+            .overlay {
+                Circle().stroke(.yellow.opacity(0.9), lineWidth: 1).frame(width: 22, height: 22)
+            }
+            .position(
+                x: min(max(frame.minX + focus.x * frame.width, 70), frame.maxX - 70),
+                y: max(frame.minY + focus.y * frame.height - 90, frame.minY + 60)
+            )
+            .allowsHitTesting(false)
+    }
+}
+
+private enum CropControl: String, CaseIterable, Identifiable {
+    case topLeft, top, topRight, right, bottomRight, bottom, bottomLeft, left
+
+    var id: String { rawValue }
+    var isCorner: Bool { [.topLeft, .topRight, .bottomRight, .bottomLeft].contains(self) }
+    var accessibilityLabel: String { "\(rawValue) crop handle" }
+
+    func point(in crop: DocumentCrop) -> CGPoint {
+        switch self {
+        case .topLeft: return crop.topLeft
+        case .top: return midpoint(crop.topLeft, crop.topRight)
+        case .topRight: return crop.topRight
+        case .right: return midpoint(crop.topRight, crop.bottomRight)
+        case .bottomRight: return crop.bottomRight
+        case .bottom: return midpoint(crop.bottomLeft, crop.bottomRight)
+        case .bottomLeft: return crop.bottomLeft
+        case .left: return midpoint(crop.topLeft, crop.bottomLeft)
+        }
+    }
+
+    func moving(in crop: DocumentCrop, delta: CGPoint) -> DocumentCrop {
+        var updated = crop
+        switch self {
+        case .topLeft: updated.topLeft = offset(crop.topLeft, delta)
+        case .topRight: updated.topRight = offset(crop.topRight, delta)
+        case .bottomRight: updated.bottomRight = offset(crop.bottomRight, delta)
+        case .bottomLeft: updated.bottomLeft = offset(crop.bottomLeft, delta)
+        case .top:
+            updated.topLeft = offset(crop.topLeft, delta)
+            updated.topRight = offset(crop.topRight, delta)
+        case .right:
+            updated.topRight = offset(crop.topRight, delta)
+            updated.bottomRight = offset(crop.bottomRight, delta)
+        case .bottom:
+            updated.bottomLeft = offset(crop.bottomLeft, delta)
+            updated.bottomRight = offset(crop.bottomRight, delta)
+        case .left:
+            updated.topLeft = offset(crop.topLeft, delta)
+            updated.bottomLeft = offset(crop.bottomLeft, delta)
+        }
+        return updated
+    }
+
+    private func midpoint(_ first: CGPoint, _ second: CGPoint) -> CGPoint {
+        CGPoint(x: (first.x + second.x) / 2, y: (first.y + second.y) / 2)
+    }
+
+    private func offset(_ point: CGPoint, _ delta: CGPoint) -> CGPoint {
+        CGPoint(x: point.x + delta.x, y: point.y + delta.y)
     }
 }

@@ -509,38 +509,26 @@ extension NetworkDiscovery {
     @MainActor
     func discoverSMBServers(timeout: TimeInterval) async throws -> [NetService] {
         let serviceTypes = ["_smb._tcp", "_microsoft-ds._tcp"]
-        
-        return try await withThrowingTaskGroup(of: [NetService].self) { group in
-            for type in serviceTypes {
-                group.addTask {
-                    do {
-                        return try await self.discoverServices(ofType: type, timeout: timeout)
-                    } catch {
-                        // Log error but don't fail the entire group if one type fails
-                        logger.warning("Bonjour discovery failed for type \(type): \(error.localizedDescription)")
-                        return []
-                    }
-                }
+
+        // NetService is main-actor-bound and cannot cross task-group boundaries in Swift 6.
+        var allServices: [NetService] = []
+        for type in serviceTypes {
+            do {
+                allServices.append(contentsOf: try await discoverServices(ofType: type, timeout: timeout))
+            } catch {
+                logger.warning("Bonjour discovery failed for type \(type): \(error.localizedDescription)")
             }
-            
-            var allServices: [NetService] = []
-            for try await services in group {
-                allServices.append(contentsOf: services)
-            }
-            
-            // Deduplicate by name
-            var uniqueServices: [NetService] = []
-            var seenNames: Set<String> = []
-            
-            for service in allServices {
-                if !seenNames.contains(service.name) {
-                    seenNames.insert(service.name)
-                    uniqueServices.append(service)
-                }
-            }
-            
-            return uniqueServices.sorted { $0.name.lowercased() < $1.name.lowercased() }
         }
+
+        var uniqueServices: [NetService] = []
+        var seenNames: Set<String> = []
+
+        for service in allServices where !seenNames.contains(service.name) {
+            seenNames.insert(service.name)
+            uniqueServices.append(service)
+        }
+
+        return uniqueServices.sorted { $0.name.lowercased() < $1.name.lowercased() }
     }
     
     @MainActor

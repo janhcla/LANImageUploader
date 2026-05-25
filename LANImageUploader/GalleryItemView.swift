@@ -14,6 +14,7 @@ struct GalleryItemView: View {
 
     let onTap: () -> Void
     let onRotate: () -> Void
+    let onEditCrop: () -> Void
     let onDelete: () -> Void
     let onRetake: () -> Void
 
@@ -49,9 +50,6 @@ struct GalleryItemView: View {
                             .fill(Color.gray.opacity(0.1))
                             .frame(height: 150)
                             .overlay(ProgressView())
-                            .task(id: image.fileURL) {
-                                await loadImage(from: image.fileURL)
-                            }
                     }
 
                 } else {
@@ -90,12 +88,21 @@ struct GalleryItemView: View {
                     .padding(8)
             }
         }
+        .task(id: item) {
+            await loadImage()
+        }
         .contextMenu {
             if item.capturedImage != nil {
                 Button {
                     onRotate()
                 } label: {
                     Label("Rotate", systemImage: "rotate.right")
+                }
+
+                Button {
+                    onEditCrop()
+                } label: {
+                    Label("Edit Crop", systemImage: "crop.rotate")
                 }
 
                 Button {
@@ -113,9 +120,10 @@ struct GalleryItemView: View {
         }
     }
 
-    private func loadImage(from url: URL) async {
-        let image = await Task.detached(priority: .userInitiated) {
-            UIImage(contentsOfFile: url.path)
+    private func loadImage() async {
+        let image: UIImage? = await Task.detached(priority: .userInitiated) { () -> UIImage? in
+            guard let capturedImage = item.capturedImage else { return nil }
+            return DocumentImageProcessor.renderedImage(for: capturedImage, rotation: item.rotation)
         }.value
 
         await MainActor.run {
