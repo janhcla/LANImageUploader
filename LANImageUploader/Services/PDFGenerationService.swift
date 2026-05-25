@@ -48,17 +48,14 @@ final class PDFGenerationService: PDFGenerationServiceProtocol {
                 autoreleasepool {
                     guard let correctedImage = DocumentImageProcessor.renderedImage(
                         for: item.0,
-                        rotation: item.1
+                        rotation: item.1,
+                        maxPixelDimension: settings.maxPixelDimension
                     ) else { return }
-                    let rotatedImage = correctedImage.normalizedForUpload(
-                        maxPixelDimension: settings.maxPixelDimension,
-                        jpegQuality: settings.jpegQuality
-                    )
 
                     context.beginPage()
                     let pageRect = settings.pageSize.pageRect
 
-                    let imageAspectRatio = rotatedImage.size.width / rotatedImage.size.height
+                    let imageAspectRatio = correctedImage.size.width / correctedImage.size.height
                     let pageContentRect = pageRect.insetBy(dx: settings.margin, dy: settings.margin)
                     let pageAspectRatio = pageContentRect.width / pageContentRect.height
 
@@ -87,7 +84,7 @@ final class PDFGenerationService: PDFGenerationServiceProtocol {
                         drawRect = pageContentRect
                     }
 
-                    rotatedImage.draw(in: drawRect)
+                    correctedImage.draw(in: drawRect)
 
                     if settings.includePageNumbers {
                         let pageNumberText = "\(index + 1) / \(validItems.count)"

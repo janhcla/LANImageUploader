@@ -306,7 +306,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
             lastAutoCapturedCrop = pendingCaptureCrop
         }
         let settings = AVCapturePhotoSettings()
-        settings.flashMode = .auto
+        settings.flashMode = photoOutput.supportedFlashModes.contains(.auto) ? .auto : .off
         photoOutput.capturePhoto(with: settings, delegate: self)
     }
 

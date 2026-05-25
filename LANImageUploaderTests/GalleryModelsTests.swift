@@ -55,6 +55,21 @@ struct GalleryModelsTests {
         #expect(decoded.rotation == .degrees90)
     }
 
+    @Test func galleryItemEqualityTracksCropAndDisplayedNameChanges() {
+        let id = UUID()
+        let sourceURL = URL(fileURLWithPath: "/tmp/scan.jpg")
+        var original = CapturedImage(id: id, name: "scan", fileURL: sourceURL)
+        let item = GalleryItem(id: id, capturedImage: original, rotation: .degrees0)
+
+        original.crop = DocumentCrop.fullFrame
+        let croppedItem = GalleryItem(id: id, capturedImage: original, rotation: .degrees0)
+        #expect(item != croppedItem)
+
+        original.name = "renamed"
+        let renamedItem = GalleryItem(id: id, capturedImage: original, rotation: .degrees0)
+        #expect(croppedItem != renamedItem)
+    }
+
     @Test func cropExportLeavesOriginalScanUnmodified() throws {
         let size = CGSize(width: 120, height: 160)
         let original = UIGraphicsImageRenderer(size: size).image { context in
@@ -92,5 +107,29 @@ struct GalleryModelsTests {
 
         #expect(FileManager.default.fileExists(atPath: exportedURL.path))
         #expect(try Data(contentsOf: originalURL) == originalData)
+    }
+
+    @Test func exportScalesCorrectedImageDuringSingleRenderPipeline() throws {
+        let original = UIGraphicsImageRenderer(size: CGSize(width: 200, height: 100)).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 200, height: 100))
+        }
+        let originalURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).jpg")
+        try #require(original.jpegData(compressionQuality: 0.95)).write(to: originalURL)
+        defer { try? FileManager.default.removeItem(at: originalURL) }
+
+        let image = CapturedImage(name: "scan", fileURL: originalURL, crop: .fullFrame, isDocumentScan: true)
+        let exportURL = try DocumentImageProcessor.exportJPEG(
+            for: image,
+            rotation: .degrees0,
+            name: "scaled",
+            maxPixelDimension: 80,
+            jpegQuality: 0.85
+        )
+        defer { try? FileManager.default.removeItem(at: exportURL) }
+
+        let exported = try #require(UIImage(contentsOfFile: exportURL.path))
+        #expect(exported.size.width <= 80)
+        #expect(exported.size.height <= 80)
     }
 }

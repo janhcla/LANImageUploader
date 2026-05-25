@@ -7,6 +7,7 @@ import Foundation
 import CoreGraphics
 import UIKit
 import CoreImage
+import ImageIO
 
 enum GalleryOutputMode: String, CaseIterable, Identifiable, Codable {
     case separateImages
@@ -103,6 +104,10 @@ struct GalleryItem: Identifiable, Codable, Equatable {
     static func == (lhs: GalleryItem, rhs: GalleryItem) -> Bool {
         lhs.id == rhs.id
             && lhs.capturedImage?.id == rhs.capturedImage?.id
+            && lhs.capturedImage?.name == rhs.capturedImage?.name
+            && lhs.capturedImage?.fileURL == rhs.capturedImage?.fileURL
+            && lhs.capturedImage?.crop == rhs.capturedImage?.crop
+            && lhs.capturedImage?.isDocumentScan == rhs.capturedImage?.isDocumentScan
             && lhs.rotation == rhs.rotation
     }
 }
@@ -110,15 +115,30 @@ struct GalleryItem: Identifiable, Codable, Equatable {
 enum DocumentImageProcessor {
     private static let context = CIContext(options: [.useSoftwareRenderer: false])
 
-    static func renderedImage(for capturedImage: CapturedImage, rotation: ImageRotation = .degrees0) -> UIImage? {
-        guard let source = UIImage(contentsOfFile: capturedImage.fileURL.path) else { return nil }
-        return renderedImage(source, crop: capturedImage.crop, rotation: rotation)
+    static func renderedImage(
+        for capturedImage: CapturedImage,
+        rotation: ImageRotation = .degrees0,
+        maxPixelDimension: CGFloat? = nil
+    ) -> UIImage? {
+        guard let source = CIImage(contentsOf: capturedImage.fileURL, options: [.applyOrientationProperty: true]) else {
+            return nil
+        }
+        return render(
+            processedImage(
+                source,
+                crop: capturedImage.crop,
+                rotation: rotation,
+                maxPixelDimension: maxPixelDimension
+            )
+        )
     }
 
     static func renderedImage(_ source: UIImage, crop: DocumentCrop?, rotation: ImageRotation = .degrees0) -> UIImage {
-        let normalized = source.normalizedForUpload(maxPixelDimension: nil, jpegQuality: 1)
-        let corrected = crop.flatMap { perspectiveCorrected(normalized, crop: $0) } ?? normalized
-        return corrected.rotatedClockwise(by: rotation)
+        guard let ciImage = CIImage(image: source),
+              let output = render(processedImage(ciImage, crop: crop, rotation: rotation, maxPixelDimension: nil)) else {
+            return source
+        }
+        return output
     }
 
     static func exportJPEG(
@@ -128,14 +148,18 @@ enum DocumentImageProcessor {
         maxPixelDimension: CGFloat,
         jpegQuality: CGFloat
     ) throws -> URL {
-        guard let rendered = renderedImage(for: capturedImage, rotation: rotation) else {
+        guard let source = CIImage(contentsOf: capturedImage.fileURL, options: [.applyOrientationProperty: true]),
+              let rendered = render(
+                processedImage(
+                    source,
+                    crop: capturedImage.crop,
+                    rotation: rotation,
+                    maxPixelDimension: maxPixelDimension
+                )
+              ) else {
             throw CocoaError(.fileReadCorruptFile)
         }
-        let uploadImage = rendered.normalizedForUpload(
-            maxPixelDimension: maxPixelDimension,
-            jpegQuality: jpegQuality
-        )
-        guard let data = uploadImage.jpegData(compressionQuality: jpegQuality) else {
+        guard let data = rendered.jpegData(compressionQuality: jpegQuality) else {
             throw CocoaError(.fileWriteUnknown)
         }
         let safeName = name.replacingOccurrences(of: "/", with: "_")
@@ -145,8 +169,25 @@ enum DocumentImageProcessor {
         return url
     }
 
-    private static func perspectiveCorrected(_ source: UIImage, crop: DocumentCrop) -> UIImage? {
-        guard let image = CIImage(image: source) else { return nil }
+    private static func processedImage(
+        _ source: CIImage,
+        crop: DocumentCrop?,
+        rotation: ImageRotation,
+        maxPixelDimension: CGFloat?
+    ) -> CIImage {
+        var output = crop.flatMap { perspectiveCorrected(source, crop: $0) } ?? source
+        output = applyRotation(to: output, rotation: rotation)
+        if let maxPixelDimension {
+            let largestDimension = max(output.extent.width, output.extent.height)
+            if largestDimension > maxPixelDimension {
+                let scale = maxPixelDimension / largestDimension
+                output = output.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+            }
+        }
+        return translatedToOrigin(output)
+    }
+
+    private static func perspectiveCorrected(_ image: CIImage, crop: DocumentCrop) -> CIImage? {
         let extent = image.extent
         let normalizedCrop = crop.clamped()
         func vector(_ point: CGPoint) -> CIVector {
@@ -161,10 +202,31 @@ enum DocumentImageProcessor {
         filter.setValue(vector(normalizedCrop.topRight), forKey: "inputTopRight")
         filter.setValue(vector(normalizedCrop.bottomRight), forKey: "inputBottomRight")
         filter.setValue(vector(normalizedCrop.bottomLeft), forKey: "inputBottomLeft")
-        guard let output = filter.outputImage,
-              let cgImage = context.createCGImage(output, from: output.extent) else {
-            return nil
+        return filter.outputImage
+    }
+
+    private static func applyRotation(to image: CIImage, rotation: ImageRotation) -> CIImage {
+        switch rotation {
+        case .degrees0:
+            return image
+        case .degrees90:
+            return image.oriented(.right)
+        case .degrees180:
+            return image.oriented(.down)
+        case .degrees270:
+            return image.oriented(.left)
         }
+    }
+
+    private static func translatedToOrigin(_ image: CIImage) -> CIImage {
+        image.transformed(by: CGAffineTransform(
+            translationX: -image.extent.minX,
+            y: -image.extent.minY
+        ))
+    }
+
+    private static func render(_ image: CIImage) -> UIImage? {
+        guard let cgImage = context.createCGImage(image, from: image.extent) else { return nil }
         return UIImage(cgImage: cgImage)
     }
 }

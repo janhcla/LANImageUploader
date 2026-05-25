@@ -23,6 +23,12 @@ private enum GalleryNamingIntent {
     case batchRenameAndUpload
 }
 
+private struct GalleryExportRequest {
+    let order: Int
+    let image: CapturedImage
+    let name: String
+}
+
 struct GalleryView: View {
     @EnvironmentObject var appData: AppData
     @State private var isMultiSelectMode = false
@@ -386,17 +392,28 @@ struct GalleryView: View {
     }
 
     func uploadItems(_ items: [GalleryItem]) {
-        let itemsToUpload = items.filter { $0.capturedImage != nil }
-        guard !itemsToUpload.isEmpty else { return }
+        let requests = exportRequests(for: items)
+        guard !requests.isEmpty else { return }
+        let maxPixelDimension = CGFloat(appData.imageMaxPixelDimension)
+        let jpegQuality = CGFloat(appData.pdfJPEGQuality)
 
-        Task { @MainActor in
+        Task {
             do {
-                appData.pendingUploadFiles = try prepareUploads(for: itemsToUpload)
-                appData.selectedImageIDs.removeAll()
-                isMultiSelectMode = false
-                navigateToUpload = true
+                let files = try await exportUploads(
+                    requests,
+                    maxPixelDimension: maxPixelDimension,
+                    jpegQuality: jpegQuality
+                )
+                await MainActor.run {
+                    appData.pendingUploadFiles = files
+                    appData.selectedImageIDs.removeAll()
+                    isMultiSelectMode = false
+                    navigateToUpload = true
+                }
             } catch {
-                pdfGenerationError = "Could not prepare cropped pages for upload: \(error.localizedDescription)"
+                await MainActor.run {
+                    pdfGenerationError = "Could not prepare cropped pages for upload: \(error.localizedDescription)"
+                }
             }
         }
     }
@@ -521,30 +538,23 @@ struct GalleryView: View {
     }
 
     @MainActor
-    private func prepareUploads(for items: [GalleryItem]) throws -> [UploadableFile] {
-        try items.compactMap { item in
+    private func exportRequests(for items: [GalleryItem]) -> [GalleryExportRequest] {
+        items.enumerated().compactMap { order, item in
             guard let itemImage = item.capturedImage,
                   let image = appData.images.first(where: { $0.id == itemImage.id })
             else { return nil }
-            let exportURL = try DocumentImageProcessor.exportJPEG(
-                for: image,
-                rotation: image.rotation,
-                name: image.name,
-                maxPixelDimension: CGFloat(appData.imageMaxPixelDimension),
-                jpegQuality: CGFloat(appData.pdfJPEGQuality)
-            )
-            return UploadableFile(id: image.id, name: image.name, fileURL: exportURL, kind: .jpeg)
+            return GalleryExportRequest(order: order, image: image, name: image.name)
         }
     }
 
     @MainActor
-    private func prepareSelectedUploads(baseName: String) throws -> [UploadableFile] {
+    private func renameSelectedImages(baseName: String) -> [GalleryExportRequest] {
         let selectedIDs = appData.selectedImageIDs
         let orderedItems = galleryItems.filter { item in
             selectedIDs.contains(item.id) && item.capturedImage != nil
         }
 
-        var uploadFiles: [UploadableFile] = []
+        var requests: [GalleryExportRequest] = []
         for (index, item) in orderedItems.enumerated() {
             guard let image = item.capturedImage,
                   let appIndex = appData.images.firstIndex(where: { $0.id == image.id })
@@ -552,30 +562,58 @@ struct GalleryView: View {
 
             let formattedIndex = String(format: "%02d", index + 1)
             let renamedImage = "\(baseName)\(formattedIndex)"
-            appData.images[appIndex].name = renamedImage
-            let exportURL = try DocumentImageProcessor.exportJPEG(
-                for: appData.images[appIndex],
-                rotation: appData.images[appIndex].rotation,
-                name: renamedImage,
-                maxPixelDimension: CGFloat(appData.imageMaxPixelDimension),
-                jpegQuality: CGFloat(appData.pdfJPEGQuality)
+            updateImageName(renamedImage, at: appIndex)
+            requests.append(
+                GalleryExportRequest(order: index, image: appData.images[appIndex], name: renamedImage)
             )
-            uploadFiles.append(UploadableFile(id: image.id, name: renamedImage, fileURL: exportURL, kind: .jpeg))
         }
+        syncItemsFromAppData()
+        return requests
+    }
 
-        return uploadFiles
+    private func exportUploads(
+        _ requests: [GalleryExportRequest],
+        maxPixelDimension: CGFloat,
+        jpegQuality: CGFloat
+    ) async throws -> [UploadableFile] {
+        try await withThrowingTaskGroup(of: (Int, UploadableFile).self) { group in
+            for request in requests {
+                group.addTask {
+                    let file = try autoreleasepool {
+                        let exportURL = try DocumentImageProcessor.exportJPEG(
+                            for: request.image,
+                            rotation: request.image.rotation,
+                            name: request.name,
+                            maxPixelDimension: maxPixelDimension,
+                            jpegQuality: jpegQuality
+                        )
+                        return UploadableFile(
+                            id: request.image.id,
+                            name: request.name,
+                            fileURL: exportURL,
+                            kind: .jpeg
+                        )
+                    }
+                    return (request.order, file)
+                }
+            }
+
+            var files: [(Int, UploadableFile)] = []
+            for try await file in group {
+                files.append(file)
+            }
+            return files.sorted { $0.0 < $1.0 }.map(\.1)
+        }
+    }
+
+    @MainActor
+    private func updateImageName(_ name: String, at index: Int) {
+        appData.images[index].name = name
     }
 
     func batchRenameImages() {
         guard !imageName.isEmpty else { return }
-        let selectedItems = galleryItems.filter {
-            $0.capturedImage != nil && appData.selectedImageIDs.contains($0.id)
-        }
-        for (index, item) in selectedItems.enumerated() {
-            guard let appIndex = appData.images.firstIndex(where: { $0.id == item.id }) else { continue }
-            appData.images[appIndex].name = "\(imageName)\(String(format: "%02d", index + 1))"
-        }
-        syncItemsFromAppData()
+        _ = renameSelectedImages(baseName: imageName)
         appData.selectedImageIDs.removeAll()
         isMultiSelectMode = false
         imageName = ""
@@ -584,13 +622,19 @@ struct GalleryView: View {
 
     func batchRenameAndUpload() {
         guard !imageName.isEmpty else { return }
+        let requests = renameSelectedImages(baseName: imageName)
+        let maxPixelDimension = CGFloat(appData.imageMaxPixelDimension)
+        let jpegQuality = CGFloat(appData.pdfJPEGQuality)
 
         Task {
             do {
-                let files = try prepareSelectedUploads(baseName: imageName)
+                let files = try await exportUploads(
+                    requests,
+                    maxPixelDimension: maxPixelDimension,
+                    jpegQuality: jpegQuality
+                )
                 await MainActor.run {
                     appData.pendingUploadFiles = files
-                    syncItemsFromAppData()
                     appData.selectedImageIDs.removeAll()
                     isMultiSelectMode = false
                     imageName = ""
@@ -608,7 +652,7 @@ struct GalleryView: View {
         guard let image = selectedImage,
             let index = appData.images.firstIndex(where: { $0.id == image.id })
         else { return }
-        appData.images[index].name = imageName.isEmpty ? "Image" : imageName
+        updateImageName(imageName.isEmpty ? "Image" : imageName, at: index)
         syncItemsFromAppData()
         selectedImage = nil
         imageName = ""
