@@ -52,10 +52,18 @@ struct CameraView: View {
                 ) {
                     ScannerCaptureView(
                         capturedPageCount: appData.images.count,
-                        onCapture: { image, crop in
+                        onScanCapture: { image, crop in
                             Task {
                                 await saveImage(image: image, crop: crop)
                             }
+                        },
+                        onKeepPhoto: { image in
+                            Task {
+                                await saveImage(image: image)
+                            }
+                        },
+                        onCountdownTick: {
+                            appData.hapticService.playImpact(style: .medium)
                         },
                         onOpenGallery: {
                             isShowingCamera = false

@@ -31,6 +31,32 @@ struct GalleryModelsTests {
         #expect(crop.bottomLeft == CGPoint(x: 0, y: 1))
     }
 
+    @Test func documentCaptureQualityRequiresLargeStraightStableCandidate() {
+        let acceptable = DocumentCrop(
+            topLeft: CGPoint(x: 0.12, y: 0.12),
+            topRight: CGPoint(x: 0.88, y: 0.12),
+            bottomRight: CGPoint(x: 0.88, y: 0.88),
+            bottomLeft: CGPoint(x: 0.12, y: 0.88)
+        )
+        let tooSmall = DocumentCrop(
+            topLeft: CGPoint(x: 0.42, y: 0.42),
+            topRight: CGPoint(x: 0.58, y: 0.42),
+            bottomRight: CGPoint(x: 0.58, y: 0.58),
+            bottomLeft: CGPoint(x: 0.42, y: 0.58)
+        )
+        let angled = DocumentCrop(
+            topLeft: CGPoint(x: 0.12, y: 0.12),
+            topRight: CGPoint(x: 0.88, y: 0.12),
+            bottomRight: CGPoint(x: 0.64, y: 0.88),
+            bottomLeft: CGPoint(x: 0.35, y: 0.88)
+        )
+
+        #expect(DocumentCaptureQuality.isAcceptable(acceptable))
+        #expect(!DocumentCaptureQuality.isAcceptable(tooSmall))
+        #expect(!DocumentCaptureQuality.isAcceptable(angled))
+        #expect(DocumentCaptureQuality.averageMovement(from: acceptable, to: acceptable) == 0)
+    }
+
     @Test func capturedImageRoundTripPreservesEditableCropAndIdentity() throws {
         let crop = DocumentCrop(
             topLeft: CGPoint(x: 0.1, y: 0.15),

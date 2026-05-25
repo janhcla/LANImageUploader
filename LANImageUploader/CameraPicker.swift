@@ -61,41 +61,98 @@ struct CameraPickerWrapper: View {
     }
 }
 
+enum CameraCaptureMode: String, CaseIterable, Identifiable {
+    case photo = "Photo"
+    case scan = "Scan"
+
+    var id: String { rawValue }
+}
+
+struct DocumentCaptureQuality {
+    static func averageMovement(from first: DocumentCrop, to second: DocumentCrop) -> CGFloat {
+        zip(first.points, second.points)
+            .map { hypot($0.x - $1.x, $0.y - $1.y) }
+            .reduce(0, +) / 4
+    }
+
+    static func isAcceptable(_ crop: DocumentCrop) -> Bool {
+        func length(_ a: CGPoint, _ b: CGPoint) -> CGFloat { hypot(a.x - b.x, a.y - b.y) }
+        let top = length(crop.topLeft, crop.topRight)
+        let bottom = length(crop.bottomLeft, crop.bottomRight)
+        let left = length(crop.topLeft, crop.bottomLeft)
+        let right = length(crop.topRight, crop.bottomRight)
+        let area = zip(crop.points, Array(crop.points.dropFirst()) + [crop.topLeft])
+            .map { $0.x * $1.y - $1.x * $0.y }
+            .reduce(0, +)
+            .magnitude / 2
+
+        guard max(top, bottom) > 0, max(left, right) > 0, area >= 0.18 else { return false }
+        return abs(top - bottom) / max(top, bottom) < 0.18
+            && abs(left - right) / max(left, right) < 0.18
+    }
+}
+
 struct ScannerCaptureView: View {
     let capturedPageCount: Int
-    let onCapture: (UIImage, DocumentCrop) -> Void
+    let onScanCapture: (UIImage, DocumentCrop) -> Void
+    let onKeepPhoto: (UIImage) -> Void
+    let onCountdownTick: () -> Void
     let onOpenGallery: () -> Void
     let onCancel: () -> Void
 
     @AppStorage(Constants.UserDefaults.scannerAutoCaptureEnabled) private var autoCapture = true
+    @State private var mode: CameraCaptureMode = .scan
     @State private var captureRequest = UUID()
     @State private var guidance = "Point the camera at a document"
     @State private var documentFound = false
+    @State private var countdown: Int?
+    @State private var photoReviewImage: UIImage?
 
     var body: some View {
         ZStack {
             DocumentCameraPreview(
+                mode: mode,
                 autoCapture: $autoCapture,
                 captureRequest: captureRequest,
-                onCapture: onCapture,
+                onScanCapture: onScanCapture,
+                onPhotoCapture: { image in
+                    photoReviewImage = image
+                },
                 onDetectionChanged: { message, found in
                     guidance = message
                     documentFound = found
+                },
+                onCountdownChanged: { nextCountdown in
+                    if nextCountdown != nil, nextCountdown != countdown {
+                        onCountdownTick()
+                    }
+                    countdown = nextCountdown
                 }
             )
             .ignoresSafeArea()
 
-            VStack {
-                scannerTopBar
-                Spacer()
-                guidanceBanner
-                scannerBottomBar
+            if let photoReviewImage {
+                photoReview(for: photoReviewImage)
+            } else {
+                VStack {
+                    scannerTopBar
+                    Spacer()
+                    if mode == .scan {
+                        guidanceBanner
+                    }
+                    captureBottomBar
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
         }
         .background(.black)
         .accessibilityElement(children: .contain)
+        .onChange(of: mode) { _, _ in
+            countdown = nil
+            documentFound = false
+            guidance = "Point the camera at a document"
+        }
     }
 
     private var scannerTopBar: some View {
@@ -110,50 +167,71 @@ struct ScannerCaptureView: View {
 
             Spacer()
 
-            Button(action: onOpenGallery) {
-                ZStack(alignment: .topTrailing) {
-                    Image(systemName: "photo.stack")
-                        .font(.title3.weight(.semibold))
-                        .frame(width: 52, height: 44)
-                        .background(.black.opacity(0.55), in: Capsule())
-                    if capturedPageCount > 0 {
-                        Text("\(capturedPageCount)")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(.white)
-                            .padding(5)
-                            .background(.blue, in: Circle())
-                            .offset(x: 4, y: -5)
+            if mode == .scan {
+                Button(action: onOpenGallery) {
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "photo.stack")
+                            .font(.title3.weight(.semibold))
+                            .frame(width: 52, height: 44)
+                            .background(.black.opacity(0.55), in: Capsule())
+                        if capturedPageCount > 0 {
+                            Text("\(capturedPageCount)")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(.white)
+                                .padding(5)
+                                .background(.blue, in: Circle())
+                                .offset(x: 4, y: -5)
+                        }
                     }
                 }
+                .accessibilityLabel("Open gallery, \(capturedPageCount) scanned pages")
             }
-            .accessibilityLabel("Open gallery, \(capturedPageCount) scanned pages")
         }
         .foregroundStyle(.white)
     }
 
     private var guidanceBanner: some View {
-        Text(guidance)
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .background(documentFound ? Color.blue.opacity(0.82) : Color.black.opacity(0.65), in: Capsule())
-            .accessibilityLabel(guidance)
-            .padding(.bottom, 18)
+        VStack(spacing: 12) {
+            if let countdown {
+                Text("\(countdown)")
+                    .font(.system(size: 42, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .frame(width: 72, height: 72)
+                    .background(.yellow.opacity(0.88), in: Circle())
+                    .accessibilityLabel("Auto capture in \(countdown)")
+            }
+            Text(guidance)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 9)
+                .background(documentFound ? Color.blue.opacity(0.82) : Color.black.opacity(0.65), in: Capsule())
+                .accessibilityLabel(guidance)
+        }
+        .padding(.bottom, 18)
     }
 
-    private var scannerBottomBar: some View {
+    private var captureBottomBar: some View {
         VStack(spacing: 18) {
-            Toggle(isOn: $autoCapture) {
-                Label("Auto-capture", systemImage: autoCapture ? "sparkles.rectangle.stack.fill" : "hand.tap")
-                    .font(.subheadline.weight(.medium))
+            Picker("Capture mode", selection: $mode) {
+                ForEach(CameraCaptureMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
             }
-            .toggleStyle(.switch)
-            .foregroundStyle(.white)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(.black.opacity(0.55), in: Capsule())
-            .accessibilityIdentifier("scanner-auto-capture-toggle")
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("camera-mode-selector")
+
+            if mode == .scan {
+                Toggle(isOn: $autoCapture) {
+                    Label("Auto-capture", systemImage: autoCapture ? "sparkles.rectangle.stack.fill" : "hand.tap")
+                        .font(.subheadline.weight(.medium))
+                }
+                .toggleStyle(.switch)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.black.opacity(0.55), in: Capsule())
+                .accessibilityIdentifier("scanner-auto-capture-toggle")
+            }
 
             Button {
                 captureRequest = UUID()
@@ -165,28 +243,82 @@ struct ScannerCaptureView: View {
                         Circle().stroke(.white.opacity(0.7), lineWidth: 5).padding(-7)
                     }
             }
-            .accessibilityLabel("Scan page")
+            .accessibilityLabel(mode == .scan ? "Scan page" : "Take photo")
         }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 14)
+        .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 20))
         .padding(.bottom, 20)
+    }
+
+    private func photoReview(for image: UIImage) -> some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button {
+                    onCancel()
+                } label: {
+                    Label("Discard", systemImage: "xmark")
+                        .labelStyle(.iconOnly)
+                        .frame(width: 44, height: 44)
+                        .background(.black.opacity(0.55), in: Circle())
+                }
+                .accessibilityLabel("Discard photo")
+                Spacer()
+            }
+            .foregroundStyle(.white)
+
+            Spacer()
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .accessibilityLabel("Captured photo preview")
+            Spacer()
+
+            HStack(spacing: 14) {
+                Button("Retake") {
+                    photoReviewImage = nil
+                }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Retake photo")
+
+                Button("Keep Photo") {
+                    onKeepPhoto(image)
+                    photoReviewImage = nil
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityLabel("Keep photo")
+            }
+            .tint(.blue)
+        }
+        .padding(20)
+        .background(.black)
     }
 }
 
 struct DocumentCameraPreview: UIViewControllerRepresentable {
+    let mode: CameraCaptureMode
     @Binding var autoCapture: Bool
     let captureRequest: UUID
-    let onCapture: (UIImage, DocumentCrop) -> Void
+    let onScanCapture: (UIImage, DocumentCrop) -> Void
+    let onPhotoCapture: (UIImage) -> Void
     let onDetectionChanged: (String, Bool) -> Void
+    let onCountdownChanged: (Int?) -> Void
 
     func makeUIViewController(context: Context) -> DocumentCameraViewController {
         let controller = DocumentCameraViewController()
-        controller.onCapture = onCapture
+        controller.mode = mode
+        controller.onScanCapture = onScanCapture
+        controller.onPhotoCapture = onPhotoCapture
         controller.onDetectionChanged = onDetectionChanged
+        controller.onCountdownChanged = onCountdownChanged
         controller.autoCaptureEnabled = autoCapture
         controller.start()
         return controller
     }
 
     func updateUIViewController(_ controller: DocumentCameraViewController, context: Context) {
+        controller.mode = mode
         controller.autoCaptureEnabled = autoCapture
         if context.coordinator.lastCaptureRequest != captureRequest {
             context.coordinator.lastCaptureRequest = captureRequest
@@ -207,9 +339,28 @@ struct DocumentCameraPreview: UIViewControllerRepresentable {
 }
 
 final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVCaptureVideoDataOutputSampleBufferDelegate {
-    var onCapture: ((UIImage, DocumentCrop) -> Void)?
+    var mode: CameraCaptureMode = .scan {
+        didSet {
+            guard mode != oldValue else { return }
+            resetAutoCaptureState()
+            boundaryLayer.path = nil
+            onDetectionChanged?(mode == .scan ? "Point the camera at a document" : "", false)
+        }
+    }
+    var onScanCapture: ((UIImage, DocumentCrop) -> Void)?
+    var onPhotoCapture: ((UIImage) -> Void)?
     var onDetectionChanged: ((String, Bool) -> Void)?
-    var autoCaptureEnabled = true
+    var onCountdownChanged: ((Int?) -> Void)?
+    var autoCaptureEnabled = true {
+        didSet {
+            if !autoCaptureEnabled, oldValue != autoCaptureEnabled {
+                stableSince = nil
+                previousCrop = nil
+                waitingForNextAutoPage = false
+                updateCountdown(nil)
+            }
+        }
+    }
 
     private let session = AVCaptureSession()
     private let sessionQueue = DispatchQueue(label: "ImageDrop.scanner.session")
@@ -224,9 +375,12 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     private var lastAutoCaptureAt = Date.distantPast
     private var lastDetectionAt = Date.distantPast
     private var pendingCaptureCrop: DocumentCrop = .fullFrame
+    private var pendingCaptureMode: CameraCaptureMode = .scan
     private var captureInProgress = false
     private var waitingForNextAutoPage = false
     private var lastAutoCapturedCrop: DocumentCrop?
+    private var visibleCountdown: Int?
+    private let autoCaptureHoldDuration: TimeInterval = 2.4
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -245,7 +399,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         previewLayer.frame = view.bounds
         boundaryLayer.frame = view.bounds
         if let crop = latestCrop {
-            drawBoundary(crop, aligned: documentAppearsStraight(crop))
+            drawBoundary(crop, aligned: DocumentCaptureQuality.isAcceptable(crop))
         }
     }
 
@@ -300,8 +454,9 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     func capturePage(autoTriggered: Bool = false) {
         guard session.isRunning, !captureInProgress else { return }
         captureInProgress = true
-        pendingCaptureCrop = latestCrop ?? .fullFrame
-        if autoTriggered {
+        pendingCaptureMode = mode
+        pendingCaptureCrop = mode == .scan ? (latestCrop ?? .fullFrame) : .fullFrame
+        if autoTriggered, mode == .scan {
             waitingForNextAutoPage = true
             lastAutoCapturedCrop = pendingCaptureCrop
         }
@@ -322,7 +477,11 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
             guard let self else { return }
             self.captureInProgress = false
             if let image {
-                self.onCapture?(image, self.pendingCaptureCrop)
+                if self.pendingCaptureMode == .scan {
+                    self.onScanCapture?(image, self.pendingCaptureCrop)
+                } else {
+                    self.onPhotoCapture?(image)
+                }
             }
         }
     }
@@ -332,6 +491,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         didOutput sampleBuffer: CMSampleBuffer,
         from connection: AVCaptureConnection
     ) {
+        guard mode == .scan else { return }
         guard Date().timeIntervalSince(lastDetectionAt) > 0.16 else { return }
         lastDetectionAt = Date()
         let request = VNDetectRectanglesRequest { [weak self] request, _ in
@@ -357,39 +517,62 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     }
 
     private func handleDetectedCrop(_ detectedCrop: DocumentCrop?) {
+        guard mode == .scan else { return }
         guard let crop = detectedCrop else {
             latestCrop = nil
             boundaryLayer.path = nil
             onDetectionChanged?("Point the camera at a document", false)
-            stableSince = nil
-            previousCrop = nil
-            waitingForNextAutoPage = false
+            resetAutoCaptureState()
             return
         }
-        let aligned = documentAppearsStraight(crop)
-        updateStability(with: crop)
+        let acceptable = DocumentCaptureQuality.isAcceptable(crop)
+        if autoCaptureEnabled, acceptable {
+            updateStability(with: crop)
+        } else {
+            stableSince = nil
+            previousCrop = nil
+            updateCountdown(nil)
+        }
         if waitingForNextAutoPage,
            let capturedCrop = lastAutoCapturedCrop,
-           averageMovement(from: capturedCrop, to: crop) > 0.08 {
+           DocumentCaptureQuality.averageMovement(from: capturedCrop, to: crop) > 0.08 {
             waitingForNextAutoPage = false
         }
         latestCrop = crop
-        drawBoundary(crop, aligned: aligned)
+        drawBoundary(crop, aligned: acceptable)
         let message: String
         if waitingForNextAutoPage {
             message = "Page saved - position the next page"
+            updateCountdown(nil)
+        } else if !acceptable {
+            message = "Move closer and hold straight"
+            stableSince = nil
+            updateCountdown(nil)
+        } else if autoCaptureEnabled, let stableSince {
+            let elapsed = Date().timeIntervalSince(stableSince)
+            let remaining = max(0, autoCaptureHoldDuration - elapsed)
+            if remaining > 0 {
+                let countdown = Int(ceil(remaining))
+                updateCountdown(countdown)
+                message = "Hold still - scanning in \(countdown)"
+            } else {
+                updateCountdown(nil)
+                message = "Capturing page"
+            }
         } else {
-            message = aligned ? "Ready to scan" : "Hold straight"
+            updateCountdown(nil)
+            message = "Ready to scan"
         }
         onDetectionChanged?(message, true)
         if autoCaptureEnabled,
            !waitingForNextAutoPage,
-           aligned,
+           acceptable,
            let stableSince,
-           Date().timeIntervalSince(stableSince) > 0.8,
+           Date().timeIntervalSince(stableSince) >= autoCaptureHoldDuration,
            Date().timeIntervalSince(lastAutoCaptureAt) > 1.8 {
             lastAutoCaptureAt = Date()
             self.stableSince = nil
+            updateCountdown(nil)
             capturePage(autoTriggered: true)
         }
     }
@@ -400,7 +583,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
             stableSince = Date()
             return
         }
-        let travel = averageMovement(from: previousCrop, to: crop)
+        let travel = DocumentCaptureQuality.averageMovement(from: previousCrop, to: crop)
         if travel > 0.025 {
             stableSince = Date()
         } else if stableSince == nil {
@@ -408,21 +591,18 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         }
     }
 
-    private func averageMovement(from first: DocumentCrop, to second: DocumentCrop) -> CGFloat {
-        zip(first.points, second.points)
-            .map { hypot($0.x - $1.x, $0.y - $1.y) }
-            .reduce(0, +) / 4
+    private func updateCountdown(_ countdown: Int?) {
+        guard countdown != visibleCountdown else { return }
+        visibleCountdown = countdown
+        onCountdownChanged?(countdown)
     }
 
-    private func documentAppearsStraight(_ crop: DocumentCrop) -> Bool {
-        func length(_ a: CGPoint, _ b: CGPoint) -> CGFloat { hypot(a.x - b.x, a.y - b.y) }
-        let top = length(crop.topLeft, crop.topRight)
-        let bottom = length(crop.bottomLeft, crop.bottomRight)
-        let left = length(crop.topLeft, crop.bottomLeft)
-        let right = length(crop.topRight, crop.bottomRight)
-        guard max(top, bottom) > 0, max(left, right) > 0 else { return false }
-        return abs(top - bottom) / max(top, bottom) < 0.22
-            && abs(left - right) / max(left, right) < 0.22
+    private func resetAutoCaptureState() {
+        stableSince = nil
+        previousCrop = nil
+        waitingForNextAutoPage = false
+        latestCrop = nil
+        updateCountdown(nil)
     }
 
     private func drawBoundary(_ crop: DocumentCrop, aligned: Bool) {
