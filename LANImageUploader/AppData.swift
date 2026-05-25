@@ -278,6 +278,7 @@ class AppData: ObservableObject {
 }
 
 extension AppData {
+    @MainActor
     static var preview: AppData {
         AppData(
             fileService: FileService.shared,

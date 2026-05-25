@@ -12,11 +12,23 @@ struct FullscreenImageData: Identifiable {
     let uiImage: UIImage
 }
 
+private struct RetakeReviewData: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
+
+private enum GalleryNamingIntent {
+    case singleRename
+    case batchRenameOnly
+    case batchRenameAndUpload
+}
+
 struct GalleryView: View {
     @EnvironmentObject var appData: AppData
     @State private var isMultiSelectMode = false
     @State private var isShowingNamingSheet = false
     @State private var imageName = ""
+    @State private var namingIntent: GalleryNamingIntent = .singleRename
     @State private var selectedImage: CapturedImage?
     @State private var navigateToUpload = false
     @State private var fullscreenData: FullscreenImageData?
@@ -37,7 +49,7 @@ struct GalleryView: View {
     @State private var retakeTargetId: UUID? = nil
     @State private var isShowingRetakeCamera = false
     @State private var retakeImage: UIImage? = nil
-    @State private var isShowingRetakeReview = false
+    @State private var retakeReviewData: RetakeReviewData?
 
     // Grid presentation
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 16)]
@@ -54,8 +66,8 @@ struct GalleryView: View {
                 } else {
                     ScrollView {
                         LazyVGrid(columns: columns, spacing: 16) {
-                            ForEach(galleryItems.indices, id: \.self) { index in
-                                galleryItemCell(index: index, item: galleryItems[index])
+                            ForEach(Array(galleryItems.enumerated()), id: \.element.id) { index, item in
+                                galleryItemCell(index: index, item: item)
                             }
                         }
                         .padding()
@@ -84,13 +96,16 @@ struct GalleryView: View {
                     title: isMultiSelectMode ? "Name Images" : "Name Your Image",
                     placeholder: "Enter name...",
                     onSave: {
-                        if isMultiSelectMode {
-                            batchRenameAndUpload()
-                        } else {
+                        switch namingIntent {
+                        case .singleRename:
                             renameImage()
+                        case .batchRenameOnly:
+                            batchRenameImages()
+                        case .batchRenameAndUpload:
+                            batchRenameAndUpload()
                         }
                     },
-                    saveButtonLabel: isMultiSelectMode ? "Save & Upload" : "Save"
+                    saveButtonLabel: namingIntent == .batchRenameAndUpload ? "Save & Upload" : "Save"
                 )
             }
             .sheet(isPresented: $isShowingPDFNamingSheet) {
@@ -134,41 +149,54 @@ struct GalleryView: View {
                 )
             }
             .fullScreenCover(isPresented: $isShowingRetakeCamera, onDismiss: {
-                if retakeImage != nil {
-                    isShowingRetakeReview = true
+                if let retakeImage {
+                    DispatchQueue.main.async {
+                        retakeReviewData = RetakeReviewData(image: retakeImage)
+                    }
                 } else {
                     retakeTargetId = nil
                 }
             }) {
                 CameraPickerWrapper(image: $retakeImage)
             }
-            .sheet(isPresented: $isShowingRetakeReview) {
-                if let newImage = retakeImage {
-                    RetakeReviewSheet(
-                        newImage: newImage,
-                        onUseNew: {
-                            Task { await completeRetake(with: newImage) }
-                        },
-                        onDiscard: {
-                            retakeImage = nil
-                            retakeTargetId = nil
-                            isShowingRetakeReview = false
-                        },
-                        onRetakeAgain: {
-                            retakeImage = nil
-                            isShowingRetakeReview = false
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                isShowingRetakeCamera = true
-                            }
+            .sheet(item: $retakeReviewData) { data in
+                RetakeReviewSheet(
+                    newImage: data.image,
+                    onUseNew: {
+                        Task { await completeRetake(with: data.image) }
+                    },
+                    onDiscard: {
+                        retakeImage = nil
+                        retakeTargetId = nil
+                        retakeReviewData = nil
+                    },
+                    onRetakeAgain: {
+                        retakeImage = nil
+                        retakeReviewData = nil
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            isShowingRetakeCamera = true
                         }
-                    )
-                }
+                    }
+                )
             }
             .navigationDestination(isPresented: $navigateToUpload) {
                 UploadView().environmentObject(appData)
             }
             .safeAreaInset(edge: .bottom) {
-                if !galleryItems.isEmpty && !isMultiSelectMode {
+                if isMultiSelectMode && !appData.selectedImageIDs.isEmpty {
+                    MultiSelectToolbarView(
+                        appData: appData,
+                        onUpload: uploadSelectedItems,
+                        onDelete: deleteSelectedItems,
+                        onRename: {
+                            imageName = ""
+                            namingIntent = .batchRenameOnly
+                            isShowingNamingSheet = true
+                        },
+                        onRotate: rotateSelectedItems,
+                        onArchive: archiveSelectedItems
+                    )
+                } else if !galleryItems.isEmpty && !isMultiSelectMode {
                     GlassContainer(cornerRadius: 20) {
                         VStack(spacing: 12) {
                             Picker("Output Mode", selection: $outputMode) {
@@ -179,23 +207,39 @@ struct GalleryView: View {
                             .pickerStyle(.segmented)
 
                             HStack(spacing: 16) {
-                                Button(action: {
-                                    if outputMode == .separateImages {
-                                        appData.selectedImageIDs = Set(galleryItems.compactMap { $0.capturedImage?.id })
-                                        isShowingNamingSheet = true
-                                    } else {
-                                        isShowingPDFNamingSheet = true
+                                if outputMode == .separateImages {
+                                    Button(action: uploadAllItems) {
+                                        Label("Upload", systemImage: "square.and.arrow.up")
+                                            .font(.subheadline.weight(.semibold))
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 44)
                                     }
-                                }) {
-                                    Label(outputMode == .separateImages ? "Batch Upload" : "Create PDF & Upload",
-                                          systemImage: outputMode == .separateImages ? "square.and.pencil" : "doc.text")
-                                        .font(.subheadline.weight(.semibold))
-                                        .frame(maxWidth: .infinity)
-                                        .frame(height: 44)
+                                    .buttonStyle(GrayButtonStyle())
+
+                                    Button(action: {
+                                        appData.selectedImageIDs = Set(galleryItems.compactMap { $0.capturedImage?.id })
+                                        namingIntent = .batchRenameAndUpload
+                                        isShowingNamingSheet = true
+                                    }) {
+                                        Label("Batch Rename & Upload", systemImage: "square.and.pencil")
+                                            .font(.subheadline.weight(.semibold))
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 44)
+                                    }
+                                    .buttonStyle(OrangeButtonStyle())
+                                } else {
+                                    Button(action: {
+                                        isShowingPDFNamingSheet = true
+                                    }) {
+                                        Label("Create PDF & Upload", systemImage: "doc.text")
+                                            .font(.subheadline.weight(.semibold))
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 44)
+                                    }
+                                    .buttonStyle(OrangeButtonStyle())
                                 }
-                                .buttonStyle(OrangeButtonStyle())
-                                .disabled(isGeneratingPDF)
                             }
+                            .disabled(isGeneratingPDF)
                         }
                         .padding()
                     }
@@ -223,8 +267,14 @@ struct GalleryView: View {
             syncItemsFromAppData()
             outputMode = appData.defaultGalleryOutputMode
         }
-        .onChange(of: appData.images.map(\.id)) { _, _ in
+        .onChange(of: gallerySyncTokens) { _, _ in
             syncItemsFromAppData()
+        }
+    }
+
+    private var gallerySyncTokens: [String] {
+        appData.images.map { image in
+            "\(image.id.uuidString)|\(image.name)|\(image.fileURL.path)"
         }
     }
 
@@ -236,10 +286,18 @@ struct GalleryView: View {
             isSelected: isMultiSelectMode && appData.selectedImageIDs.contains(item.id),
             isMultiSelectMode: isMultiSelectMode,
             onTap: { handleItemTap(item) },
+            onUpload: { uploadItems([item]) },
             onRotate: { rotateItem(item) },
             onDelete: {
                 itemToDelete = item
                 showDeleteConfirmation = true
+            },
+            onRename: {
+                guard let image = item.capturedImage else { return }
+                selectedImage = image
+                imageName = image.name
+                namingIntent = .singleRename
+                isShowingNamingSheet = true
             },
             onRetake: {
                 retakeTargetId = item.id
@@ -247,7 +305,11 @@ struct GalleryView: View {
             }
         )
         .onDrag {
+            guard !isMultiSelectMode else {
+                return NSItemProvider()
+            }
             draggedItem = item
+            appData.hapticService.playImpact(style: .light)
             return NSItemProvider(object: item.id.uuidString as NSString)
         }
         .onDrop(
@@ -290,8 +352,42 @@ struct GalleryView: View {
     }
 
     func rotateItem(_ item: GalleryItem) {
-        guard let idx = galleryItems.firstIndex(where: { $0.id == item.id }) else { return }
-        galleryItems[idx].rotation = galleryItems[idx].rotation.nextClockwise
+        Task {
+            await rotateAndPersistItems(withIDs: Set([item.id]))
+        }
+    }
+
+    func uploadAllItems() {
+        uploadItems(galleryItems)
+    }
+
+    func uploadSelectedItems() {
+        let selectedIDs = appData.selectedImageIDs
+        let selectedItems = galleryItems.filter { selectedIDs.contains($0.id) }
+        uploadItems(selectedItems)
+    }
+
+    func uploadItems(_ items: [GalleryItem]) {
+        let itemsToUpload = items.filter { $0.capturedImage != nil }
+        guard !itemsToUpload.isEmpty else { return }
+
+        Task {
+            await applyRotationsBeforeUpload()
+            await MainActor.run {
+                appData.pendingUploadFiles = itemsToUpload.compactMap { item in
+                    guard let image = item.capturedImage else { return nil }
+                    return UploadableFile(
+                        id: image.id,
+                        name: image.name,
+                        fileURL: image.fileURL,
+                        kind: .jpeg
+                    )
+                }
+                appData.selectedImageIDs.removeAll()
+                isMultiSelectMode = false
+                navigateToUpload = true
+            }
+        }
     }
 
     func leaveEmptySpace(_ item: GalleryItem) {
@@ -319,13 +415,108 @@ struct GalleryView: View {
         }
     }
 
+    func deleteSelectedItems() {
+        let selectedIDs = appData.selectedImageIDs
+        guard !selectedIDs.isEmpty else { return }
+
+        let imagesToDelete = galleryItems.compactMap { item -> CapturedImage? in
+            guard selectedIDs.contains(item.id) else { return nil }
+            return item.capturedImage
+        }
+
+        galleryItems.removeAll { selectedIDs.contains($0.id) }
+        appData.selectedImageIDs.removeAll()
+        isMultiSelectMode = false
+
+        Task {
+            for image in imagesToDelete {
+                try? await appData.fileService.removeItem(at: image.fileURL)
+            }
+            await MainActor.run {
+                appData.images.removeAll { image in
+                    imagesToDelete.contains { $0.id == image.id }
+                }
+                appData.hapticService.playNotification(type: .success)
+            }
+        }
+    }
+
+    func rotateSelectedItems() {
+        Task {
+            await rotateAndPersistItems(withIDs: appData.selectedImageIDs)
+        }
+    }
+
+    func archiveSelectedItems() {
+        let selectedImages = galleryItems.compactMap { item -> CapturedImage? in
+            guard appData.selectedImageIDs.contains(item.id) else { return nil }
+            return item.capturedImage
+        }
+
+        guard !selectedImages.isEmpty else { return }
+
+        Task {
+            await appData.saveImagesToDatedFolder(selectedImages)
+            await MainActor.run {
+                appData.selectedImageIDs.removeAll()
+                isMultiSelectMode = false
+                appData.hapticService.playNotification(type: .success)
+            }
+        }
+    }
+
+    @MainActor
+    private func rotateAndPersistItems(withIDs ids: Set<UUID>) async {
+        guard !ids.isEmpty else { return }
+
+        var rotatedAny = false
+        for id in ids {
+            guard let itemIndex = galleryItems.firstIndex(where: { $0.id == id }),
+                  let image = galleryItems[itemIndex].capturedImage
+            else { continue }
+
+            galleryItems[itemIndex].rotation = galleryItems[itemIndex].rotation.nextClockwise
+            let rotation = galleryItems[itemIndex].rotation
+
+            do {
+                try await persistRotation(for: image, rotation: rotation)
+                if let appIndex = appData.images.firstIndex(where: { $0.id == image.id }) {
+                    appData.images[appIndex].fileURL = image.fileURL
+                }
+                galleryItems[itemIndex].rotation = .degrees0
+                rotatedAny = true
+            } catch {
+                galleryItems[itemIndex].rotation = .degrees0
+                pdfGenerationError = "Failed to rotate image: \(error.localizedDescription)"
+            }
+        }
+
+        if rotatedAny {
+            appData.hapticService.playImpact(style: .light)
+        }
+    }
+
+    private func persistRotation(for image: CapturedImage, rotation: ImageRotation) async throws {
+        guard rotation != .degrees0 else { return }
+        guard let uiImage = UIImage(contentsOfFile: image.fileURL.path) else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+
+        let rotated = uiImage.rotatedClockwise(by: rotation)
+        guard let data = rotated.jpegData(compressionQuality: 0.8) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+
+        _ = try await appData.fileService.saveImage(data, fileName: image.fileURL.lastPathComponent)
+    }
+
     func completeRetake(with image: UIImage) async {
         guard let targetId = retakeTargetId,
               let idx = galleryItems.firstIndex(where: { $0.id == targetId }) else {
             await MainActor.run {
                 retakeImage = nil
                 retakeTargetId = nil
-                isShowingRetakeReview = false
+                retakeReviewData = nil
             }
             return
         }
@@ -334,18 +525,17 @@ struct GalleryView: View {
             let captured = try await appData.saveCapturedUIImage(image, suggestedPrefix: "RETAKE")
             await MainActor.run {
                 deleteLocalImage(galleryItems[idx].capturedImage)
-                galleryItems[idx].capturedImage = captured
-                galleryItems[idx].rotation = .degrees0
+                galleryItems[idx] = GalleryItem(id: captured.id, capturedImage: captured, rotation: .degrees0)
                 appData.images.append(captured)
                 retakeImage = nil
                 retakeTargetId = nil
-                isShowingRetakeReview = false
+                retakeReviewData = nil
             }
         } catch {
             await MainActor.run {
                 retakeImage = nil
                 retakeTargetId = nil
-                isShowingRetakeReview = false
+                retakeReviewData = nil
             }
         }
     }
@@ -382,6 +572,7 @@ struct GalleryView: View {
     func batchRenameImages() {
         guard !imageName.isEmpty else { return }
         _ = renameSelectedImagesInGalleryOrder(baseName: imageName)
+        syncItemsFromAppData()
         appData.selectedImageIDs.removeAll()
         isMultiSelectMode = false
         imageName = ""
@@ -395,6 +586,7 @@ struct GalleryView: View {
             await applyRotationsBeforeUpload()
             await MainActor.run {
                 appData.pendingUploadFiles = renameSelectedImagesInGalleryOrder(baseName: imageName)
+                syncItemsFromAppData()
                 appData.selectedImageIDs.removeAll()
                 isMultiSelectMode = false
                 imageName = ""
@@ -408,18 +600,17 @@ struct GalleryView: View {
             guard let img = item.capturedImage, item.rotation != .degrees0 else { continue }
             guard let idx = appData.images.firstIndex(where: { $0.id == img.id }) else { continue }
 
-            if let uiImage = UIImage(contentsOfFile: img.fileURL.path) {
-                let rotated = uiImage.rotatedClockwise(by: item.rotation)
-                if let data = rotated.jpegData(compressionQuality: 0.8) {
-                    try? await appData.fileService.removeItem(at: img.fileURL)
-                    if let newURL = try? await appData.fileService.saveImage(data, fileName: img.fileURL.lastPathComponent) {
-                        await MainActor.run {
-                            appData.images[idx].fileURL = newURL
-                            if let galleryIdx = galleryItems.firstIndex(where: { $0.id == item.id }) {
-                                galleryItems[galleryIdx].rotation = .degrees0
-                            }
-                        }
+            do {
+                try await persistRotation(for: img, rotation: item.rotation)
+                await MainActor.run {
+                    appData.images[idx].fileURL = img.fileURL
+                    if let galleryIdx = galleryItems.firstIndex(where: { $0.id == item.id }) {
+                        galleryItems[galleryIdx].rotation = .degrees0
                     }
+                }
+            } catch {
+                await MainActor.run {
+                    pdfGenerationError = "Failed to rotate image before upload: \(error.localizedDescription)"
                 }
             }
         }
@@ -430,6 +621,7 @@ struct GalleryView: View {
             let index = appData.images.firstIndex(where: { $0.id == image.id })
         else { return }
         appData.images[index].name = imageName.isEmpty ? "Image" : imageName
+        syncItemsFromAppData()
         selectedImage = nil
         imageName = ""
         isShowingNamingSheet = false
@@ -483,12 +675,13 @@ struct GalleryView: View {
     }
 
     private func syncItemsFromAppData() {
-        let appDataIDs = Set(appData.images.map { $0.id })
-        var updatedItems = galleryItems.filter { item in
+        let appDataImagesByID = Dictionary(uniqueKeysWithValues: appData.images.map { ($0.id, $0) })
+        var updatedItems = galleryItems.compactMap { item -> GalleryItem? in
             if let image = item.capturedImage {
-                return appDataIDs.contains(image.id)
+                guard let updatedImage = appDataImagesByID[image.id] else { return nil }
+                return GalleryItem(id: item.id, capturedImage: updatedImage, rotation: item.rotation)
             }
-            return true
+            return item
         }
 
         let existingImageIDs = Set(updatedItems.compactMap { $0.capturedImage?.id })
@@ -515,6 +708,10 @@ struct ReorderDropDelegate: DropDelegate {
                 self.items.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
             }
         }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
     }
 
     func performDrop(info: DropInfo) -> Bool {
