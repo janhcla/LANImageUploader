@@ -510,40 +510,37 @@ extension NetworkDiscovery {
     func discoverSMBServers(timeout: TimeInterval) async throws -> [NetService] {
         let serviceTypes = ["_smb._tcp", "_microsoft-ds._tcp"]
 
-        // NetService is main-actor-bound and cannot cross task-group boundaries in Swift 6.
-        var allServices: [NetService] = []
-        for type in serviceTypes {
-            do {
-                allServices.append(contentsOf: try await discoverServices(ofType: type, timeout: timeout))
-            } catch {
-                logger.warning("Bonjour discovery failed for type \(type): \(error.localizedDescription)")
-            }
-        }
+        // NetService is bound to the run loop and is not Sendable. Run both
+        // browsers concurrently on the main actor rather than through child tasks.
+        let allServices = try await discoverServices(ofTypes: serviceTypes, timeout: timeout)
 
         var uniqueServices: [NetService] = []
         var seenNames: Set<String> = []
 
-        for service in allServices where !seenNames.contains(service.name) {
-            seenNames.insert(service.name)
-            uniqueServices.append(service)
+        for service in allServices {
+            if !seenNames.contains(service.name) {
+                seenNames.insert(service.name)
+                uniqueServices.append(service)
+            }
         }
 
         return uniqueServices.sorted { $0.name.lowercased() < $1.name.lowercased() }
     }
     
     @MainActor
-    private func discoverServices(ofType type: String, timeout: TimeInterval) async throws -> [NetService] {
+    private func discoverServices(ofTypes types: [String], timeout: TimeInterval) async throws -> [NetService] {
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<[NetService], Error>) in
-            let browser = NetServiceBrowser()
+            var browsers: [NetServiceBrowser] = []
             var discoveredServices: [NetService] = []
             var didResume = false
+            var completedSearches = 0
             var attemptedConnections = Set<String>()
             
             let finish: (Result<[NetService], Error>) -> Void = { result in
                 Task { @MainActor in
                     guard !didResume else { return }
                     didResume = true
-                    browser.stop()
+                    browsers.forEach { $0.stop() }
                     switch result {
                     case .success(let services):
                         continuation.resume(returning: services)
@@ -552,38 +549,48 @@ extension NetworkDiscovery {
                     }
                 }
             }
-            
-            let delegate = BonjourDelegate(
-                didFind: { service in
-                    Task { @MainActor in
-                        guard !attemptedConnections.contains(service.name) else { return }
-                        attemptedConnections.insert(service.name)
-                        discoveredServices.append(service)
+
+            for type in types {
+                let browser = NetServiceBrowser()
+                let delegate = BonjourDelegate(
+                    didFind: { service in
+                        Task { @MainActor in
+                            guard !attemptedConnections.contains(service.name) else { return }
+                            attemptedConnections.insert(service.name)
+                            discoveredServices.append(service)
+                        }
+                    },
+                    didRemove: { service in
+                        Task { @MainActor in
+                            discoveredServices.removeAll { $0.name == service.name }
+                            attemptedConnections.remove(service.name)
+                        }
+                    },
+                    didComplete: {
+                        Task { @MainActor in
+                            completedSearches += 1
+                            if completedSearches == types.count {
+                                finish(.success(discoveredServices))
+                            }
+                        }
+                    },
+                    didFail: { error in
+                        logger.warning("Bonjour discovery failed for type \(type): \(error.localizedDescription)")
+                        Task { @MainActor in
+                            completedSearches += 1
+                            if completedSearches == types.count {
+                                finish(.success(discoveredServices))
+                            }
+                        }
                     }
-                },
-                didRemove: { service in
-                    Task { @MainActor in
-                        discoveredServices.removeAll { $0.name == service.name }
-                        attemptedConnections.remove(service.name)
-                    }
-                },
-                didComplete: {
-                    Task { @MainActor in
-                        finish(.success(discoveredServices))
-                    }
-                },
-                didFail: { error in
-                    Task { @MainActor in
-                        finish(.failure(error))
-                    }
-                }
-            )
-            
-            objc_setAssociatedObject(browser, "delegate", delegate, .OBJC_ASSOCIATION_RETAIN)
-            browser.delegate = delegate
-            
-            browser.schedule(in: .main, forMode: .common)
-            browser.searchForServices(ofType: type, inDomain: "local.")
+                )
+
+                objc_setAssociatedObject(browser, "delegate", delegate, .OBJC_ASSOCIATION_RETAIN)
+                browser.delegate = delegate
+                browser.schedule(in: .main, forMode: .common)
+                browsers.append(browser)
+                browser.searchForServices(ofType: type, inDomain: "local.")
+            }
             
             // Short timeout check
             let shortTimeout = min(timeout * 0.5, 2.0)
@@ -597,7 +604,7 @@ extension NetworkDiscovery {
             // Full timeout check
             Task { @MainActor in
                 try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                browser.stop()
+                browsers.forEach { $0.stop() }
                 if !didResume {
                     finish(.success(discoveredServices))
                 }

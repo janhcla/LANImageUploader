@@ -13,9 +13,11 @@ struct GalleryItemView: View {
     let isMultiSelectMode: Bool
 
     let onTap: () -> Void
+    let onUpload: () -> Void
     let onRotate: () -> Void
     let onEditCrop: () -> Void
     let onDelete: () -> Void
+    let onRename: () -> Void
     let onRetake: () -> Void
 
     @State private var uiImage: UIImage? = nil
@@ -29,7 +31,6 @@ struct GalleryItemView: View {
                             .resizable()
                             .scaledToFill()
                             .frame(height: 150)
-                            .rotationEffect(.degrees(Double(item.rotation.rawValue)))
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
@@ -68,6 +69,9 @@ struct GalleryItemView: View {
             .onTapGesture {
                 onTap()
             }
+            .task(id: imageReloadID) {
+                await loadImage()
+            }
 
             // Index badge
             Text("\(index + 1)")
@@ -88,11 +92,14 @@ struct GalleryItemView: View {
                     .padding(8)
             }
         }
-        .task(id: item) {
-            await loadImage()
-        }
         .contextMenu {
             if item.capturedImage != nil {
+                Button {
+                    onUpload()
+                } label: {
+                    Label("Upload", systemImage: "square.and.arrow.up")
+                }
+
                 Button {
                     onRotate()
                 } label: {
@@ -103,6 +110,12 @@ struct GalleryItemView: View {
                     onEditCrop()
                 } label: {
                     Label("Edit Crop", systemImage: "crop.rotate")
+                }
+
+                Button {
+                    onRename()
+                } label: {
+                    Label("Rename Photo", systemImage: "pencil")
                 }
 
                 Button {
@@ -120,10 +133,21 @@ struct GalleryItemView: View {
         }
     }
 
+    private var imageReloadID: String {
+        guard let image = item.capturedImage else { return item.id.uuidString }
+        return "\(image.id.uuidString)-\(image.fileURL.path)-\(String(describing: image.crop))-\(item.rotation.rawValue)"
+    }
+
     private func loadImage() async {
+        guard let capturedImage = item.capturedImage else {
+            await MainActor.run {
+                self.uiImage = nil
+            }
+            return
+        }
+
         let image: UIImage? = await Task.detached(priority: .userInitiated) { () -> UIImage? in
-            guard let capturedImage = item.capturedImage else { return nil }
-            return DocumentImageProcessor.renderedImage(for: capturedImage, rotation: item.rotation)
+            DocumentImageProcessor.renderedImage(for: capturedImage, rotation: item.rotation)
         }.value
 
         await MainActor.run {

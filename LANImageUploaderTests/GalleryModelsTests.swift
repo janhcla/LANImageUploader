@@ -42,7 +42,8 @@ struct GalleryModelsTests {
             name: "scan",
             fileURL: URL(fileURLWithPath: "/tmp/scan.jpg"),
             crop: crop,
-            isDocumentScan: true
+            isDocumentScan: true,
+            rotation: .degrees90
         )
 
         let data = try JSONEncoder().encode(original)
@@ -51,6 +52,7 @@ struct GalleryModelsTests {
         #expect(decoded.id == original.id)
         #expect(decoded.crop == crop)
         #expect(decoded.isDocumentScan)
+        #expect(decoded.rotation == .degrees90)
     }
 
     @Test func cropExportLeavesOriginalScanUnmodified() throws {
@@ -75,12 +77,13 @@ struct GalleryModelsTests {
                 bottomRight: CGPoint(x: 0.85, y: 0.88),
                 bottomLeft: CGPoint(x: 0.15, y: 0.88)
             ),
-            isDocumentScan: true
+            isDocumentScan: true,
+            rotation: .degrees90
         )
 
         let exportedURL = try DocumentImageProcessor.exportJPEG(
             for: page,
-            rotation: .degrees0,
+            rotation: page.rotation,
             name: "export",
             maxPixelDimension: 2500,
             jpegQuality: 0.85

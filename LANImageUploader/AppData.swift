@@ -49,23 +49,26 @@ struct CapturedImage: Identifiable, Codable {
     var fileURL: URL
     var crop: DocumentCrop?
     var isDocumentScan: Bool
+    var rotation: ImageRotation
 
     init(
         id: UUID = UUID(),
         name: String,
         fileURL: URL,
         crop: DocumentCrop? = nil,
-        isDocumentScan: Bool = false
+        isDocumentScan: Bool = false,
+        rotation: ImageRotation = .degrees0
     ) {
         self.id = id
         self.name = name
         self.fileURL = fileURL
         self.crop = crop
         self.isDocumentScan = isDocumentScan
+        self.rotation = rotation
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, fileURL, crop, isDocumentScan
+        case id, name, fileURL, crop, isDocumentScan, rotation
     }
 
     init(from decoder: Decoder) throws {
@@ -75,6 +78,7 @@ struct CapturedImage: Identifiable, Codable {
         fileURL = try container.decode(URL.self, forKey: .fileURL)
         crop = try container.decodeIfPresent(DocumentCrop.self, forKey: .crop)
         isDocumentScan = try container.decodeIfPresent(Bool.self, forKey: .isDocumentScan) ?? false
+        rotation = try container.decodeIfPresent(ImageRotation.self, forKey: .rotation) ?? .degrees0
     }
 }
 
@@ -230,6 +234,11 @@ class AppData: ObservableObject {
         guard let index = images.firstIndex(where: { $0.id == id }) else { return }
         images[index].crop = crop.clamped()
         images[index].isDocumentScan = true
+    }
+
+    func rotateImage(withID id: UUID) {
+        guard let index = images.firstIndex(where: { $0.id == id }) else { return }
+        images[index].rotation = images[index].rotation.nextClockwise
     }
 
     // Save images to a dated folder

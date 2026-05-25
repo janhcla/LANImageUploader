@@ -10,6 +10,23 @@ import Foundation
 import UIKit
 @testable import LANImageUploader
 
+private final class ProgressRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recordedValues: [Double] = []
+
+    func append(_ value: Double) {
+        lock.withLock {
+            recordedValues.append(value)
+        }
+    }
+
+    var values: [Double] {
+        lock.withLock {
+            recordedValues
+        }
+    }
+}
+
 struct LANImageUploaderTests {
 
     @Test @MainActor func appDataInitialization() async throws {
@@ -105,7 +122,13 @@ struct LANImageUploaderTests {
             bottomRight: CGPoint(x: 0.9, y: 0.9),
             bottomLeft: CGPoint(x: 0.1, y: 0.9)
         )
-        let original = CapturedImage(name: "persisted", fileURL: sourceURL, crop: crop, isDocumentScan: true)
+        let original = CapturedImage(
+            name: "persisted",
+            fileURL: sourceURL,
+            crop: crop,
+            isDocumentScan: true,
+            rotation: .degrees270
+        )
 
         let first = AppData(
             fileService: MockFileService(),
@@ -127,6 +150,7 @@ struct LANImageUploaderTests {
         #expect(restored.images.count == 1)
         #expect(restored.images.first?.id == original.id)
         #expect(restored.images.first?.crop == crop)
+        #expect(restored.images.first?.rotation == .degrees270)
     }
 
     @Test @MainActor func appDataArchiveImages() async throws {
@@ -315,23 +339,6 @@ struct LANImageUploaderTests {
     }
 
     @Test @MainActor func mockUploadServiceRecordsUploadInputsAndProgress() async throws {
-        final class ProgressRecorder: @unchecked Sendable {
-            private let lock = NSLock()
-            private var storage: [Double] = []
-
-            func append(_ value: Double) {
-                lock.lock()
-                storage.append(value)
-                lock.unlock()
-            }
-
-            var values: [Double] {
-                lock.lock()
-                defer { lock.unlock() }
-                return storage
-            }
-        }
-
         let mockUpload = MockImageUploadService()
         let progress = ProgressRecorder()
         let image = CapturedImage(name: "IMG_001", fileURL: URL(fileURLWithPath: "/tmp/mock/images/IMG_001.jpg"))
