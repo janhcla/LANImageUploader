@@ -69,11 +69,71 @@ enum CameraCaptureMode: String, CaseIterable, Identifiable {
     var localizedTitleKey: LocalizedStringKey { LocalizedStringKey(rawValue) }
 }
 
+struct CameraZoomOption: Identifiable, Equatable {
+    let factor: CGFloat
+    let displayFactor: CGFloat
+
+    var id: CGFloat { factor }
+
+    var label: String {
+        if displayFactor.rounded() == displayFactor {
+            return "\(Int(displayFactor))x"
+        }
+        return String(format: "%.1fx", displayFactor)
+    }
+
+    static let standard = CameraZoomOption(factor: 1, displayFactor: 1)
+}
+
+struct PhotoCaptureFraming {
+    static func normalizedVisibleRect(imageSize: CGSize, previewSize: CGSize) -> CGRect {
+        guard imageSize.width > 0, imageSize.height > 0,
+              previewSize.width > 0, previewSize.height > 0 else {
+            return CGRect(x: 0, y: 0, width: 1, height: 1)
+        }
+
+        let imageAspect = imageSize.width / imageSize.height
+        let previewAspect = previewSize.width / previewSize.height
+        if imageAspect > previewAspect {
+            let visibleWidth = previewAspect / imageAspect
+            return CGRect(x: (1 - visibleWidth) / 2, y: 0, width: visibleWidth, height: 1)
+        }
+
+        let visibleHeight = imageAspect / previewAspect
+        return CGRect(x: 0, y: (1 - visibleHeight) / 2, width: 1, height: visibleHeight)
+    }
+
+    static func image(_ image: UIImage, matchingAspectFillPreview previewSize: CGSize) -> UIImage {
+        let upright = normalizedOrientationImage(image)
+        guard let cgImage = upright.cgImage else { return image }
+        let size = CGSize(width: cgImage.width, height: cgImage.height)
+        let visible = normalizedVisibleRect(imageSize: size, previewSize: previewSize)
+        let crop = CGRect(
+            x: visible.minX * size.width,
+            y: visible.minY * size.height,
+            width: visible.width * size.width,
+            height: visible.height * size.height
+        ).integral.intersection(CGRect(origin: .zero, size: size))
+        guard !crop.isEmpty, let framed = cgImage.cropping(to: crop) else { return upright }
+        return UIImage(cgImage: framed, scale: upright.scale, orientation: .up)
+    }
+
+    private static func normalizedOrientationImage(_ image: UIImage) -> UIImage {
+        guard image.imageOrientation != .up else { return image }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = image.scale
+        return UIGraphicsImageRenderer(size: image.size, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: image.size))
+        }
+    }
+}
+
 struct DocumentCaptureQuality {
     static func averageMovement(from first: DocumentCrop, to second: DocumentCrop) -> CGFloat {
-        zip(first.points, second.points)
-            .map { hypot($0.x - $1.x, $0.y - $1.y) }
-            .reduce(0, +) / 4
+        (hypot(first.topLeft.x - second.topLeft.x, first.topLeft.y - second.topLeft.y)
+            + hypot(first.topRight.x - second.topRight.x, first.topRight.y - second.topRight.y)
+            + hypot(first.bottomRight.x - second.bottomRight.x, first.bottomRight.y - second.bottomRight.y)
+            + hypot(first.bottomLeft.x - second.bottomLeft.x, first.bottomLeft.y - second.bottomLeft.y)) / 4
     }
 
     static func isAcceptable(_ crop: DocumentCrop) -> Bool {
@@ -82,14 +142,37 @@ struct DocumentCaptureQuality {
         let bottom = length(crop.bottomLeft, crop.bottomRight)
         let left = length(crop.topLeft, crop.bottomLeft)
         let right = length(crop.topRight, crop.bottomRight)
-        let area = zip(crop.points, Array(crop.points.dropFirst()) + [crop.topLeft])
-            .map { $0.x * $1.y - $1.x * $0.y }
-            .reduce(0, +)
-            .magnitude / 2
+        let area = abs(
+            crop.topLeft.x * crop.topRight.y - crop.topRight.x * crop.topLeft.y
+                + crop.topRight.x * crop.bottomRight.y - crop.bottomRight.x * crop.topRight.y
+                + crop.bottomRight.x * crop.bottomLeft.y - crop.bottomLeft.x * crop.bottomRight.y
+                + crop.bottomLeft.x * crop.topLeft.y - crop.topLeft.x * crop.bottomLeft.y
+        ) / 2
 
         guard max(top, bottom) > 0, max(left, right) > 0, area >= 0.18 else { return false }
         return abs(top - bottom) / max(top, bottom) < 0.18
             && abs(left - right) / max(left, right) < 0.18
+    }
+
+    static func smoothedDisplayCrop(
+        from displayed: DocumentCrop?,
+        toward latest: DocumentCrop,
+        factor: CGFloat = 0.68
+    ) -> DocumentCrop {
+        guard let displayed else { return latest }
+        let amount = min(max(factor, 0), 1)
+        func interpolate(_ start: CGPoint, _ end: CGPoint) -> CGPoint {
+            CGPoint(
+                x: start.x + (end.x - start.x) * amount,
+                y: start.y + (end.y - start.y) * amount
+            )
+        }
+        return DocumentCrop(
+            topLeft: interpolate(displayed.topLeft, latest.topLeft),
+            topRight: interpolate(displayed.topRight, latest.topRight),
+            bottomRight: interpolate(displayed.bottomRight, latest.bottomRight),
+            bottomLeft: interpolate(displayed.bottomLeft, latest.bottomLeft)
+        )
     }
 }
 
@@ -109,6 +192,8 @@ struct ScannerCaptureView: View {
     @State private var documentFound = false
     @State private var countdown: Int?
     @State private var photoReviewImage: UIImage?
+    @State private var zoomOptions: [CameraZoomOption] = [.standard]
+    @State private var selectedZoomFactor: CGFloat = 1
 
     init(
         initialMode: CameraCaptureMode,
@@ -136,19 +221,30 @@ struct ScannerCaptureView: View {
                 mode: mode,
                 autoCapture: $autoCapture,
                 captureRequest: captureRequest,
+                selectedZoomFactor: selectedZoomFactor,
                 onScanCapture: onScanCapture,
                 onPhotoCapture: { image in
                     photoReviewImage = image
                 },
                 onDetectionChanged: { message, found in
-                    guidance = message
-                    documentFound = found
+                    DispatchQueue.main.async {
+                        guidance = message
+                        documentFound = found
+                    }
                 },
                 onCountdownChanged: { nextCountdown in
-                    if nextCountdown != nil, nextCountdown != countdown {
-                        onCountdownTick()
+                    DispatchQueue.main.async {
+                        if nextCountdown != nil, nextCountdown != countdown {
+                            onCountdownTick()
+                        }
+                        countdown = nextCountdown
                     }
-                    countdown = nextCountdown
+                },
+                onZoomOptionsChanged: { options, currentFactor in
+                    DispatchQueue.main.async {
+                        zoomOptions = options.isEmpty ? [.standard] : options
+                        selectedZoomFactor = currentFactor
+                    }
                 }
             )
             .ignoresSafeArea()
@@ -241,6 +337,8 @@ struct ScannerCaptureView: View {
             .pickerStyle(.segmented)
             .accessibilityIdentifier("camera-mode-selector")
 
+            zoomControls
+
             if mode == .scan {
                 Toggle(isOn: $autoCapture) {
                     Label("Auto-capture", systemImage: autoCapture ? "sparkles.rectangle.stack.fill" : "hand.tap")
@@ -272,47 +370,92 @@ struct ScannerCaptureView: View {
         .padding(.bottom, 20)
     }
 
-    private func photoReview(for image: UIImage) -> some View {
-        VStack(spacing: 0) {
-            HStack {
+    private var zoomControls: some View {
+        HStack(spacing: 10) {
+            ForEach(zoomOptions) { option in
                 Button {
-                    photoReviewImage = nil
+                    selectedZoomFactor = option.factor
                 } label: {
-                    Label("Discard", systemImage: "xmark")
-                        .labelStyle(.iconOnly)
-                        .frame(width: 44, height: 44)
-                        .background(.black.opacity(0.55), in: Circle())
+                    Text(option.label)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(selectedZoomFactor == option.factor ? .yellow : .white)
+                        .frame(minWidth: 46, minHeight: 38)
+                        .background(
+                            selectedZoomFactor == option.factor ? .black.opacity(0.82) : .black.opacity(0.42),
+                            in: Capsule()
+                        )
                 }
-                .accessibilityLabel("Discard photo")
-                Spacer()
+                .accessibilityLabel("Zoom \(option.label)")
+                .accessibilityAddTraits(selectedZoomFactor == option.factor ? .isSelected : [])
             }
-            .foregroundStyle(.white)
-
-            Spacer()
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFit()
-                .accessibilityLabel("Captured photo preview")
-            Spacer()
-
-            HStack(spacing: 14) {
-                Button("Retake") {
-                    photoReviewImage = nil
-                }
-                .buttonStyle(.bordered)
-                .accessibilityLabel("Retake photo")
-
-                Button("Keep Photo") {
-                    onKeepPhoto(image)
-                    photoReviewImage = nil
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityLabel("Keep photo")
-            }
-            .tint(.blue)
         }
-        .padding(20)
-        .background(.black)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("camera-zoom-controls")
+    }
+
+    private func photoReview(for image: UIImage) -> some View {
+        ZStack {
+            Color.black.opacity(0.82).ignoresSafeArea()
+
+            VStack(spacing: 16) {
+                HStack {
+                    reviewIconButton(label: "Discard photo", systemName: "xmark") {
+                        photoReviewImage = nil
+                    }
+                    Spacer()
+                }
+
+                GlassContainer(cornerRadius: 28) {
+                    ZoomablePhotoReviewImage(image: image)
+                }
+                .accessibilityElement(children: .contain)
+
+                GlassContainer(cornerRadius: 24) {
+                    HStack(spacing: 12) {
+                        Button {
+                            photoReviewImage = nil
+                        } label: {
+                            Label("Retake", systemImage: "arrow.counterclockwise")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.white)
+                        .accessibilityLabel("Retake photo")
+
+                        Button {
+                            onKeepPhoto(image)
+                            photoReviewImage = nil
+                        } label: {
+                            Label("Keep Photo", systemImage: "checkmark")
+                                .font(.headline)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(.blue.opacity(0.65), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.white)
+                        .accessibilityLabel("Keep photo")
+                    }
+                }
+            }
+            .padding(20)
+        }
+    }
+
+    private func reviewIconButton(label: String, systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(.white)
+                .frame(width: 48, height: 48)
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay {
+                    Circle().stroke(.white.opacity(0.4), lineWidth: 1)
+                }
+        }
+        .accessibilityLabel(label)
     }
 
     private var retainedItemCount: Int {
@@ -327,14 +470,90 @@ struct ScannerCaptureView: View {
     }
 }
 
+private struct ZoomablePhotoReviewImage: View {
+    let image: UIImage
+    @State private var scale: CGFloat = 1
+    @State private var offset: CGSize = .zero
+    @GestureState private var activeScale: CGFloat = 1
+    @GestureState private var activeOffset: CGSize = .zero
+
+    private var presentedScale: CGFloat {
+        min(max(scale * activeScale, 1), 5)
+    }
+
+    private var presentedOffset: CGSize {
+        guard presentedScale > 1 else { return .zero }
+        return CGSize(width: offset.width + activeOffset.width, height: offset.height + activeOffset.height)
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .scaleEffect(presentedScale)
+                .offset(presentedOffset)
+                .frame(width: proxy.size.width, height: proxy.size.height)
+                .clipped()
+                .contentShape(Rectangle())
+                .gesture(magnifyGesture)
+                .simultaneousGesture(dragGesture)
+                .onTapGesture(count: 2) {
+                    withAnimation(.smooth(duration: 0.24)) {
+                        if scale > 1 {
+                            scale = 1
+                            offset = .zero
+                        } else {
+                            scale = 2
+                        }
+                    }
+                }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityLabel("Captured photo preview")
+        .accessibilityHint("Pinch or double tap to zoom")
+    }
+
+    private var magnifyGesture: some Gesture {
+        MagnifyGesture()
+            .updating($activeScale) { value, state, _ in
+                state = value.magnification
+            }
+            .onEnded { value in
+                scale = min(max(scale * value.magnification, 1), 5)
+                if scale == 1 {
+                    offset = .zero
+                }
+            }
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture()
+            .updating($activeOffset) { value, state, _ in
+                if presentedScale > 1 {
+                    state = value.translation
+                }
+            }
+            .onEnded { value in
+                guard scale > 1 else {
+                    offset = .zero
+                    return
+                }
+                offset = CGSize(width: offset.width + value.translation.width, height: offset.height + value.translation.height)
+            }
+    }
+}
+
 struct DocumentCameraPreview: UIViewControllerRepresentable {
     let mode: CameraCaptureMode
     @Binding var autoCapture: Bool
     let captureRequest: UUID
+    let selectedZoomFactor: CGFloat
     let onScanCapture: (UIImage, DocumentCrop) -> Void
     let onPhotoCapture: (UIImage) -> Void
     let onDetectionChanged: (String, Bool) -> Void
     let onCountdownChanged: (Int?) -> Void
+    let onZoomOptionsChanged: ([CameraZoomOption], CGFloat) -> Void
 
     func makeUIViewController(context: Context) -> DocumentCameraViewController {
         let controller = DocumentCameraViewController()
@@ -343,6 +562,7 @@ struct DocumentCameraPreview: UIViewControllerRepresentable {
         controller.onPhotoCapture = onPhotoCapture
         controller.onDetectionChanged = onDetectionChanged
         controller.onCountdownChanged = onCountdownChanged
+        controller.onZoomOptionsChanged = onZoomOptionsChanged
         controller.autoCaptureEnabled = autoCapture
         controller.start()
         return controller
@@ -351,6 +571,7 @@ struct DocumentCameraPreview: UIViewControllerRepresentable {
     func updateUIViewController(_ controller: DocumentCameraViewController, context: Context) {
         controller.mode = mode
         controller.autoCaptureEnabled = autoCapture
+        controller.setZoomFactor(selectedZoomFactor)
         if context.coordinator.lastCaptureRequest != captureRequest {
             context.coordinator.lastCaptureRequest = captureRequest
             controller.capturePage()
@@ -385,6 +606,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
             modeLock.unlock()
             guard changed else { return }
             resetAutoCaptureState()
+            boundaryLayer.removeAllAnimations()
             boundaryLayer.path = nil
             onDetectionChanged?(newValue == .scan ? "Point the camera at a document" : "", false)
         }
@@ -393,6 +615,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     var onPhotoCapture: ((UIImage) -> Void)?
     var onDetectionChanged: ((String, Bool) -> Void)?
     var onCountdownChanged: ((Int?) -> Void)?
+    var onZoomOptionsChanged: (([CameraZoomOption], CGFloat) -> Void)?
     var autoCaptureEnabled = true {
         didSet {
             if !autoCaptureEnabled, oldValue != autoCaptureEnabled {
@@ -411,7 +634,10 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     private let videoOutput = AVCaptureVideoDataOutput()
     private let previewLayer = AVCaptureVideoPreviewLayer()
     private let boundaryLayer = CAShapeLayer()
+    private let focusLayer = CAShapeLayer()
+    private var activeDevice: AVCaptureDevice?
     private var latestCrop: DocumentCrop?
+    private var displayedCrop: DocumentCrop?
     private var previousCrop: DocumentCrop?
     private var stableSince: Date?
     private var lastAutoCaptureAt = Date.distantPast
@@ -422,6 +648,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     private var waitingForNextAutoPage = false
     private var lastAutoCapturedCrop: DocumentCrop?
     private var visibleCountdown: Int?
+    private var pendingPhotoPreviewSize: CGSize = .zero
     private let autoCaptureHoldDuration: TimeInterval = 2.4
 
     override func viewDidLoad() {
@@ -434,13 +661,22 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         boundaryLayer.lineWidth = 3
         boundaryLayer.lineJoin = .round
         view.layer.addSublayer(boundaryLayer)
+        focusLayer.fillColor = UIColor.clear.cgColor
+        focusLayer.strokeColor = UIColor.systemYellow.cgColor
+        focusLayer.lineWidth = 2
+        focusLayer.opacity = 0
+        view.layer.addSublayer(focusLayer)
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(focusAndExpose(at:)))
+        tapGesture.cancelsTouchesInView = false
+        view.addGestureRecognizer(tapGesture)
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         previewLayer.frame = view.bounds
         boundaryLayer.frame = view.bounds
-        if let crop = latestCrop {
+        focusLayer.frame = view.bounds
+        if let crop = displayedCrop {
             drawBoundary(crop, aligned: DocumentCaptureQuality.isAcceptable(crop))
         }
     }
@@ -471,12 +707,13 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
             guard let self, !self.session.isRunning else { return }
             self.session.beginConfiguration()
             self.session.sessionPreset = .photo
-            guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+            guard let device = self.preferredBackCamera(),
                   let input = try? AVCaptureDeviceInput(device: device),
                   self.session.canAddInput(input) else {
                 self.session.commitConfiguration()
                 return
             }
+            self.activeDevice = device
             self.session.addInput(input)
             if self.session.canAddOutput(self.photoOutput) {
                 self.session.addOutput(self.photoOutput)
@@ -490,6 +727,11 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
             self.photoOutput.connection(with: .video)?.videoRotationAngle = 90
             self.session.commitConfiguration()
             self.session.startRunning()
+            let options = self.zoomOptions(for: device)
+            let currentFactor = self.nearestZoomFactor(to: device.videoZoomFactor, options: options)
+            DispatchQueue.main.async {
+                self.onZoomOptionsChanged?(options, currentFactor)
+            }
         }
     }
 
@@ -498,6 +740,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         captureInProgress = true
         pendingCaptureMode = mode
         pendingCaptureCrop = mode == .scan ? (latestCrop ?? .fullFrame) : .fullFrame
+        pendingPhotoPreviewSize = previewLayer.bounds.size
         if autoTriggered, mode == .scan {
             waitingForNextAutoPage = true
             lastAutoCapturedCrop = pendingCaptureCrop
@@ -522,7 +765,10 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
                 if self.pendingCaptureMode == .scan {
                     self.onScanCapture?(image, self.pendingCaptureCrop)
                 } else {
-                    self.onPhotoCapture?(image)
+                    self.onPhotoCapture?(PhotoCaptureFraming.image(
+                        image,
+                        matchingAspectFillPreview: self.pendingPhotoPreviewSize
+                    ))
                 }
             }
         }
@@ -534,7 +780,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         from connection: AVCaptureConnection
     ) {
         guard mode == .scan else { return }
-        guard Date().timeIntervalSince(lastDetectionAt) > 0.16 else { return }
+        guard Date().timeIntervalSince(lastDetectionAt) > 0.08 else { return }
         lastDetectionAt = Date()
         let request = VNDetectRectanglesRequest { [weak self] request, _ in
             guard let self else { return }
@@ -562,6 +808,8 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         guard mode == .scan else { return }
         guard let crop = detectedCrop else {
             latestCrop = nil
+            displayedCrop = nil
+            boundaryLayer.removeAllAnimations()
             boundaryLayer.path = nil
             onDetectionChanged?("Point the camera at a document", false)
             resetAutoCaptureState()
@@ -581,7 +829,9 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
             waitingForNextAutoPage = false
         }
         latestCrop = crop
-        drawBoundary(crop, aligned: acceptable)
+        let displayCrop = DocumentCaptureQuality.smoothedDisplayCrop(from: displayedCrop, toward: crop)
+        displayedCrop = displayCrop
+        drawBoundary(displayCrop, aligned: acceptable)
         let message: String
         if waitingForNextAutoPage {
             message = "Page saved - position the next page"
@@ -644,20 +894,121 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         previousCrop = nil
         waitingForNextAutoPage = false
         latestCrop = nil
+        displayedCrop = nil
         updateCountdown(nil)
     }
 
     private func drawBoundary(_ crop: DocumentCrop, aligned: Bool) {
-        let points = crop.points.map {
-            previewLayer.layerPointConverted(
-                fromCaptureDevicePoint: CGPoint(x: $0.x, y: $0.y)
-            )
-        }
+        let topLeft = previewLayer.layerPointConverted(fromCaptureDevicePoint: crop.topLeft)
+        let topRight = previewLayer.layerPointConverted(fromCaptureDevicePoint: crop.topRight)
+        let bottomRight = previewLayer.layerPointConverted(fromCaptureDevicePoint: crop.bottomRight)
+        let bottomLeft = previewLayer.layerPointConverted(fromCaptureDevicePoint: crop.bottomLeft)
         let path = UIBezierPath()
-        path.move(to: points[0])
-        points.dropFirst().forEach { path.addLine(to: $0) }
+        path.move(to: topLeft)
+        path.addLine(to: topRight)
+        path.addLine(to: bottomRight)
+        path.addLine(to: bottomLeft)
         path.close()
+        let previousPath = boundaryLayer.path
         boundaryLayer.strokeColor = (aligned ? UIColor.systemYellow : UIColor.white).cgColor
         boundaryLayer.path = path.cgPath
+        if let previousPath {
+            let animation = CABasicAnimation(keyPath: "path")
+            animation.fromValue = previousPath
+            animation.toValue = path.cgPath
+            animation.duration = 0.07
+            animation.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            boundaryLayer.add(animation, forKey: "document-boundary-transition")
+        }
+    }
+
+    func setZoomFactor(_ factor: CGFloat) {
+        sessionQueue.async { [weak self] in
+            guard let self, let device = self.activeDevice else { return }
+            let clamped = min(max(factor, device.minAvailableVideoZoomFactor), device.maxAvailableVideoZoomFactor)
+            guard abs(clamped - device.videoZoomFactor) > 0.001 else { return }
+            do {
+                try device.lockForConfiguration()
+                device.videoZoomFactor = clamped
+                device.unlockForConfiguration()
+            } catch {
+                return
+            }
+        }
+    }
+
+    @objc private func focusAndExpose(at gesture: UITapGestureRecognizer) {
+        guard gesture.state == .ended else { return }
+        let location = gesture.location(in: view)
+        guard view.bounds.contains(location) else { return }
+        let devicePoint = previewLayer.captureDevicePointConverted(fromLayerPoint: location)
+        displayFocusReticle(at: location)
+        sessionQueue.async { [weak self] in
+            guard let device = self?.activeDevice else { return }
+            do {
+                try device.lockForConfiguration()
+                if device.isFocusPointOfInterestSupported,
+                   device.isFocusModeSupported(.continuousAutoFocus) {
+                    device.focusPointOfInterest = devicePoint
+                    device.focusMode = .continuousAutoFocus
+                }
+                if device.isExposurePointOfInterestSupported,
+                   device.isExposureModeSupported(.continuousAutoExposure) {
+                    device.exposurePointOfInterest = devicePoint
+                    device.exposureMode = .continuousAutoExposure
+                }
+                device.unlockForConfiguration()
+            } catch {
+                return
+            }
+        }
+    }
+
+    private func displayFocusReticle(at location: CGPoint) {
+        let size: CGFloat = 68
+        let rect = CGRect(x: location.x - size / 2, y: location.y - size / 2, width: size, height: size)
+        focusLayer.removeAllAnimations()
+        focusLayer.path = UIBezierPath(roundedRect: rect, cornerRadius: 8).cgPath
+        focusLayer.opacity = 1
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 1
+        fade.toValue = 0
+        fade.beginTime = CACurrentMediaTime() + 0.55
+        fade.duration = 0.3
+        fade.fillMode = .forwards
+        fade.isRemovedOnCompletion = false
+        focusLayer.add(fade, forKey: "focus-fade")
+    }
+
+    private func preferredBackCamera() -> AVCaptureDevice? {
+        let types: [AVCaptureDevice.DeviceType] = [
+            .builtInTripleCamera,
+            .builtInDualWideCamera,
+            .builtInDualCamera,
+            .builtInWideAngleCamera
+        ]
+        return types.lazy.compactMap {
+            AVCaptureDevice.default($0, for: .video, position: .back)
+        }.first
+    }
+
+    private func zoomOptions(for device: AVCaptureDevice) -> [CameraZoomOption] {
+        let multiplier = device.displayVideoZoomFactorMultiplier
+        let desiredDisplayFactors: [CGFloat] = [0.5, 1, 2, 3]
+        var factors = [device.minAvailableVideoZoomFactor, 1]
+        factors.append(contentsOf: device.virtualDeviceSwitchOverVideoZoomFactors.map { CGFloat($0.doubleValue) })
+        factors.append(contentsOf: desiredDisplayFactors.map { $0 / multiplier })
+        let available = factors.filter {
+            $0 >= device.minAvailableVideoZoomFactor && $0 <= device.maxAvailableVideoZoomFactor
+        }.sorted()
+        var options: [CameraZoomOption] = []
+        for factor in available where !options.contains(where: { abs($0.factor - factor) < 0.01 }) {
+            options.append(CameraZoomOption(factor: factor, displayFactor: factor * multiplier))
+        }
+        return options.isEmpty ? [.standard] : options
+    }
+
+    private func nearestZoomFactor(to factor: CGFloat, options: [CameraZoomOption]) -> CGFloat {
+        options.min(by: { abs($0.factor - factor) < abs($1.factor - factor) })?.factor ?? factor
     }
 }

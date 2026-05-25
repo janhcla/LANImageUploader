@@ -441,6 +441,47 @@ struct LANImageUploaderTests {
         #expect(access.state.canUpload)
     }
 
+    @Test func photoFramingCropsAspectFillOutputToTallPreview() {
+        let visible = PhotoCaptureFraming.normalizedVisibleRect(
+            imageSize: CGSize(width: 400, height: 300),
+            previewSize: CGSize(width: 300, height: 600)
+        )
+
+        #expect(abs(visible.width - 0.375) < 0.001)
+        #expect(abs(visible.height - 1) < 0.001)
+        #expect(abs(visible.midX - 0.5) < 0.001)
+    }
+
+    @Test func photoFramingProducesTheVisibleImageAspectRatio() {
+        let source = UIGraphicsImageRenderer(size: CGSize(width: 400, height: 300)).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 400, height: 300))
+        }
+
+        let cropped = PhotoCaptureFraming.image(
+            source,
+            matchingAspectFillPreview: CGSize(width: 300, height: 600)
+        )
+
+        #expect(abs((cropped.size.width / cropped.size.height) - 0.5) < 0.01)
+    }
+
+    @Test func overlaySmoothingMovesTowardLatestDetectedCropWithoutReplacingIt() {
+        let first = DocumentCrop.fullFrame
+        let second = DocumentCrop(
+            topLeft: CGPoint(x: 0.2, y: 0.2),
+            topRight: CGPoint(x: 0.8, y: 0.2),
+            bottomRight: CGPoint(x: 0.8, y: 0.8),
+            bottomLeft: CGPoint(x: 0.2, y: 0.8)
+        )
+
+        let display = DocumentCaptureQuality.smoothedDisplayCrop(from: first, toward: second, factor: 0.5)
+
+        #expect(display.topLeft == CGPoint(x: 0.1, y: 0.1))
+        #expect(display.bottomRight == CGPoint(x: 0.9, y: 0.9))
+        #expect(second.topLeft == CGPoint(x: 0.2, y: 0.2))
+    }
+
     private static func makeImage() -> UIImage? {
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4))
         return renderer.image { context in

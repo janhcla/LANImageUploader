@@ -14,7 +14,11 @@ This note records the app features, the expected behavior, and the tests that co
 
 - `Capture Image` opens the live camera directly in Photo mode; `Scan Documents` opens it directly in Scan mode without an intermediate prompt screen.
 - Photo mode reviews a captured image before saving and supports Retake, Discard back to live preview, and Keep Photo.
-- Vision detects a document quadrilateral and displays a white/yellow boundary plus straightness guidance.
+- Photo capture crops the still output to the visible aspect-fill preview region, so the reviewed and saved composition matches the viewfinder.
+- Photo supports tap-to-focus/exposure and hardware-derived zoom choices; real-lens and framing fidelity require final smoke testing on a physical camera device.
+- Photo review uses glass-styled controls with pinch, drag, and double-tap image zoom before keeping an image.
+- Vision detects a document quadrilateral and displays a white/yellow boundary plus straightness guidance using a low-latency smoothed live outline.
+- Scan keeps the raw detected quadrilateral for non-destructive Gallery editing and final export rather than persisting the smoothed display outline.
 - Scan auto-capture can be enabled or disabled and persists the user's last setting; manual shutter remains available.
 - Each accepted scan page is saved immediately; both modes expose a Gallery badge with their retained-item count.
 - A successful capture is saved under `Documents/images` as `IMG_yyyyMMdd_HHmmss.jpg`.

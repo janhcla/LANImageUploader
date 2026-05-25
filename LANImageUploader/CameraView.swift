@@ -16,10 +16,12 @@ struct CameraView: View {
     @State private var navigateToGallery = false
 
     var body: some View {
-        ScannerCaptureView(
+        let scannedCount = appData.images.filter(\.isDocumentScan).count
+        let keptCount = appData.images.count - scannedCount
+        return ScannerCaptureView(
             initialMode: initialMode,
-            keptPhotoCount: appData.images.filter { !$0.isDocumentScan }.count,
-            scannedPageCount: appData.images.filter(\.isDocumentScan).count,
+            keptPhotoCount: keptCount,
+            scannedPageCount: scannedCount,
             onScanCapture: { image, crop in
                 Task {
                     await saveImage(image: image, crop: crop)
