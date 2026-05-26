@@ -27,9 +27,7 @@ struct GalleryItemView: View {
             Group {
                 if let image = item.capturedImage {
                     if let loadedImage = uiImage {
-                        Image(uiImage: loadedImage)
-                            .resizable()
-                            .scaledToFill()
+                        thumbnailImage(loadedImage, isDocumentScan: image.isDocumentScan)
                             .frame(height: 150)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .overlay(
@@ -130,6 +128,23 @@ struct GalleryItemView: View {
             } label: {
                 Label("Delete", systemImage: "trash")
             }
+        }
+    }
+
+    @ViewBuilder
+    private func thumbnailImage(_ image: UIImage, isDocumentScan: Bool) -> some View {
+        if isDocumentScan {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.black.opacity(0.16))
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+            }
+        } else {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
         }
     }
 

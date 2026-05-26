@@ -30,6 +30,7 @@ private struct GalleryExportRequest {
 }
 
 struct GalleryView: View {
+    let initialOutputMode: GalleryOutputMode?
     @EnvironmentObject var appData: AppData
     @State private var isMultiSelectMode = false
     @State private var isShowingNamingSheet = false
@@ -45,7 +46,7 @@ struct GalleryView: View {
     @State private var itemToDelete: GalleryItem?
 
     // Mode
-    @State private var outputMode: GalleryOutputMode = .separateImages
+    @State private var outputMode: GalleryOutputMode
 
     // PDF Naming
     @State private var isShowingPDFNamingSheet = false
@@ -64,6 +65,11 @@ struct GalleryView: View {
     // Our local source of truth for the session
     @State private var galleryItems: [GalleryItem] = []
     @State private var draggedItem: GalleryItem?
+
+    init(initialOutputMode: GalleryOutputMode? = nil) {
+        self.initialOutputMode = initialOutputMode
+        _outputMode = State(initialValue: initialOutputMode ?? .separateImages)
+    }
 
     var body: some View {
         BackgroundContainerView {
@@ -290,7 +296,7 @@ struct GalleryView: View {
         }
         .onAppear {
             syncItemsFromAppData()
-            outputMode = appData.defaultGalleryOutputMode
+            outputMode = initialOutputMode ?? appData.defaultGalleryOutputMode
         }
         .onChange(of: gallerySyncTokens) { _, _ in
             syncItemsFromAppData()
@@ -667,9 +673,9 @@ struct GalleryView: View {
             pageSize: appData.pdfPageSize,
             imageLayout: appData.pdfImageLayout,
             includePageNumbers: appData.pdfIncludePageNumbers,
-            jpegQuality: CGFloat(appData.pdfJPEGQuality),
+            jpegQuality: appData.pdfCompressionLevel.jpegQuality,
             margin: 24,
-            maxPixelDimension: CGFloat(appData.imageMaxPixelDimension)
+            maxPixelDimension: appData.pdfCompressionLevel.maxPixelDimension
         )
 
         let itemsToProcess = galleryItems

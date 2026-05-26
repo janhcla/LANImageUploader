@@ -161,7 +161,7 @@ struct UploadView: View {
                 }
                 .safeAreaInset(edge: .bottom) {
                     if areAllUploadsSuccessful {
-                        Button(appData.pendingUploadFiles != nil ? "Clear upload queue" : "Clear queue & delete all images", role: .destructive) {
+                        Button("Delete uploaded images", role: .destructive) {
                             Task {
                                 await clearAndDeleteAllImages()
                             }
@@ -326,33 +326,19 @@ struct UploadView: View {
     }
 
     func clearAndDeleteAllImages() async {
-        if appData.pendingUploadFiles != nil {
-            // Prepared uploads are temporary derivatives; original scans remain in Gallery.
-            if let pending = appData.pendingUploadFiles {
-                for file in pending {
-                    try? await appData.fileService.removeItem(at: file.fileURL)
-                }
+        if let pending = appData.pendingUploadFiles {
+            for file in pending {
+                try? await appData.fileService.removeItem(at: file.fileURL)
             }
-            await MainActor.run {
-                appData.pendingUploadFiles = nil
-                uploadStatuses.removeAll()
-                uploadTasks.removeAll()
-                areAllUploadsSuccessful = false
-                appData.clearNamingData()
-                showClearSuccess = true
-            }
-        } else {
-            for image in appData.images {
-                try? await appData.fileService.removeItem(at: image.fileURL)
-            }
-            await MainActor.run {
-                appData.images.removeAll()
-                uploadStatuses.removeAll()
-                uploadTasks.removeAll()
-                areAllUploadsSuccessful = false
-                appData.clearNamingData()
-                showClearSuccess = true
-            }
+        }
+        await appData.deleteAllRetainedImages()
+        await MainActor.run {
+            appData.pendingUploadFiles = nil
+            uploadStatuses.removeAll()
+            uploadTasks.removeAll()
+            areAllUploadsSuccessful = false
+            appData.clearNamingData()
+            showClearSuccess = true
         }
     }
 

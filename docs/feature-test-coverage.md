@@ -6,16 +6,21 @@ This note records the app features, the expected behavior, and the tests that co
 
 - Launch shows the custom launch screen, then routes to onboarding until `onboardingCompleted` is true.
 - Onboarding walks through welcome, feature summary, settings, tutorial, help guide, and completion.
-- Home provides entry points for Capture, Gallery, Upload, Settings, and Archives.
+- Home provides direct Photo and Scan camera entries plus Gallery, Upload, Settings, and Archives.
 - Settings shows a badge on Home until the core server settings and password are present.
 - Covered by UI launch smoke tests and unit coverage for `AppData` initialization and settings persistence state.
 
 ## Capture
 
-- Capture starts a multi-page document scanner from `CameraView`.
-- Vision detects a document quadrilateral and displays a white/yellow boundary plus straightness guidance.
-- Auto-capture can be enabled or disabled; manual shutter remains available.
-- Each accepted page is saved immediately and the live badge opens Gallery with the current page count.
+- `Capture Image` opens the live camera directly in Photo mode; `Scan Documents` opens it directly in Scan mode without an intermediate prompt screen.
+- Photo mode reviews a captured image before saving and supports Retake, Discard back to live preview, and Keep Photo.
+- Photo capture crops the still output to the visible aspect-fill preview region, so the reviewed and saved composition matches the viewfinder.
+- Photo supports tap-to-focus/exposure and hardware-derived zoom choices; real-lens and framing fidelity require final smoke testing on a physical camera device.
+- Photo review uses glass-styled controls with pinch, drag, and double-tap image zoom before keeping an image.
+- Vision detects a document quadrilateral and displays a white/yellow boundary plus straightness guidance using a low-latency smoothed live outline.
+- Scan keeps the raw detected quadrilateral for non-destructive Gallery editing and final export rather than persisting the smoothed display outline.
+- Scan auto-capture can be enabled or disabled and persists the user's last setting; manual shutter remains available.
+- Each accepted scan page is saved immediately; both modes expose a Gallery badge with their retained-item count.
 - A successful capture is saved under `Documents/images` as `IMG_yyyyMMdd_HHmmss.jpg`.
 - The original JPEG and editable crop quadrilateral are retained non-destructively in the persistent gallery queue.
 - A save failure shows an error and does not append a gallery item.
