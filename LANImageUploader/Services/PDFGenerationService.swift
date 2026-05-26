@@ -48,6 +48,7 @@ final class PDFGenerationService: PDFGenerationServiceProtocol {
         var failedToCompressPage = false
         try renderer.writePDF(to: fileURL) { context in
             for (index, item) in validItems.enumerated() {
+                if failedToCompressPage { break }
                 autoreleasepool {
                     guard let correctedImage = DocumentImageProcessor.renderedImage(
                         for: item.0,

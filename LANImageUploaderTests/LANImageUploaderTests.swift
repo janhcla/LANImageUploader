@@ -491,19 +491,7 @@ struct LANImageUploaderTests {
 
     @Test func highPDFCompressionProducesSmallerDocumentThanLightCompression() async throws {
         let size = CGSize(width: 1800, height: 2400)
-        let source = UIGraphicsImageRenderer(size: size).image { context in
-            for row in stride(from: 0, to: Int(size.height), by: 12) {
-                let hue = CGFloat((row / 12) % 60) / 60
-                UIColor(hue: hue, saturation: 0.75, brightness: 0.9, alpha: 1).setFill()
-                context.fill(CGRect(x: 0, y: CGFloat(row), width: size.width, height: 12))
-            }
-            UIColor.black.setStroke()
-            for column in stride(from: 0, to: Int(size.width), by: 19) {
-                context.cgContext.move(to: CGPoint(x: CGFloat(column), y: 0))
-                context.cgContext.addLine(to: CGPoint(x: CGFloat(column + 80), y: size.height))
-            }
-            context.cgContext.strokePath()
-        }
+        let source = Self.makeCompressionTestImage(size: size)
         let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).jpg")
         try #require(source.jpegData(compressionQuality: 1)).write(to: sourceURL)
         let item = GalleryItem(
@@ -537,6 +525,35 @@ struct LANImageUploaderTests {
         let lightSize = try Data(contentsOf: light).count
         let highSize = try Data(contentsOf: high).count
         #expect(highSize < lightSize)
+    }
+
+    @Test func pdfJPEGQualityChangesFileSizeWithoutDimensionChange() async throws {
+        let source = Self.makeCompressionTestImage(size: CGSize(width: 1600, height: 2200))
+        let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).jpg")
+        try #require(source.jpegData(compressionQuality: 1)).write(to: sourceURL)
+        let item = GalleryItem(
+            id: UUID(),
+            capturedImage: CapturedImage(name: "scan", fileURL: sourceURL, crop: .fullFrame, isDocumentScan: true),
+            rotation: .degrees0
+        )
+        defer { try? FileManager.default.removeItem(at: sourceURL) }
+
+        let highQuality = try await PDFGenerationService.shared.generatePDF(
+            from: [item],
+            outputName: "quality-high",
+            settings: PDFSettings(jpegQuality: 0.85, maxPixelDimension: 1600)
+        )
+        let lowQuality = try await PDFGenerationService.shared.generatePDF(
+            from: [item],
+            outputName: "quality-low",
+            settings: PDFSettings(jpegQuality: 0.35, maxPixelDimension: 1600)
+        )
+        defer {
+            try? FileManager.default.removeItem(at: highQuality)
+            try? FileManager.default.removeItem(at: lowQuality)
+        }
+
+        #expect(try Data(contentsOf: lowQuality).count < Data(contentsOf: highQuality).count)
     }
 
     @Test @MainActor func deleteAllRetainedImagesClearsGalleryAndRemovesFiles() async {
@@ -577,6 +594,22 @@ struct LANImageUploaderTests {
         return renderer.image { context in
             UIColor.systemBlue.setFill()
             context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
+        }
+    }
+
+    private static func makeCompressionTestImage(size: CGSize) -> UIImage {
+        UIGraphicsImageRenderer(size: size).image { context in
+            for row in stride(from: 0, to: Int(size.height), by: 12) {
+                let hue = CGFloat((row / 12) % 60) / 60
+                UIColor(hue: hue, saturation: 0.75, brightness: 0.9, alpha: 1).setFill()
+                context.fill(CGRect(x: 0, y: CGFloat(row), width: size.width, height: 12))
+            }
+            UIColor.black.setStroke()
+            for column in stride(from: 0, to: Int(size.width), by: 19) {
+                context.cgContext.move(to: CGPoint(x: CGFloat(column), y: 0))
+                context.cgContext.addLine(to: CGPoint(x: CGFloat(column + 80), y: size.height))
+            }
+            context.cgContext.strokePath()
         }
     }
 }
