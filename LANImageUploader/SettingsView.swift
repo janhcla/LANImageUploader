@@ -207,9 +207,10 @@ struct SettingsView: View {
                 }
                 Toggle("Include Page Numbers", isOn: $appData.pdfIncludePageNumbers)
 
-                VStack(alignment: .leading) {
-                    Text("Image Quality: \(Int(appData.pdfJPEGQuality * 100))%")
-                    Slider(value: $appData.pdfJPEGQuality, in: 0.1...1.0, step: 0.05)
+                Picker("Compression", selection: $appData.pdfCompressionLevel) {
+                    ForEach(PDFCompressionLevel.allCases) { level in
+                        Text(level.displayName).tag(level)
+                    }
                 }
             }
 
@@ -345,9 +346,10 @@ struct SettingsView: View {
                 }
                 Toggle("Include Page Numbers", isOn: $appData.pdfIncludePageNumbers)
 
-                VStack(alignment: .leading) {
-                    Text("Image Quality: \(Int(appData.pdfJPEGQuality * 100))%")
-                    Slider(value: $appData.pdfJPEGQuality, in: 0.1...1.0, step: 0.05)
+                Picker("Compression", selection: $appData.pdfCompressionLevel) {
+                    ForEach(PDFCompressionLevel.allCases) { level in
+                        Text(level.displayName).tag(level)
+                    }
                 }
             }
 

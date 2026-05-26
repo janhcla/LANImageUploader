@@ -29,6 +29,7 @@ enum Constants {
         static let pdfImageLayout = "pdfImageLayout"
         static let pdfIncludePageNumbers = "pdfIncludePageNumbers"
         static let pdfJPEGQuality = "pdfJPEGQuality"
+        static let pdfCompressionLevel = "pdfCompressionLevel"
         static let imageMaxPixelDimension = "imageMaxPixelDimension"
         static let stripImageMetadata = "stripImageMetadata"
         static let capturedImageQueue = "capturedImageQueue"

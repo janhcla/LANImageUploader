@@ -132,6 +132,7 @@ class AppData: ObservableObject {
     @AppStorage(Constants.UserDefaults.pdfImageLayout) var pdfImageLayout: PDFImageLayout = .fit
     @AppStorage(Constants.UserDefaults.pdfIncludePageNumbers) var pdfIncludePageNumbers: Bool = true
     @AppStorage(Constants.UserDefaults.pdfJPEGQuality) var pdfJPEGQuality: Double = 0.85
+    @AppStorage(Constants.UserDefaults.pdfCompressionLevel) var pdfCompressionLevel: PDFCompressionLevel = .medium
     @AppStorage(Constants.UserDefaults.imageMaxPixelDimension) var imageMaxPixelDimension: Double = 2500
     @AppStorage(Constants.UserDefaults.stripImageMetadata) var stripImageMetadata: Bool = true
 
@@ -227,6 +228,17 @@ class AppData: ObservableObject {
             images.removeAll { idsToDelete.contains($0.id) }
             selectedImageIDs.removeAll()
             hapticService.playNotification(type: .success)
+        }
+    }
+
+    func deleteAllRetainedImages() async {
+        let retainedImages = images
+        for image in retainedImages {
+            try? await fileService.removeItem(at: image.fileURL)
+        }
+        await MainActor.run {
+            images.removeAll()
+            selectedImageIDs.removeAll()
         }
     }
 

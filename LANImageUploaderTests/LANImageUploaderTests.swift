@@ -482,6 +482,96 @@ struct LANImageUploaderTests {
         #expect(second.topLeft == CGPoint(x: 0.2, y: 0.2))
     }
 
+    @Test func pdfCompressionProfilesBecomeProgressivelySmaller() {
+        #expect(PDFCompressionLevel.medium.jpegQuality < PDFCompressionLevel.light.jpegQuality)
+        #expect(PDFCompressionLevel.high.jpegQuality < PDFCompressionLevel.medium.jpegQuality)
+        #expect(PDFCompressionLevel.medium.maxPixelDimension < PDFCompressionLevel.light.maxPixelDimension)
+        #expect(PDFCompressionLevel.high.maxPixelDimension < PDFCompressionLevel.medium.maxPixelDimension)
+    }
+
+    @Test func highPDFCompressionProducesSmallerDocumentThanLightCompression() async throws {
+        let size = CGSize(width: 1800, height: 2400)
+        let source = UIGraphicsImageRenderer(size: size).image { context in
+            for row in stride(from: 0, to: Int(size.height), by: 12) {
+                let hue = CGFloat((row / 12) % 60) / 60
+                UIColor(hue: hue, saturation: 0.75, brightness: 0.9, alpha: 1).setFill()
+                context.fill(CGRect(x: 0, y: CGFloat(row), width: size.width, height: 12))
+            }
+            UIColor.black.setStroke()
+            for column in stride(from: 0, to: Int(size.width), by: 19) {
+                context.cgContext.move(to: CGPoint(x: CGFloat(column), y: 0))
+                context.cgContext.addLine(to: CGPoint(x: CGFloat(column + 80), y: size.height))
+            }
+            context.cgContext.strokePath()
+        }
+        let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).jpg")
+        try #require(source.jpegData(compressionQuality: 1)).write(to: sourceURL)
+        let item = GalleryItem(
+            id: UUID(),
+            capturedImage: CapturedImage(name: "scan", fileURL: sourceURL, crop: .fullFrame, isDocumentScan: true),
+            rotation: .degrees0
+        )
+        defer { try? FileManager.default.removeItem(at: sourceURL) }
+
+        let light = try await PDFGenerationService.shared.generatePDF(
+            from: [item],
+            outputName: "light",
+            settings: PDFSettings(
+                jpegQuality: PDFCompressionLevel.light.jpegQuality,
+                maxPixelDimension: PDFCompressionLevel.light.maxPixelDimension
+            )
+        )
+        let high = try await PDFGenerationService.shared.generatePDF(
+            from: [item],
+            outputName: "high",
+            settings: PDFSettings(
+                jpegQuality: PDFCompressionLevel.high.jpegQuality,
+                maxPixelDimension: PDFCompressionLevel.high.maxPixelDimension
+            )
+        )
+        defer {
+            try? FileManager.default.removeItem(at: light)
+            try? FileManager.default.removeItem(at: high)
+        }
+
+        let lightSize = try Data(contentsOf: light).count
+        let highSize = try Data(contentsOf: high).count
+        #expect(highSize < lightSize)
+    }
+
+    @Test @MainActor func deleteAllRetainedImagesClearsGalleryAndRemovesFiles() async {
+        let mockFile = MockFileService()
+        let appData = AppData(
+            fileService: mockFile,
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService()
+        )
+        let first = CapturedImage(name: "page-1", fileURL: URL(fileURLWithPath: "/tmp/mock/images/page-1.jpg"))
+        let second = CapturedImage(name: "page-2", fileURL: URL(fileURLWithPath: "/tmp/mock/images/page-2.jpg"))
+        appData.images = [first, second]
+        appData.selectedImageIDs = [first.id]
+
+        await appData.deleteAllRetainedImages()
+
+        #expect(appData.images.isEmpty)
+        #expect(appData.selectedImageIDs.isEmpty)
+        #expect(mockFile.removedItems == [first.fileURL, second.fileURL])
+    }
+
+    @Test func scanOverlayMapsNormalizedCropIntoAspectFillPreview() {
+        let mapped = DocumentPreviewGeometry.points(
+            for: DocumentCrop.fullFrame,
+            imageSize: CGSize(width: 300, height: 400),
+            previewBounds: CGRect(x: 0, y: 0, width: 400, height: 800)
+        )
+
+        #expect(abs(mapped.topLeft.x + 100) < 0.001)
+        #expect(abs(mapped.topLeft.y) < 0.001)
+        #expect(abs(mapped.bottomRight.x - 500) < 0.001)
+        #expect(abs(mapped.bottomRight.y - 800) < 0.001)
+    }
+
     private static func makeImage() -> UIImage? {
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4))
         return renderer.image { context in

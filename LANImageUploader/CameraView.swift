@@ -14,6 +14,7 @@ struct CameraView: View {
     @EnvironmentObject var appData: AppData
     @Environment(\.dismiss) var dismiss
     @State private var navigateToGallery = false
+    @State private var galleryOutputMode: GalleryOutputMode?
 
     var body: some View {
         let scannedCount = appData.images.filter(\.isDocumentScan).count
@@ -35,7 +36,8 @@ struct CameraView: View {
             onCountdownTick: {
                 appData.hapticService.playImpact(style: .medium)
             },
-            onOpenGallery: {
+            onOpenGallery: { mode in
+                galleryOutputMode = mode == .scan ? .singlePDF : .separateImages
                 navigateToGallery = true
             },
             onCancel: { dismiss() }
@@ -47,7 +49,7 @@ struct CameraView: View {
         }
         .fullScreenCover(isPresented: $navigateToGallery) {
             NavigationStack {
-                GalleryView()
+                GalleryView(initialOutputMode: galleryOutputMode)
                     .environmentObject(appData)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {

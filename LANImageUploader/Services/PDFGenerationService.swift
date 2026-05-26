@@ -15,11 +15,13 @@ final class PDFGenerationService: PDFGenerationServiceProtocol {
     enum PDFError: LocalizedError {
         case noImages
         case contextFailed
+        case compressionFailed
 
         var errorDescription: String? {
             switch self {
             case .noImages: return "There are no images to include in the PDF."
             case .contextFailed: return "Failed to initialize PDF context."
+            case .compressionFailed: return "Failed to compress a document page for PDF output."
             }
         }
     }
@@ -43,6 +45,7 @@ final class PDFGenerationService: PDFGenerationServiceProtocol {
         safeName = safeName.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "\\", with: "_")
         let fileURL = tempDir.appendingPathComponent("\(safeName)_\(UUID().uuidString).pdf")
 
+        var failedToCompressPage = false
         try renderer.writePDF(to: fileURL) { context in
             for (index, item) in validItems.enumerated() {
                 autoreleasepool {
@@ -50,12 +53,17 @@ final class PDFGenerationService: PDFGenerationServiceProtocol {
                         for: item.0,
                         rotation: item.1,
                         maxPixelDimension: settings.maxPixelDimension
-                    ) else { return }
+                    ),
+                    let compressedData = correctedImage.jpegData(compressionQuality: settings.jpegQuality),
+                    let embeddedImage = UIImage(data: compressedData) else {
+                        failedToCompressPage = true
+                        return
+                    }
 
                     context.beginPage()
                     let pageRect = settings.pageSize.pageRect
 
-                    let imageAspectRatio = correctedImage.size.width / correctedImage.size.height
+                    let imageAspectRatio = embeddedImage.size.width / embeddedImage.size.height
                     let pageContentRect = pageRect.insetBy(dx: settings.margin, dy: settings.margin)
                     let pageAspectRatio = pageContentRect.width / pageContentRect.height
 
@@ -84,7 +92,7 @@ final class PDFGenerationService: PDFGenerationServiceProtocol {
                         drawRect = pageContentRect
                     }
 
-                    correctedImage.draw(in: drawRect)
+                    embeddedImage.draw(in: drawRect)
 
                     if settings.includePageNumbers {
                         let pageNumberText = "\(index + 1) / \(validItems.count)"
@@ -105,6 +113,10 @@ final class PDFGenerationService: PDFGenerationServiceProtocol {
                     }
                 }
             }
+        }
+        if failedToCompressPage {
+            try? FileManager.default.removeItem(at: fileURL)
+            throw PDFError.compressionFailed
         }
 
         return fileURL

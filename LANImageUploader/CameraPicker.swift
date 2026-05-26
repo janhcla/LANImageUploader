@@ -176,13 +176,50 @@ struct DocumentCaptureQuality {
     }
 }
 
+struct DocumentPreviewGeometry {
+    static func points(
+        for crop: DocumentCrop,
+        imageSize: CGSize,
+        previewBounds: CGRect
+    ) -> DocumentCrop {
+        let displayRect = aspectFillRect(imageSize: imageSize, in: previewBounds)
+        func map(_ point: CGPoint) -> CGPoint {
+            CGPoint(
+                x: displayRect.minX + point.x * displayRect.width,
+                y: displayRect.minY + point.y * displayRect.height
+            )
+        }
+        return DocumentCrop(
+            topLeft: map(crop.topLeft),
+            topRight: map(crop.topRight),
+            bottomRight: map(crop.bottomRight),
+            bottomLeft: map(crop.bottomLeft)
+        )
+    }
+
+    private static func aspectFillRect(imageSize: CGSize, in bounds: CGRect) -> CGRect {
+        guard imageSize.width > 0, imageSize.height > 0,
+              bounds.width > 0, bounds.height > 0 else {
+            return bounds
+        }
+        let scale = max(bounds.width / imageSize.width, bounds.height / imageSize.height)
+        let size = CGSize(width: imageSize.width * scale, height: imageSize.height * scale)
+        return CGRect(
+            x: bounds.midX - size.width / 2,
+            y: bounds.midY - size.height / 2,
+            width: size.width,
+            height: size.height
+        )
+    }
+}
+
 struct ScannerCaptureView: View {
     let keptPhotoCount: Int
     let scannedPageCount: Int
     let onScanCapture: (UIImage, DocumentCrop) -> Void
     let onKeepPhoto: (UIImage) -> Void
     let onCountdownTick: () -> Void
-    let onOpenGallery: () -> Void
+    let onOpenGallery: (CameraCaptureMode) -> Void
     let onCancel: () -> Void
 
     @AppStorage(Constants.UserDefaults.scannerAutoCaptureEnabled) private var autoCapture = true
@@ -202,7 +239,7 @@ struct ScannerCaptureView: View {
         onScanCapture: @escaping (UIImage, DocumentCrop) -> Void,
         onKeepPhoto: @escaping (UIImage) -> Void,
         onCountdownTick: @escaping () -> Void,
-        onOpenGallery: @escaping () -> Void,
+        onOpenGallery: @escaping (CameraCaptureMode) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.keptPhotoCount = keptPhotoCount
@@ -285,7 +322,7 @@ struct ScannerCaptureView: View {
 
             Spacer()
 
-            Button(action: onOpenGallery) {
+            Button(action: { onOpenGallery(mode) }) {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "photo.stack")
                         .font(.title3.weight(.semibold))
@@ -649,6 +686,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     private var lastAutoCapturedCrop: DocumentCrop?
     private var visibleCountdown: Int?
     private var pendingPhotoPreviewSize: CGSize = .zero
+    private var previewImageSize: CGSize = .zero
     private let autoCaptureHoldDuration: TimeInterval = 2.4
 
     override func viewDidLoad() {
@@ -780,6 +818,18 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         from connection: AVCaptureConnection
     ) {
         guard mode == .scan else { return }
+        let currentPreviewImageSize: CGSize?
+        if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
+            let rawSize = CGSize(
+                width: CVPixelBufferGetWidth(pixelBuffer),
+                height: CVPixelBufferGetHeight(pixelBuffer)
+            )
+            currentPreviewImageSize = rawSize.height >= rawSize.width
+                ? rawSize
+                : CGSize(width: rawSize.height, height: rawSize.width)
+        } else {
+            currentPreviewImageSize = nil
+        }
         guard Date().timeIntervalSince(lastDetectionAt) > 0.08 else { return }
         lastDetectionAt = Date()
         let request = VNDetectRectanglesRequest { [weak self] request, _ in
@@ -793,7 +843,10 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
                     bottomLeft: CGPoint(x: $0.bottomLeft.x, y: 1 - $0.bottomLeft.y)
                 ).clamped()
             }
-            DispatchQueue.main.async { [weak self] in
+            DispatchQueue.main.async { [weak self, currentPreviewImageSize] in
+                if let currentPreviewImageSize {
+                    self?.previewImageSize = currentPreviewImageSize
+                }
                 self?.handleDetectedCrop(crop)
             }
         }
@@ -899,15 +952,17 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     }
 
     private func drawBoundary(_ crop: DocumentCrop, aligned: Bool) {
-        let topLeft = previewLayer.layerPointConverted(fromCaptureDevicePoint: crop.topLeft)
-        let topRight = previewLayer.layerPointConverted(fromCaptureDevicePoint: crop.topRight)
-        let bottomRight = previewLayer.layerPointConverted(fromCaptureDevicePoint: crop.bottomRight)
-        let bottomLeft = previewLayer.layerPointConverted(fromCaptureDevicePoint: crop.bottomLeft)
+        let size = previewImageSize == .zero ? previewLayer.bounds.size : previewImageSize
+        let points = DocumentPreviewGeometry.points(
+            for: crop,
+            imageSize: size,
+            previewBounds: previewLayer.bounds
+        )
         let path = UIBezierPath()
-        path.move(to: topLeft)
-        path.addLine(to: topRight)
-        path.addLine(to: bottomRight)
-        path.addLine(to: bottomLeft)
+        path.move(to: points.topLeft)
+        path.addLine(to: points.topRight)
+        path.addLine(to: points.bottomRight)
+        path.addLine(to: points.bottomLeft)
         path.close()
         let previousPath = boundaryLayer.path
         boundaryLayer.strokeColor = (aligned ? UIColor.systemYellow : UIColor.white).cgColor

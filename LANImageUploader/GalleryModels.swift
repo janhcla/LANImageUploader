@@ -42,6 +42,38 @@ enum PDFImageLayout: String, CaseIterable, Identifiable, Codable {
     var id: String { rawValue }
 }
 
+enum PDFCompressionLevel: String, CaseIterable, Identifiable, Codable {
+    case light
+    case medium
+    case high
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .light: return "Light"
+        case .medium: return "Medium"
+        case .high: return "High"
+        }
+    }
+
+    var jpegQuality: CGFloat {
+        switch self {
+        case .light: return 0.80
+        case .medium: return 0.60
+        case .high: return 0.42
+        }
+    }
+
+    var maxPixelDimension: CGFloat {
+        switch self {
+        case .light: return 2500
+        case .medium: return 1800
+        case .high: return 1200
+        }
+    }
+}
+
 struct PDFSettings: Codable, Equatable {
     var pageSize: PDFPageSize = .a4
     var imageLayout: PDFImageLayout = .fit
