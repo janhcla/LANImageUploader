@@ -4,6 +4,9 @@
 //
 
 import SwiftUI
+import OSLog
+
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "LANImageUploader", category: "ArchiveView")
 
 // Custom struct to make URL Identifiable
 struct IdentifiableURL: Identifiable {
@@ -325,7 +328,7 @@ struct ArchiveView: View {
                             fileURL: image.destination)
                         return RestorationResult(successCount: 1, failureCount: 0, restoredImages: [capturedImage])
                     } catch {
-                        print("Failed to restore archived image: \(error)")
+                        logger.error("Failed to restore archived image: \(error, privacy: .public)")
                         return RestorationResult(successCount: 0, failureCount: 1, restoredImages: [])
                     }
                 }
@@ -651,7 +654,7 @@ struct ArchivedImagesView: View {
                                 name: image.source.deletingPathExtension().lastPathComponent,
                                 fileURL: image.destination)
                         } catch {
-                            print("Failed to restore archived image: \(error)")
+                            logger.error("Failed to restore archived image: \(error, privacy: .public)")
                             return nil
                         }
                     }
