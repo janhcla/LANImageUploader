@@ -4,6 +4,9 @@
 //
 
 import SwiftUI
+import OSLog
+
+private let logger = Logger(subsystem: Constants.bundleIdentifier, category: "ArchiveView")
 
 // Custom struct to make URL Identifiable
 struct IdentifiableURL: Identifiable {
@@ -325,7 +328,7 @@ struct ArchiveView: View {
                             fileURL: image.destination)
                         return RestorationResult(successCount: 1, failureCount: 0, restoredImages: [capturedImage])
                     } catch {
-                        print("Failed to restore archived image: \(error)")
+                        logger.error("Failed to restore archived image: \(error, privacy: .private)")
                         return RestorationResult(successCount: 0, failureCount: 1, restoredImages: [])
                     }
                 }
@@ -365,7 +368,7 @@ struct ArchiveView: View {
                         try await appData.fileService.removeItem(at: archiveURL)
                         return date
                     } catch {
-                        print("Failed to delete archive \(date): \(error)")
+                        logger.error("Failed to delete archive \(date, privacy: .private): \(error, privacy: .private)")
                         return nil
                     }
                 }
@@ -411,7 +414,7 @@ struct ArchiveView: View {
                         try await appData.fileService.removeItem(at: archiveURL)
                         return archive
                     } catch {
-                        print("Failed to delete archive \(archive): \(error)")
+                        logger.error("Failed to delete archive \(archive, privacy: .private): \(error, privacy: .private)")
                         return nil
                     }
                 }
@@ -651,7 +654,7 @@ struct ArchivedImagesView: View {
                                 name: image.source.deletingPathExtension().lastPathComponent,
                                 fileURL: image.destination)
                         } catch {
-                            print("Failed to restore archived image: \(error)")
+                            logger.error("Failed to restore archived image: \(error, privacy: .private)")
                             return nil
                         }
                     }
@@ -691,7 +694,7 @@ struct ArchivedImagesView: View {
                     do {
                         try await appData.fileService.removeItem(at: imageURL)
                     } catch {
-                        print("Failed to delete image: \(error)")
+                        logger.error("Failed to delete image: \(error, privacy: .private)")
                     }
                 }
             }
@@ -708,7 +711,7 @@ struct ArchivedImagesView: View {
                 return
             }
         } catch {
-            print("Error checking/deleting empty archive folder: \(error)")
+            logger.error("Error checking/deleting empty archive folder: \(error, privacy: .private)")
         }
 
         await MainActor.run {
