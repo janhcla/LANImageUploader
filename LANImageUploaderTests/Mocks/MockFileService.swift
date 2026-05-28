@@ -75,4 +75,9 @@ final class MockFileService: FileServiceProtocol, @unchecked Sendable {
         savedImages.append((data, fileName))
         return saveImageResult
     }
+
+    var restoreImagesResult: RestorationResult = RestorationResult(successCount: 0, failureCount: 0, restoredImages: [])
+    func restoreImages(operations: [RestoreOperation]) async -> RestorationResult {
+        return restoreImagesResult
+    }
 }

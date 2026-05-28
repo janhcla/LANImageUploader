@@ -21,4 +21,5 @@ protocol FileServiceProtocol: Sendable {
     func getArchivedDates() async -> [String]
     func getImagesForDate(_ dateString: String) async -> [URL]
     func saveImage(_ data: Data, fileName: String) async throws -> URL
+    func restoreImages(operations: [RestoreOperation]) async -> RestorationResult
 }

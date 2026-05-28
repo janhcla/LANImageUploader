@@ -128,4 +128,9 @@ final class FileService: FileServiceProtocol {
         try await actor.write(data: data, to: fileURL)
         return fileURL
     }
+
+    /// Restores a batch of images by copying them from source to destination.
+    func restoreImages(operations: [RestoreOperation]) async -> RestorationResult {
+        return await actor.restoreImages(operations: operations)
+    }
 }

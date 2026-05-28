@@ -278,11 +278,6 @@ struct ArchiveView: View {
 
         try? await appData.fileService.createDirectory(at: imagesFolderURL)
 
-        struct RestorationResult {
-            let successCount: Int
-            let failureCount: Int
-            let restoredImages: [CapturedImage]
-        }
 
         let existingImageURLs = await MainActor.run {
             Set(appData.images.map(\.fileURL))
@@ -314,33 +309,11 @@ struct ArchiveView: View {
             }
         }
 
-        let (restoredCount, failedCount, allRestored) = await withTaskGroup(of: RestorationResult.self) { group in
-            for image in imagesToRestore {
-                group.addTask {
-                    do {
-                        try? await self.appData.fileService.removeItem(at: image.destination)
-                        try await self.appData.fileService.copyItem(at: image.source, to: image.destination)
-                        let capturedImage = CapturedImage(
-                            name: image.source.deletingPathExtension().lastPathComponent,
-                            fileURL: image.destination)
-                        return RestorationResult(successCount: 1, failureCount: 0, restoredImages: [capturedImage])
-                    } catch {
-                        print("Failed to restore archived image: \(error)")
-                        return RestorationResult(successCount: 0, failureCount: 1, restoredImages: [])
-                    }
-                }
-            }
-
-            var success = 0
-            var failure = 0
-            var restored: [CapturedImage] = []
-            for await res in group {
-                success += res.successCount
-                failure += res.failureCount
-                restored.append(contentsOf: res.restoredImages)
-            }
-            return (success, failure, restored)
-        }
+        let operations = imagesToRestore.map { RestoreOperation(source: $0.source, destination: $0.destination) }
+        let result = await appData.fileService.restoreImages(operations: operations)
+        let restoredCount = result.successCount
+        let failedCount = result.failureCount
+        let allRestored = result.restoredImages
 
         await MainActor.run {
             appData.images.append(contentsOf: allRestored)
@@ -641,30 +614,9 @@ struct ArchivedImagesView: View {
                 return (source: imageURL, destination: destinationURL)
             }
 
-            let restoredImages = await withTaskGroup(of: CapturedImage?.self) { group in
-                for image in imagesToRestore {
-                    group.addTask {
-                        do {
-                            try? await appData.fileService.removeItem(at: image.destination)
-                            try await appData.fileService.copyItem(at: image.source, to: image.destination)
-                            return CapturedImage(
-                                name: image.source.deletingPathExtension().lastPathComponent,
-                                fileURL: image.destination)
-                        } catch {
-                            print("Failed to restore archived image: \(error)")
-                            return nil
-                        }
-                    }
-                }
-
-                var results: [CapturedImage] = []
-                for await image in group {
-                    if let image = image {
-                        results.append(image)
-                    }
-                }
-                return results
-            }
+            let operations = imagesToRestore.map { RestoreOperation(source: $0.source, destination: $0.destination) }
+            let result = await appData.fileService.restoreImages(operations: operations)
+            let restoredImages = result.restoredImages
 
             await MainActor.run {
                 appData.images.append(contentsOf: restoredImages)

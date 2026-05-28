@@ -47,4 +47,33 @@ actor FileActor {
     func write(data: Data, to url: URL) throws {
         try data.write(to: url)
     }
+
+    func restoreImages(operations: [RestoreOperation]) -> RestorationResult {
+        var successCount = 0
+        var failureCount = 0
+        var restoredImages: [CapturedImage] = []
+
+        for operation in operations {
+            do {
+                if fileManager.fileExists(atPath: operation.destination.path) {
+                    try fileManager.removeItem(at: operation.destination)
+                }
+                try fileManager.copyItem(at: operation.source, to: operation.destination)
+                let capturedImage = CapturedImage(
+                    name: operation.source.deletingPathExtension().lastPathComponent,
+                    fileURL: operation.destination)
+                restoredImages.append(capturedImage)
+                successCount += 1
+            } catch {
+                print("Failed to restore archived image from \(operation.source) to \(operation.destination): \(error)")
+                failureCount += 1
+            }
+        }
+
+        return RestorationResult(
+            successCount: successCount,
+            failureCount: failureCount,
+            restoredImages: restoredImages
+        )
+    }
 }
