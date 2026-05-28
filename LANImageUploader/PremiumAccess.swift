@@ -70,6 +70,11 @@ final class PremiumAccessController: ObservableObject {
         reload()
     }
 
+    func resetUploadCount() {
+        store.successfulUploadCount = 0
+        reload()
+    }
+
     #if DEBUG
     func setDeveloperModeEnabled(_ isEnabled: Bool) {
         store.isDeveloperModeEnabled = isEnabled

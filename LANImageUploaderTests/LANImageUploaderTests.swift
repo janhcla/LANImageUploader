@@ -386,6 +386,18 @@ struct LANImageUploaderTests {
         #expect(access.state.canUpload)
     }
 
+    @Test @MainActor func premiumTrialResetUploadCount() async throws {
+        let store = InMemoryPremiumAccessStore()
+        let access = PremiumAccessController(store: store)
+
+        access.recordSuccessfulUpload()
+        #expect(access.state.successfulUploadCount == 1)
+
+        access.resetUploadCount()
+        #expect(access.state.successfulUploadCount == 0)
+        #expect(access.state.remainingTrialUploads == 15)
+    }
+
     @Test @MainActor func premiumTrialBlocksAfterFifteenSuccessfulUploads() async throws {
         let store = InMemoryPremiumAccessStore()
         let access = PremiumAccessController(store: store)
