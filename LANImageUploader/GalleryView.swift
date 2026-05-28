@@ -162,11 +162,9 @@ struct GalleryView: View {
                 )
             }
             .sheet(item: $cropEditingItem) { item in
-                if let capturedImage = item.capturedImage,
-                   let source = UIImage(contentsOfFile: capturedImage.fileURL.path) {
-                    CropEditorView(
-                        sourceImage: source,
-                        initialCrop: capturedImage.crop ?? .fullFrame,
+                if let capturedImage = item.capturedImage {
+                    AsyncCropEditorContainer(
+                        capturedImage: capturedImage,
                         onCancel: { cropEditingItem = nil },
                         onSave: { crop in
                             appData.updateCrop(for: capturedImage.id, crop: crop)
@@ -755,6 +753,59 @@ struct ReorderDropDelegate: DropDelegate {
     func performDrop(info: DropInfo) -> Bool {
         draggedItem = nil
         return true
+    }
+}
+
+
+struct AsyncCropEditorContainer: View {
+    let capturedImage: CapturedImage
+    let onCancel: () -> Void
+    let onSave: (DocumentCrop) -> Void
+
+    @State private var sourceImage: UIImage? = nil
+    @State private var hasError = false
+
+    var body: some View {
+        Group {
+            if let sourceImage = sourceImage {
+                CropEditorView(
+                    sourceImage: sourceImage,
+                    initialCrop: capturedImage.crop ?? .fullFrame,
+                    onCancel: onCancel,
+                    onSave: onSave
+                )
+            } else if hasError {
+                VStack(spacing: 16) {
+                    Text("Failed to load image.")
+                        .foregroundColor(.white)
+                    Button("Cancel", action: onCancel)
+                        .buttonStyle(.borderedProminent)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.black.ignoresSafeArea())
+            } else {
+                VStack {
+                    ProgressView("Loading image...")
+                        .tint(.white)
+                        .foregroundColor(.white)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.black.ignoresSafeArea())
+                .task {
+                    let image = await Task.detached(priority: .userInitiated) {
+                        UIImage(contentsOfFile: capturedImage.fileURL.path)
+                    }.value
+
+                    await MainActor.run {
+                        if let image = image {
+                            self.sourceImage = image
+                        } else {
+                            self.hasError = true
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
