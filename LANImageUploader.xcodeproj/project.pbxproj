@@ -37,6 +37,7 @@
 		3DB3700F2D98046E003D8E4C /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF32D98046E003D8E4A /* NetworkMonitor.swift */; };
 		3DB370112D98046E003D8E4A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB36FF52D98046E003D8E4A /* SettingsView.swift */; };
 		3DB370142D98048A003D8E4A /* LANImageUploaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB370122D98048A003D8E4A /* LANImageUploaderTests.swift */; };
+		DEADBEEF1234567890ABCDE0 /* UtilitiesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEADBEEF1234567890ABCDEF /* UtilitiesTests.swift */; };
 		3DB370182D980499003D8E4A /* LANImageUploaderUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB370162D980499003D8E4A /* LANImageUploaderUITestsLaunchTests.swift */; };
 		3DB370192D980499003D8E4A /* LANImageUploaderUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB370152D980499003D8E4A /* LANImageUploaderUITests.swift */; };
 		5EA1443F24F74F18AE377E9E /* UploadModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2988FBC6891402F823C8784 /* UploadModels.swift */; };
@@ -151,6 +152,7 @@
 		BB8CECC1C94B45D8BFE52199 /* GalleryModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryModelsTests.swift; sourceTree = "<group>"; };
 		D2988FBC6891402F823C8784 /* UploadModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadModels.swift; sourceTree = "<group>"; };
 		F5BA9FD459774EC381644C3B /* UploadableFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadableFileTests.swift; sourceTree = "<group>"; };
+		DEADBEEF1234567890ABCDEF /* UtilitiesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UtilitiesTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -241,6 +243,7 @@
 			isa = PBXGroup;
 			children = (
 				F5BA9FD459774EC381644C3B /* UploadableFileTests.swift */,
+				DEADBEEF1234567890ABCDEF /* UtilitiesTests.swift */,
 				BB8CECC1C94B45D8BFE52199 /* GalleryModelsTests.swift */,
 				3DB370122D98048A003D8E4A /* LANImageUploaderTests.swift */,
 				A1F11E6C2D68B563001D57FD /* Mocks/MockFileService.swift */,
@@ -490,6 +493,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3DB370142D98048A003D8E4A /* LANImageUploaderTests.swift in Sources */,
+				DEADBEEF1234567890ABCDE0 /* UtilitiesTests.swift in Sources */,
 				A1F11E6F2D68B563001D57FD /* Mocks/MockFileService.swift in Sources */,
 				A1F11E702D68B563001D57FD /* Mocks/MockImageUploadService.swift in Sources */,
 				A1F11E712D68B563001D57FD /* Mocks/MockNetworkDiscovery.swift in Sources */,
