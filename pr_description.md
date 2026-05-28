@@ -1,3 +1,15 @@
-💡 **What:** Replaced sequential file I/O inside the loop in `ArchiveView.swift` with concurrent `withTaskGroup` operations.
-🎯 **Why:** Previously, the `restoreSelectedArchives()` method would wait sequentially for `appData.getImagesForDate(date)` to fetch each selected date's images one at a time before iterating over them. For multiple date selections, this causes a significant performance bottleneck due to blocked I/O and unneeded latency stacking. Batching the queries asynchronously minimizes latency.
-📊 **Measured Improvement:** We're unable to provide a precise benchmark because tests cannot be run via `xcodebuild` in this environment, but transitioning from an O(n) sequential wait over the network/disk into a concurrent task group is an asymptotic improvement in multi-date selection restore performance.
+💡 **What:** Added comprehensive test suite for `FileActor` to improve test coverage.
+🎯 **Why:** `FileActor` manages critical, low-level file system operations on a background thread. Adding proper testing ensures reliability across key operations such as file/directory creation, existence checks, copying, removing, and reading contents. The tests are written within `LANImageUploaderTests/FileServiceTests.swift` following the project's testing conventions.
+📊 **Coverage:** Covered all methods of the actor:
+- `testDocumentsDirectory`
+- `testCreateDirectory`
+- `testFileExists`
+- `testCopyItem`
+- `testRemoveItem`
+- `testContentsOfDirectoryURL`
+- `testContentsOfDirectoryPath`
+- `testWriteData`
+
+✨ **Result:** Improved test coverage for `FileActor`.
+
+Note: Tests could not be run locally as the `xcodebuild` toolchain is not available in the current bash environment, per project guidelines. They will need to be executed on an environment with the proper tools.
