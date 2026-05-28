@@ -157,17 +157,11 @@ final class KeychainPremiumAccessStore: PremiumAccessPersisting {
             kSecAttrService as String: service,
             kSecAttrAccount as String: account
         ]
-        let attributes: [String: Any] = [
-            kSecValueData as String: valueData,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
-        ]
-
-        let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-        if status == errSecSuccess { return }
+        SecItemDelete(query as CFDictionary)
 
         var addQuery = query
         addQuery[kSecValueData as String] = valueData
-        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         SecItemAdd(addQuery as CFDictionary, nil)
     }
 }
