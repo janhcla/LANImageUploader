@@ -256,20 +256,30 @@ struct UploadView: View {
             return
         }
 
-        if appData.premiumAccess.state.isFullAppUnlocked {
-            for file in uploadFiles {
-                Task { await uploadFile(file) }
+        let isFullUnlock = appData.premiumAccess.state.isFullAppUnlocked
+        let remainingTrials = appData.premiumAccess.state.remainingTrialUploads
+        let filesToProcess: [UploadableFile]
+
+        if isFullUnlock {
+            filesToProcess = uploadFiles
+        } else {
+            filesToProcess = Array(uploadFiles.prefix(remainingTrials))
+            if uploadFiles.count > remainingTrials {
+                Task {
+                    await MainActor.run { navigateToFullUnlock = true }
+                }
             }
-            return
         }
 
+        guard !filesToProcess.isEmpty else { return }
+
         Task {
-            for file in uploadFiles {
-                guard appData.premiumAccess.state.canUpload else {
-                    await MainActor.run { navigateToFullUnlock = true }
-                    return
+            await withTaskGroup(of: Void.self) { group in
+                for file in filesToProcess {
+                    group.addTask {
+                        await self.uploadFile(file)
+                    }
                 }
-                await uploadFile(file)
             }
         }
     }
@@ -280,20 +290,30 @@ struct UploadView: View {
             return false
         }
 
-        if appData.premiumAccess.state.isFullAppUnlocked {
-            for file in failedFiles {
-                Task { await uploadFile(file) }
+        let isFullUnlock = appData.premiumAccess.state.isFullAppUnlocked
+        let remainingTrials = appData.premiumAccess.state.remainingTrialUploads
+        let filesToProcess: [UploadableFile]
+
+        if isFullUnlock {
+            filesToProcess = failedFiles
+        } else {
+            filesToProcess = Array(failedFiles.prefix(remainingTrials))
+            if failedFiles.count > remainingTrials {
+                Task {
+                    await MainActor.run { navigateToFullUnlock = true }
+                }
             }
-            return
         }
 
+        guard !filesToProcess.isEmpty else { return }
+
         Task {
-            for file in failedFiles {
-                guard appData.premiumAccess.state.canUpload else {
-                    await MainActor.run { navigateToFullUnlock = true }
-                    return
+            await withTaskGroup(of: Void.self) { group in
+                for file in filesToProcess {
+                    group.addTask {
+                        await self.uploadFile(file)
+                    }
                 }
-                await uploadFile(file)
             }
         }
     }
