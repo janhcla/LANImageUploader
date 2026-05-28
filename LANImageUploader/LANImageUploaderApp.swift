@@ -45,7 +45,7 @@ struct LANImageUploaderApp: App {
         BGTaskScheduler.shared.register(forTaskWithIdentifier: Constants.BackgroundTasks.dailyImageSave, using: nil) { [self] task in
             handleAppRefreshTask(task: task as! BGAppRefreshTask)
         }
-        print("Onboarding completed state at launch: \(onboardingCompleted)")
+
 
         // Set up UIKit appearance to ensure transparent backgrounds
         UITableView.appearance().backgroundColor = .clear
