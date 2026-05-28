@@ -60,6 +60,7 @@
 		A1F11E782D68B563001D57FD /* LANImageUploaderTests/Mocks/MockHapticFeedbackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F11E792D68B563001D57FD /* LANImageUploaderTests/Mocks/MockHapticFeedbackService.swift */; };
 		D84A039256B548319427DEA1 /* RetakeReviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3756349C4CC9493AB85FAAEC /* RetakeReviewSheet.swift */; };
 		FB48E70D3A754C519AC58099 /* LANImageUploader/Services/PDFGenerationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9774F2F1B2748D3965BA4CC /* LANImageUploader/Services/PDFGenerationService.swift */; };
+		AABBCCDD1122334455667788 /* UtilitiesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8877665544332211DDCCBBAA /* UtilitiesTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -151,6 +152,7 @@
 		BB8CECC1C94B45D8BFE52199 /* GalleryModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryModelsTests.swift; sourceTree = "<group>"; };
 		D2988FBC6891402F823C8784 /* UploadModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadModels.swift; sourceTree = "<group>"; };
 		F5BA9FD459774EC381644C3B /* UploadableFileTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadableFileTests.swift; sourceTree = "<group>"; };
+		8877665544332211DDCCBBAA /* UtilitiesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UtilitiesTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -240,6 +242,7 @@
 		3DB370132D98048A003D8E4A /* LANImageUploaderTests */ = {
 			isa = PBXGroup;
 			children = (
+				8877665544332211DDCCBBAA /* UtilitiesTests.swift */,
 				F5BA9FD459774EC381644C3B /* UploadableFileTests.swift */,
 				BB8CECC1C94B45D8BFE52199 /* GalleryModelsTests.swift */,
 				3DB370122D98048A003D8E4A /* LANImageUploaderTests.swift */,
@@ -489,6 +492,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AABBCCDD1122334455667788 /* UtilitiesTests.swift in Sources */,
 				3DB370142D98048A003D8E4A /* LANImageUploaderTests.swift in Sources */,
 				A1F11E6F2D68B563001D57FD /* Mocks/MockFileService.swift in Sources */,
 				A1F11E702D68B563001D57FD /* Mocks/MockImageUploadService.swift in Sources */,
