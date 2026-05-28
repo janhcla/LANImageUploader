@@ -7,6 +7,9 @@
 
 import Network
 import SwiftUI
+import OSLog
+
+private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "LANImageUploader", category: "NetworkMonitor")
 @preconcurrency import ObjectiveC
 
 @preconcurrency
@@ -24,7 +27,7 @@ final class NetworkMonitor: @unchecked Sendable {
         self.monitor = NWPathMonitor()
         
         monitor.pathUpdateHandler = { [weak self] path in
-            print("Path update received - Status: \(path.status)")
+            logger.debug("Path update received - Status: \(String(describing: path.status))")
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 self.updateConnectionStatus(isConnected: path.status == .satisfied)
@@ -36,7 +39,7 @@ final class NetworkMonitor: @unchecked Sendable {
             guard let self = self else { return }
             let initialConnected = self.monitor.currentPath.status == .satisfied
             self.updateConnectionStatus(isConnected: initialConnected)
-            print("NetworkMonitor initialized - Initial connected: \(initialConnected)")
+            logger.debug("NetworkMonitor initialized - Initial connected: \(initialConnected)")
         }
     }
 
@@ -44,7 +47,7 @@ final class NetworkMonitor: @unchecked Sendable {
     private func updateConnectionStatus(isConnected newValue: Bool) {
         guard isConnected != newValue else { return }
         isConnected = newValue
-        print("Network connection state changed to: \(isConnected)")
+        logger.debug("Network connection state changed to: \(isConnected)")
         // Post notification when network state changes
         NotificationCenter.default.post(name:.networkStatusChanged, object: nil)
     }
@@ -119,7 +122,7 @@ final class NetworkMonitor: @unchecked Sendable {
     @MainActor
     func checkCurrentStatus() {
         let path = monitor.currentPath
-        print("Current path status: \(path.status)")
+        logger.debug("Current path status: \(String(describing: path.status))")
         updateConnectionStatus(isConnected: path.status == .satisfied)
     }
 }
