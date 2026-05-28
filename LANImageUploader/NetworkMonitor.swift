@@ -44,7 +44,6 @@ final class NetworkMonitor: @unchecked Sendable {
     private func updateConnectionStatus(isConnected newValue: Bool) {
         guard isConnected != newValue else { return }
         isConnected = newValue
-        print("Network connection state changed to: \(isConnected)")
         // Post notification when network state changes
         NotificationCenter.default.post(name:.networkStatusChanged, object: nil)
     }
