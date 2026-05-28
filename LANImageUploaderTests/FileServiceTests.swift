@@ -36,4 +36,43 @@ struct FileServiceTests {
 
         #expect(isMatch == isValid)
     }
+
+    @Test func testGetArchivedDates() async throws {
+        let fileService = FileService.shared
+        let docsDir = await fileService.documentsDirectory
+
+        let validDates = ["2023-05-15", "2024-01-01", "2024-12-31"]
+        let invalidDates = ["2024-1-1", "invalid", "2024-12-31-extra"]
+
+        // Clean up before test just in case
+        for date in validDates + invalidDates {
+            try? await fileService.removeItem(at: docsDir.appendingPathComponent(date))
+        }
+
+        // Create test directories
+        for date in validDates + invalidDates {
+            let url = docsDir.appendingPathComponent(date)
+            try await fileService.createDirectory(at: url)
+        }
+
+        let retrievedDates = await fileService.getArchivedDates()
+
+        // Cleanup after test
+        for date in validDates + invalidDates {
+            try? await fileService.removeItem(at: docsDir.appendingPathComponent(date))
+        }
+
+        // Verify
+        for validDate in validDates {
+            #expect(retrievedDates.contains(validDate))
+        }
+
+        for invalidDate in invalidDates {
+            #expect(!retrievedDates.contains(invalidDate))
+        }
+
+        // Check sorting (descending)
+        let filteredRetrieved = retrievedDates.filter { validDates.contains($0) }
+        #expect(filteredRetrieved == validDates.sorted(by: >))
+    }
 }
