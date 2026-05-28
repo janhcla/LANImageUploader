@@ -96,7 +96,6 @@ struct LANImageUploaderApp: App {
                 }
             }
             .onChange(of: scenePhase) { oldPhase, newPhase in
-                print("Scene phase changed from \(oldPhase) to \(newPhase)")
                 if newPhase == .active {
                     scheduleDailyImageSave()
                 }

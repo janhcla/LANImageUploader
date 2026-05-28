@@ -1,3 +1,4 @@
-💡 **What:** Replaced sequential file I/O inside the loop in `ArchiveView.swift` with concurrent `withTaskGroup` operations.
-🎯 **Why:** Previously, the `restoreSelectedArchives()` method would wait sequentially for `appData.getImagesForDate(date)` to fetch each selected date's images one at a time before iterating over them. For multiple date selections, this causes a significant performance bottleneck due to blocked I/O and unneeded latency stacking. Batching the queries asynchronously minimizes latency.
-📊 **Measured Improvement:** We're unable to provide a precise benchmark because tests cannot be run via `xcodebuild` in this environment, but transitioning from an O(n) sequential wait over the network/disk into a concurrent task group is an asymptotic improvement in multi-date selection restore performance.
+🎯 **What:** Removed a leftover debug print statement `print("Scene phase changed from \(oldPhase) to \(newPhase)")` from `LANImageUploaderApp.swift`.
+💡 **Why:** Print statements are meant for debugging and should not be included in production code. Removing it cleans up the logs and improves code health.
+✅ **Verification:** Verified the removal using `git diff` and `cat`. Swift building/testing toolchain is not available in the current environment, but the code change is a safe single-line deletion.
+✨ **Result:** A cleaner and more maintainable `LANImageUploaderApp.swift` file.
