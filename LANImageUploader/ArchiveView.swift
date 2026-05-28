@@ -533,20 +533,17 @@ struct ArchivedImagesView: View {
                     Text("Delete the selected images from the archive?")
                 }
                 .fullScreenCover(item: $selectedImageURL) { identifiableURL in
-                    if let imageData = try? Data(contentsOf: identifiableURL.url), let uiImage = UIImage(data: imageData) {
-                        FullscreenImageView(
-                            image: CapturedImage(name: identifiableURL.url.deletingPathExtension().lastPathComponent, fileURL: identifiableURL.url),
-                            uiImage: uiImage,
-                            onDelete: {
-                                selectedImages = [identifiableURL.url]
-                                Task { await deleteSelectedImages() }
-                                selectedImageURL = nil
-                            },
-                            onSave: {
-                                Task { await restoreImages([identifiableURL.url]) }
-                            }
-                        )
-                    }
+                    AsyncFullscreenImageView(
+                        identifiableURL: identifiableURL,
+                        onDelete: {
+                            selectedImages = [identifiableURL.url]
+                            Task { await deleteSelectedImages() }
+                            selectedImageURL = nil
+                        },
+                        onSave: {
+                            Task { await restoreImages([identifiableURL.url]) }
+                        }
+                    )
                 }
                 .onAppear {
                     Task { await refreshImages() }
@@ -723,6 +720,58 @@ struct ArchivedImagesView: View {
         let urls = await appData.getImagesForDate(date)
         await MainActor.run {
             self.images = urls
+        }
+    }
+}
+
+
+struct AsyncFullscreenImageView: View {
+    let identifiableURL: IdentifiableURL
+    let onDelete: () -> Void
+    let onSave: () -> Void
+
+    @State private var uiImage: UIImage?
+    @State private var isLoading = true
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            if let uiImage = uiImage {
+                FullscreenImageView(
+                    image: CapturedImage(name: identifiableURL.url.deletingPathExtension().lastPathComponent, fileURL: identifiableURL.url),
+                    uiImage: uiImage,
+                    onDelete: onDelete,
+                    onSave: onSave
+                )
+            } else if isLoading {
+                ProgressView()
+                    .controlSize(.large)
+                    .tint(.white)
+            } else {
+                VStack(spacing: 16) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.largeTitle)
+                        .foregroundStyle(.red)
+                    Text("Failed to load image")
+                        .foregroundStyle(.white)
+                }
+            }
+        }
+        .task {
+            // Load image asynchronously off the main thread
+            let url = identifiableURL.url
+            let loadedImage = await Task.detached(priority: .userInitiated) { () -> UIImage? in
+                if let imageData = try? Data(contentsOf: url) {
+                    return UIImage(data: imageData)
+                }
+                return nil
+            }.value
+
+            await MainActor.run {
+                self.uiImage = loadedImage
+                self.isLoading = false
+            }
         }
     }
 }
