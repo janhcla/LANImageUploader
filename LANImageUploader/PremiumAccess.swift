@@ -10,7 +10,8 @@ import Security
 
 struct PremiumAccessState: Equatable {
     let isFullAppUnlocked: Bool
-    let isDeveloperModeEnabled: Bool
+    let isPremiumOverrideEnabled: Bool
+    let canUsePremiumOverride: Bool
     let successfulUploadCount: Int
     let trialUploadLimit: Int
 
@@ -36,29 +37,30 @@ enum PremiumAccessConstants {
 protocol PremiumAccessPersisting {
     var successfulUploadCount: Int { get set }
     var hasPurchasedFullUnlock: Bool { get set }
-    var isDeveloperModeEnabled: Bool { get set }
+    var isPremiumOverrideEnabled: Bool { get set }
 }
 
 final class PremiumAccessController: ObservableObject {
     private var store: PremiumAccessPersisting
     private let trialUploadLimit: Int
+    private let canUsePremiumOverride: () -> Bool
 
     @Published private(set) var state: PremiumAccessState
 
     init(
         store: PremiumAccessPersisting,
-        trialUploadLimit: Int = PremiumAccessConstants.trialUploadLimit
+        trialUploadLimit: Int = PremiumAccessConstants.trialUploadLimit,
+        canUsePremiumOverride: @escaping () -> Bool = AppDistribution.allowsPremiumOverride
     ) {
         self.store = store
         self.trialUploadLimit = trialUploadLimit
-        #if DEBUG
-        let developerModeEnabled = store.isDeveloperModeEnabled
-        #else
-        let developerModeEnabled = false
-        #endif
+        self.canUsePremiumOverride = canUsePremiumOverride
+        let overrideAllowed = canUsePremiumOverride()
+        let overrideEnabled = overrideAllowed && store.isPremiumOverrideEnabled
         self.state = PremiumAccessState(
-            isFullAppUnlocked: store.hasPurchasedFullUnlock || developerModeEnabled,
-            isDeveloperModeEnabled: developerModeEnabled,
+            isFullAppUnlocked: store.hasPurchasedFullUnlock || overrideEnabled,
+            isPremiumOverrideEnabled: overrideEnabled,
+            canUsePremiumOverride: overrideAllowed,
             successfulUploadCount: store.successfulUploadCount,
             trialUploadLimit: trialUploadLimit
         )
@@ -70,12 +72,15 @@ final class PremiumAccessController: ObservableObject {
         reload()
     }
 
-    #if DEBUG
-    func setDeveloperModeEnabled(_ isEnabled: Bool) {
-        store.isDeveloperModeEnabled = isEnabled
+    func setPremiumOverrideEnabled(_ isEnabled: Bool) {
+        guard canUsePremiumOverride() else {
+            store.isPremiumOverrideEnabled = false
+            reload()
+            return
+        }
+        store.isPremiumOverrideEnabled = isEnabled
         reload()
     }
-    #endif
 
     func markPurchasedFullUnlock() {
         store.hasPurchasedFullUnlock = true
@@ -83,17 +88,33 @@ final class PremiumAccessController: ObservableObject {
     }
 
     func reload() {
-        #if DEBUG
-        let developerModeEnabled = store.isDeveloperModeEnabled
-        #else
-        let developerModeEnabled = false
-        #endif
+        let overrideAllowed = canUsePremiumOverride()
+        if !overrideAllowed, store.isPremiumOverrideEnabled {
+            store.isPremiumOverrideEnabled = false
+        }
+        let overrideEnabled = overrideAllowed && store.isPremiumOverrideEnabled
         state = PremiumAccessState(
-            isFullAppUnlocked: store.hasPurchasedFullUnlock || developerModeEnabled,
-            isDeveloperModeEnabled: developerModeEnabled,
+            isFullAppUnlocked: store.hasPurchasedFullUnlock || overrideEnabled,
+            isPremiumOverrideEnabled: overrideEnabled,
+            canUsePremiumOverride: overrideAllowed,
             successfulUploadCount: store.successfulUploadCount,
             trialUploadLimit: trialUploadLimit
         )
+    }
+}
+
+enum AppDistribution {
+    static func allowsPremiumOverride() -> Bool {
+        #if DEBUG
+        return true
+        #else
+        return isRunningFromTestFlightReceipt
+        #endif
+    }
+
+    private static var isRunningFromTestFlightReceipt: Bool {
+        guard let receiptURL = Bundle.main.appStoreReceiptURL else { return false }
+        return receiptURL.lastPathComponent == "sandboxReceipt"
     }
 }
 
@@ -115,17 +136,10 @@ final class KeychainPremiumAccessStore: PremiumAccessPersisting {
         set { setString(newValue ? "true" : "false", for: Constants.Keychain.premiumFullUnlockPurchased) }
     }
 
-    #if DEBUG
-    var isDeveloperModeEnabled: Bool {
-        get { userDefaults.bool(forKey: Constants.UserDefaults.developerModeEnabled) }
-        set { userDefaults.set(newValue, forKey: Constants.UserDefaults.developerModeEnabled) }
+    var isPremiumOverrideEnabled: Bool {
+        get { userDefaults.bool(forKey: Constants.UserDefaults.premiumOverrideEnabled) }
+        set { userDefaults.set(newValue, forKey: Constants.UserDefaults.premiumOverrideEnabled) }
     }
-    #else
-    var isDeveloperModeEnabled: Bool {
-        get { false }
-        set { }
-    }
-    #endif
 
     private func intValue(for account: String) -> Int {
         guard let value = stringValue(for: account), let intValue = Int(value) else { return 0 }

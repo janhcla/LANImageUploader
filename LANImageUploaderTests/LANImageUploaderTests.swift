@@ -399,19 +399,31 @@ struct LANImageUploaderTests {
         #expect(!access.state.canUpload)
     }
 
-    @Test @MainActor func developerModeTemporarilyUnlocksFullApp() async throws {
+    @Test @MainActor func premiumOverrideTemporarilyUnlocksFullAppWhenAllowed() async throws {
         let store = InMemoryPremiumAccessStore()
         store.successfulUploadCount = 15
-        let access = PremiumAccessController(store: store)
+        let access = PremiumAccessController(store: store, canUsePremiumOverride: { true })
 
         #expect(!access.state.canUpload)
 
-        access.setDeveloperModeEnabled(true)
+        access.setPremiumOverrideEnabled(true)
         #expect(access.state.isFullAppUnlocked)
         #expect(access.state.canUpload)
         #expect(!access.state.shouldShowTrialStatus)
 
-        access.setDeveloperModeEnabled(false)
+        access.setPremiumOverrideEnabled(false)
+        #expect(!access.state.isFullAppUnlocked)
+        #expect(!access.state.canUpload)
+    }
+
+    @Test @MainActor func premiumOverrideIsIgnoredWhenNotAllowed() async throws {
+        let store = InMemoryPremiumAccessStore()
+        store.successfulUploadCount = 15
+        store.isPremiumOverrideEnabled = true
+        let access = PremiumAccessController(store: store, canUsePremiumOverride: { false })
+
+        #expect(!access.state.canUsePremiumOverride)
+        #expect(!access.state.isPremiumOverrideEnabled)
         #expect(!access.state.isFullAppUnlocked)
         #expect(!access.state.canUpload)
     }
@@ -422,7 +434,7 @@ struct LANImageUploaderTests {
         let access = PremiumAccessController(store: store)
 
         access.markPurchasedFullUnlock()
-        access.setDeveloperModeEnabled(false)
+        access.setPremiumOverrideEnabled(false)
 
         #expect(access.state.isFullAppUnlocked)
         #expect(access.state.canUpload)
@@ -617,5 +629,5 @@ struct LANImageUploaderTests {
 private final class InMemoryPremiumAccessStore: PremiumAccessPersisting {
     var successfulUploadCount = 0
     var hasPurchasedFullUnlock = false
-    var isDeveloperModeEnabled = false
+    var isPremiumOverrideEnabled = false
 }

@@ -34,7 +34,6 @@ struct SettingsView: View {
     @State private var directIPInput = ""
     @State private var discoveryTask: Task<Void, Never>? = nil
     @State private var activeSheet: SettingsSheet? = nil
-    @State private var developerModeEnabled = false
 
     private enum SettingsSheet: Identifiable {
         case helpGuide
@@ -396,12 +395,15 @@ struct SettingsView: View {
 
     var premiumSection: some View {
         Section("Premium") {
-            #if DEBUG
-            Toggle("Developer Mode", isOn: $developerModeEnabled)
-                .onChange(of: developerModeEnabled) { _, newValue in
-                    appData.premiumAccess.setDeveloperModeEnabled(newValue)
-                }
-            #endif
+            if appData.premiumAccess.state.canUsePremiumOverride {
+                Toggle("Premium override", isOn: Binding(
+                    get: { appData.premiumAccess.state.isPremiumOverrideEnabled },
+                    set: { appData.premiumAccess.setPremiumOverrideEnabled($0) }
+                ))
+                Text("Bypasses the paywall for TestFlight validation only.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             if appData.premiumAccess.state.isFullAppUnlocked {
                 Label("Full App Unlock active", systemImage: "checkmark.seal.fill")
@@ -507,9 +509,6 @@ struct SettingsView: View {
         username = appData.settings.username
         port = appData.settings.port.map(String.init) ?? ""
         password = appData.getPassword() ?? ""
-        #if DEBUG
-        developerModeEnabled = appData.premiumAccess.state.isDeveloperModeEnabled
-        #endif
         if !isSetupComplete && (serverIP.isEmpty && shareName.isEmpty && username.isEmpty && password.isEmpty) {
             isFirstSetup = true
         }
