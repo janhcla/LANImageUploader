@@ -253,56 +253,56 @@ struct ScannerCaptureView: View {
     }
 
     var body: some View {
-        ZStack {
-            DocumentCameraPreview(
-                mode: mode,
-                autoCapture: $autoCapture,
-                captureRequest: captureRequest,
-                selectedZoomFactor: selectedZoomFactor,
-                onScanCapture: onScanCapture,
-                onPhotoCapture: { image in
-                    photoReviewImage = image
-                },
-                onDetectionChanged: { message, found in
-                    DispatchQueue.main.async {
-                        guidance = message
-                        documentFound = found
-                    }
-                },
-                onCountdownChanged: { nextCountdown in
-                    DispatchQueue.main.async {
-                        if nextCountdown != nil, nextCountdown != countdown {
-                            onCountdownTick()
+        GeometryReader { proxy in
+            let isLandscape = proxy.size.width > proxy.size.height
+            ZStack {
+                DocumentCameraPreview(
+                    mode: mode,
+                    autoCapture: $autoCapture,
+                    captureRequest: captureRequest,
+                    selectedZoomFactor: selectedZoomFactor,
+                    onScanCapture: onScanCapture,
+                    onPhotoCapture: { image in
+                        photoReviewImage = image
+                    },
+                    onDetectionChanged: { message, found in
+                        DispatchQueue.main.async {
+                            guidance = message
+                            documentFound = found
                         }
-                        countdown = nextCountdown
+                    },
+                    onCountdownChanged: { nextCountdown in
+                        DispatchQueue.main.async {
+                            if nextCountdown != nil, nextCountdown != countdown {
+                                onCountdownTick()
+                            }
+                            countdown = nextCountdown
+                        }
+                    },
+                    onZoomOptionsChanged: { options, currentFactor in
+                        DispatchQueue.main.async {
+                            zoomOptions = options.isEmpty ? [.standard] : options
+                            selectedZoomFactor = currentFactor
+                        }
                     }
-                },
-                onZoomOptionsChanged: { options, currentFactor in
-                    DispatchQueue.main.async {
-                        zoomOptions = options.isEmpty ? [.standard] : options
-                        selectedZoomFactor = currentFactor
-                    }
-                }
-            )
-            .ignoresSafeArea()
+                )
+                .ignoresSafeArea()
 
-            if let photoReviewImage {
-                photoReview(for: photoReviewImage)
-            } else {
-                VStack {
-                    scannerTopBar
-                    Spacer()
-                    if mode == .scan {
-                        guidanceBanner
-                    }
-                    captureBottomBar
+                if let photoReviewImage {
+                    photoReview(for: photoReviewImage, isLandscape: isLandscape)
+                } else if isLandscape {
+                    landscapeCaptureOverlay
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                } else {
+                    portraitCaptureOverlay
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
             }
+            .background(.black)
+            .accessibilityElement(children: .contain)
         }
-        .background(.black)
-        .accessibilityElement(children: .contain)
         .onChange(of: mode) { _, _ in
             countdown = nil
             documentFound = false
@@ -310,37 +310,74 @@ struct ScannerCaptureView: View {
         }
     }
 
+    private var portraitCaptureOverlay: some View {
+        VStack {
+            scannerTopBar
+            Spacer()
+            if mode == .scan {
+                guidanceBanner
+            }
+            captureBottomBar
+        }
+    }
+
+    private var landscapeCaptureOverlay: some View {
+        HStack(alignment: .center) {
+            VStack {
+                closeButton
+                Spacer()
+                galleryButton
+            }
+            Spacer()
+            if mode == .scan {
+                guidanceBanner
+                    .frame(maxWidth: 300)
+            }
+            captureBottomBar
+                .frame(width: 250)
+        }
+        .foregroundStyle(.white)
+    }
+
     private var scannerTopBar: some View {
         HStack {
-            Button(action: onCancel) {
-                Image(systemName: "xmark")
-                    .font(.title3.weight(.semibold))
-                    .frame(width: 44, height: 44)
-                    .background(.black.opacity(0.55), in: Circle())
-            }
-            .accessibilityLabel("Close scanner")
+            closeButton
 
             Spacer()
 
-            Button(action: { onOpenGallery(mode) }) {
-                ZStack(alignment: .topTrailing) {
-                    Image(systemName: "photo.stack")
-                        .font(.title3.weight(.semibold))
-                        .frame(width: 52, height: 44)
-                        .background(.black.opacity(0.55), in: Capsule())
-                    if retainedItemCount > 0 {
-                        Text("\(retainedItemCount)")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(.white)
-                            .padding(5)
-                            .background(.blue, in: Circle())
-                            .offset(x: 4, y: -5)
-                    }
-                }
-            }
-            .accessibilityLabel(galleryAccessibilityLabel)
+            galleryButton
         }
         .foregroundStyle(.white)
+    }
+
+    private var closeButton: some View {
+        Button(action: onCancel) {
+            Image(systemName: "xmark")
+                .font(.title3.weight(.semibold))
+                .frame(width: 44, height: 44)
+                .background(.black.opacity(0.55), in: Circle())
+        }
+        .accessibilityLabel("Close scanner")
+    }
+
+    private var galleryButton: some View {
+        Button(action: { onOpenGallery(mode) }) {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "photo.stack")
+                    .font(.title3.weight(.semibold))
+                    .frame(width: 52, height: 44)
+                    .background(.black.opacity(0.55), in: Capsule())
+                if retainedItemCount > 0 {
+                    Text("\(retainedItemCount)")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.white)
+                        .padding(5)
+                        .background(.blue, in: Circle())
+                        .offset(x: 4, y: -5)
+                }
+            }
+        }
+        .accessibilityLabel(galleryAccessibilityLabel)
     }
 
     private var guidanceBanner: some View {
@@ -430,54 +467,79 @@ struct ScannerCaptureView: View {
         .accessibilityIdentifier("camera-zoom-controls")
     }
 
-    private func photoReview(for image: UIImage) -> some View {
+    private func photoReview(for image: UIImage, isLandscape: Bool) -> some View {
         ZStack {
             Color.black.opacity(0.82).ignoresSafeArea()
 
-            VStack(spacing: 16) {
-                HStack {
-                    reviewIconButton(label: "Discard photo", systemName: "xmark") {
-                        photoReviewImage = nil
+            Group {
+                if isLandscape {
+                    HStack(spacing: 16) {
+                        VStack {
+                            reviewIconButton(label: "Discard photo", systemName: "xmark") {
+                                photoReviewImage = nil
+                            }
+                            Spacer()
+                        }
+
+                        GlassContainer(cornerRadius: 28) {
+                            ZoomablePhotoReviewImage(image: image)
+                        }
+                        .accessibilityElement(children: .contain)
+
+                        reviewActions(for: image)
+                            .frame(width: 260)
                     }
-                    Spacer()
-                }
-
-                GlassContainer(cornerRadius: 28) {
-                    ZoomablePhotoReviewImage(image: image)
-                }
-                .accessibilityElement(children: .contain)
-
-                GlassContainer(cornerRadius: 24) {
-                    HStack(spacing: 12) {
-                        Button {
-                            photoReviewImage = nil
-                        } label: {
-                            Label("Retake", systemImage: "arrow.counterclockwise")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
+                } else {
+                    VStack(spacing: 16) {
+                        HStack {
+                            reviewIconButton(label: "Discard photo", systemName: "xmark") {
+                                photoReviewImage = nil
+                            }
+                            Spacer()
                         }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.white)
-                        .accessibilityLabel("Retake photo")
 
-                        Button {
-                            onKeepPhoto(image)
-                            photoReviewImage = nil
-                        } label: {
-                            Label("Keep Photo", systemImage: "checkmark")
-                                .font(.headline)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
-                                .background(.blue.opacity(0.65), in: Capsule())
+                        GlassContainer(cornerRadius: 28) {
+                            ZoomablePhotoReviewImage(image: image)
                         }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.white)
-                        .accessibilityLabel("Keep photo")
+                        .accessibilityElement(children: .contain)
+
+                        reviewActions(for: image)
                     }
                 }
             }
             .padding(20)
+        }
+    }
+
+    private func reviewActions(for image: UIImage) -> some View {
+        GlassContainer(cornerRadius: 24) {
+            HStack(spacing: 12) {
+                Button {
+                    photoReviewImage = nil
+                } label: {
+                    Label("Retake", systemImage: "arrow.counterclockwise")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white)
+                .accessibilityLabel("Retake photo")
+
+                Button {
+                    onKeepPhoto(image)
+                    photoReviewImage = nil
+                } label: {
+                    Label("Keep Photo", systemImage: "checkmark")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(.blue.opacity(0.65), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white)
+                .accessibilityLabel("Keep photo")
+            }
         }
     }
 
@@ -714,6 +776,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         previewLayer.frame = view.bounds
         boundaryLayer.frame = view.bounds
         focusLayer.frame = view.bounds
+        updateCaptureOrientation()
         if let crop = displayedCrop {
             drawBoundary(crop, aligned: DocumentCaptureQuality.isAcceptable(crop))
         }
@@ -761,15 +824,45 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
             if self.session.canAddOutput(self.videoOutput) {
                 self.session.addOutput(self.videoOutput)
             }
-            self.videoOutput.connection(with: .video)?.videoRotationAngle = 90
-            self.photoOutput.connection(with: .video)?.videoRotationAngle = 90
             self.session.commitConfiguration()
+            DispatchQueue.main.async {
+                self.updateCaptureOrientation()
+            }
             self.session.startRunning()
             let options = self.zoomOptions(for: device)
             let currentFactor = self.nearestZoomFactor(to: device.videoZoomFactor, options: options)
             DispatchQueue.main.async {
                 self.onZoomOptionsChanged?(options, currentFactor)
             }
+        }
+    }
+
+    private func updateCaptureOrientation() {
+        let angle = currentVideoRotationAngle()
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            self.setVideoRotationAngle(angle, on: self.videoOutput.connection(with: .video))
+            self.setVideoRotationAngle(angle, on: self.photoOutput.connection(with: .video))
+        }
+    }
+
+    private func setVideoRotationAngle(_ angle: CGFloat, on connection: AVCaptureConnection?) {
+        guard let connection, connection.isVideoRotationAngleSupported(angle) else { return }
+        connection.videoRotationAngle = angle
+    }
+
+    private func currentVideoRotationAngle() -> CGFloat {
+        switch view.window?.windowScene?.effectiveGeometry.interfaceOrientation {
+        case .landscapeLeft:
+            return 0
+        case .landscapeRight:
+            return 180
+        case .portraitUpsideDown:
+            return 270
+        case .portrait, .unknown, nil:
+            return 90
+        @unknown default:
+            return 90
         }
     }
 

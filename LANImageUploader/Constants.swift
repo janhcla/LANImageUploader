@@ -21,7 +21,7 @@ enum Constants {
         static let onboardingCompleted = "onboardingCompleted"
         static let archiveCustomNames = "archiveCustomNames"
         static let ocrMode = "ocrMode"
-        static let developerModeEnabled = "developerModeEnabled"
+        static let premiumOverrideEnabled = "developerModeEnabled"
 
         // Gallery & PDF Settings
         static let defaultGalleryOutputMode = "defaultGalleryOutputMode"
