@@ -317,7 +317,7 @@ struct ScannerCaptureView: View {
             if mode == .scan {
                 guidanceBanner
             }
-            captureBottomBar
+            captureBottomBar(isLandscape: false)
         }
     }
 
@@ -333,8 +333,8 @@ struct ScannerCaptureView: View {
                 guidanceBanner
                     .frame(maxWidth: 300)
             }
-            captureBottomBar
-                .frame(width: 250)
+            captureBottomBar(isLandscape: true)
+                .frame(width: 260)
         }
         .foregroundStyle(.white)
     }
@@ -401,8 +401,8 @@ struct ScannerCaptureView: View {
         .padding(.bottom, 18)
     }
 
-    private var captureBottomBar: some View {
-        VStack(spacing: 18) {
+    private func captureBottomBar(isLandscape: Bool) -> some View {
+        VStack(spacing: isLandscape ? 12 : 18) {
             Picker("Capture mode", selection: $mode) {
                 ForEach(CameraCaptureMode.allCases) { mode in
                     Text(mode.localizedTitleKey).tag(mode)
@@ -438,10 +438,10 @@ struct ScannerCaptureView: View {
             .accessibilityLabel(mode == .scan ? "Scan page" : "Take photo")
         }
         .foregroundStyle(.white)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 14)
+        .padding(.horizontal, isLandscape ? 10 : 12)
+        .padding(.vertical, isLandscape ? 12 : 14)
         .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 20))
-        .padding(.bottom, 20)
+        .padding(.bottom, isLandscape ? 0 : 20)
     }
 
     private var zoomControls: some View {
@@ -486,7 +486,7 @@ struct ScannerCaptureView: View {
                         }
                         .accessibilityElement(children: .contain)
 
-                        reviewActions(for: image)
+                        reviewActions(for: image, isLandscape: true)
                             .frame(width: 260)
                     }
                 } else {
@@ -503,7 +503,7 @@ struct ScannerCaptureView: View {
                         }
                         .accessibilityElement(children: .contain)
 
-                        reviewActions(for: image)
+                        reviewActions(for: image, isLandscape: false)
                     }
                 }
             }
@@ -511,9 +511,10 @@ struct ScannerCaptureView: View {
         }
     }
 
-    private func reviewActions(for image: UIImage) -> some View {
+    private func reviewActions(for image: UIImage, isLandscape: Bool) -> some View {
         GlassContainer(cornerRadius: 24) {
-            HStack(spacing: 12) {
+            let layout = isLandscape ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 12))
+            layout {
                 Button {
                     photoReviewImage = nil
                 } label: {
@@ -540,6 +541,7 @@ struct ScannerCaptureView: View {
                 .foregroundStyle(.white)
                 .accessibilityLabel("Keep photo")
             }
+            .padding(isLandscape ? 12 : 0)
         }
     }
 
@@ -839,6 +841,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
 
     private func updateCaptureOrientation() {
         let angle = currentVideoRotationAngle()
+        setVideoRotationAngle(angle, on: previewLayer.connection)
         sessionQueue.async { [weak self] in
             guard let self else { return }
             self.setVideoRotationAngle(angle, on: self.videoOutput.connection(with: .video))
@@ -854,9 +857,9 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     private func currentVideoRotationAngle() -> CGFloat {
         switch view.window?.windowScene?.effectiveGeometry.interfaceOrientation {
         case .landscapeLeft:
-            return 0
-        case .landscapeRight:
             return 180
+        case .landscapeRight:
+            return 0
         case .portraitUpsideDown:
             return 270
         case .portrait, .unknown, nil:
@@ -913,13 +916,10 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         guard mode == .scan else { return }
         let currentPreviewImageSize: CGSize?
         if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
-            let rawSize = CGSize(
+            currentPreviewImageSize = CGSize(
                 width: CVPixelBufferGetWidth(pixelBuffer),
                 height: CVPixelBufferGetHeight(pixelBuffer)
             )
-            currentPreviewImageSize = rawSize.height >= rawSize.width
-                ? rawSize
-                : CGSize(width: rawSize.height, height: rawSize.width)
         } else {
             currentPreviewImageSize = nil
         }
