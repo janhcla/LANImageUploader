@@ -209,7 +209,7 @@ final class ImageUploadService: ImageUploadServiceProtocol {
         expectedSize: Int
     ) async throws -> Bool {
         let attributes = try await client.attributesOfItem(atPath: path)
-        guard let size = attributes[.fileSizeKey] as? NSNumber else {
+        guard let size = attributes[URLResourceKey.fileSizeKey] as? NSNumber else {
             return false
         }
         return size.intValue == expectedSize

@@ -56,7 +56,9 @@ struct NamingSheet: View {
                                 Button(action: {
                                     appData.hapticService.playSelection()
                                     isTextFieldFocused = false
-                                    appData.imageName = ""
+                                    if !isScanningOCR {
+                                        appData.imageName = ""
+                                    }
                                     withAnimation(.spring()) {
                                         isScanningOCR.toggle()
                                     }
