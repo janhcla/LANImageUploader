@@ -129,20 +129,7 @@ final class ImageUploadService: ImageUploadServiceProtocol {
             
             let targetDir = settings.targetDirectory?.trimmingCharacters(in: .init(charactersIn: "/\\")) ?? ""
 
-            // Name sanitization and extension handling
-            var sanitizedName = file.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            sanitizedName = sanitizedName.replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "\\", with: "_")
-            if sanitizedName.isEmpty {
-                sanitizedName = file.kind.displayName
-            }
-
-            // Remove duplicate extension if user typed it
-            let lowerName = sanitizedName.lowercased()
-            if lowerName.hasSuffix("." + file.kind.fileExtension) {
-                sanitizedName = String(sanitizedName.dropLast(file.kind.fileExtension.count + 1))
-            }
-
-            let destinationName = "\(sanitizedName).\(file.kind.fileExtension)"
+            let destinationName = destinationFileName(for: file)
             let destinationPath = targetDir.isEmpty ? destinationName : "\(targetDir)/\(destinationName)"
 
             // Check for duplicates if not overwriting
@@ -151,9 +138,10 @@ final class ImageUploadService: ImageUploadServiceProtocol {
                 do {
                     let contents = try await client.contentsOfDirectory(atPath: parentPath)
                     if contents.contains(where: { $0.name == destinationName }) {
-                        try? await client.disconnectShare()
                         throw UploadError.fileAlreadyExists(destinationName)
                     }
+                } catch let error as UploadError {
+                    throw error
                 } catch {
                     // Ignore if parentPath doesn't exist yet, we'll catch it below
                 }
@@ -168,19 +156,63 @@ final class ImageUploadService: ImageUploadServiceProtocol {
                 }
             }
 
-            // Perform the upload
-            try await client.write(data: fileData, toPath: destinationPath) { progressBytes in
-                let totalSize = Double(fileData.count)
-                let progressFraction = totalSize > 0 ? Double(progressBytes) / totalSize : 0.0
-                onProgress(progressFraction)
-                return true
+            // Perform the upload. Some SMB servers can surface a late fsync/write error
+            // after the complete file has been committed, so verify the remote size before
+            // reporting failure.
+            do {
+                try await client.write(data: fileData, toPath: destinationPath) { progressBytes in
+                    let totalSize = Double(fileData.count)
+                    let progressFraction = totalSize > 0 ? Double(progressBytes) / totalSize : 0.0
+                    onProgress(progressFraction)
+                    return true
+                }
+            } catch {
+                let writeError = error
+                if (try? await remoteFileMatchesExpectedSize(
+                    client: client,
+                    path: destinationPath,
+                    expectedSize: fileData.count
+                )) == true {
+                    onProgress(1.0)
+                } else {
+                    throw writeError
+                }
             }
 
             try? await client.disconnectShare()
         } catch {
             try? await client.disconnectShare()
-            throw mapUnderlyingError(error, fileName: "\(file.name).\(file.kind.fileExtension)")
+            throw mapUnderlyingError(error, fileName: destinationFileName(for: file))
         }
+    }
+
+    private func destinationFileName(for file: UploadableFile) -> String {
+        var sanitizedName = file.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        sanitizedName = sanitizedName
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "\\", with: "_")
+        if sanitizedName.isEmpty {
+            sanitizedName = file.kind.displayName
+        }
+
+        let lowerName = sanitizedName.lowercased()
+        if lowerName.hasSuffix("." + file.kind.fileExtension) {
+            sanitizedName = String(sanitizedName.dropLast(file.kind.fileExtension.count + 1))
+        }
+
+        return "\(sanitizedName).\(file.kind.fileExtension)"
+    }
+
+    private func remoteFileMatchesExpectedSize(
+        client: SMB2Manager,
+        path: String,
+        expectedSize: Int
+    ) async throws -> Bool {
+        let attributes = try await client.attributesOfItem(atPath: path)
+        guard let size = attributes[URLResourceKey.fileSizeKey] as? NSNumber else {
+            return false
+        }
+        return size.intValue == expectedSize
     }
     
     private func mapUnderlyingError(_ error: Error, fileName: String) -> UploadError {

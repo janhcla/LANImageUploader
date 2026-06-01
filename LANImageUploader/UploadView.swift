@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct UploadView: View {
+    let fallbackToGalleryImages: Bool
     @EnvironmentObject var appData: AppData
     @State private var uploadStatuses: [UUID: UploadStatus] = [:]
     @State private var navigateToSettings = false
@@ -18,6 +19,7 @@ struct UploadView: View {
         if let pending = appData.pendingUploadFiles {
             return pending
         }
+        guard fallbackToGalleryImages else { return [] }
         return appData.images.map {
             UploadableFile(id: $0.id, name: $0.name, fileURL: $0.fileURL, kind: .jpeg)
         }
@@ -36,6 +38,10 @@ struct UploadView: View {
     @State private var duplicateFile: UploadableFile?
     @State private var overwriteConfirmed = false
     @State private var navigateToFullUnlock = false
+
+    init(fallbackToGalleryImages: Bool = true) {
+        self.fallbackToGalleryImages = fallbackToGalleryImages
+    }
 
     var areSettingsComplete: Bool {
         !appData.settings.serverIP.isEmpty && !appData.settings.shareName.isEmpty &&

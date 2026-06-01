@@ -211,13 +211,13 @@ struct GalleryView: View {
                 )
             }
             .navigationDestination(isPresented: $navigateToUpload) {
-                UploadView().environmentObject(appData)
+                UploadView(fallbackToGalleryImages: false).environmentObject(appData)
             }
             .safeAreaInset(edge: .bottom) {
                 if isMultiSelectMode && !appData.selectedImageIDs.isEmpty {
                     MultiSelectToolbarView(
                         appData: appData,
-                        onUpload: uploadSelectedItems,
+                        onUpload: uploadSelectedItemsForCurrentOutputMode,
                         onDelete: deleteSelectedItems,
                         onRename: {
                             imageName = ""
@@ -395,6 +395,15 @@ struct GalleryView: View {
         let selectedIDs = appData.selectedImageIDs
         let selectedItems = galleryItems.filter { selectedIDs.contains($0.id) }
         uploadItems(selectedItems)
+    }
+
+    func uploadSelectedItemsForCurrentOutputMode() {
+        if outputMode == .singlePDF {
+            imageName = ""
+            isShowingPDFNamingSheet = true
+        } else {
+            uploadSelectedItems()
+        }
     }
 
     func uploadItems(_ items: [GalleryItem]) {
@@ -678,7 +687,10 @@ struct GalleryView: View {
             maxPixelDimension: appData.pdfCompressionLevel.maxPixelDimension
         )
 
-        let itemsToProcess = galleryItems
+        let selectedIDs = appData.selectedImageIDs
+        let itemsToProcess = selectedIDs.isEmpty
+            ? galleryItems
+            : galleryItems.filter { selectedIDs.contains($0.id) }
         let finalName = imageName
 
         Task {
@@ -698,6 +710,8 @@ struct GalleryView: View {
 
                 await MainActor.run {
                     appData.pendingUploadFiles = [uploadFile]
+                    appData.selectedImageIDs.removeAll()
+                    isMultiSelectMode = false
                     isGeneratingPDF = false
                     isShowingPDFNamingSheet = false
                     imageName = ""

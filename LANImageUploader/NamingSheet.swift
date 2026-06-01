@@ -43,9 +43,10 @@ struct NamingSheet: View {
                         .overlay(alignment: .trailing) {
                             HStack {
                                 if !imageName.isEmpty {
-                                    Button(action: { 
+                                    Button(action: {
                                         appData.hapticService.playSelection()
                                         imageName = ""
+                                        appData.imageName = ""
                                     }) {
                                         Image(systemName: "xmark.circle.fill")
                                             .foregroundStyle(.gray)
@@ -55,6 +56,9 @@ struct NamingSheet: View {
                                 Button(action: {
                                     appData.hapticService.playSelection()
                                     isTextFieldFocused = false
+                                    if !isScanningOCR {
+                                        appData.imageName = ""
+                                    }
                                     withAnimation(.spring()) {
                                         isScanningOCR.toggle()
                                     }
@@ -123,6 +127,7 @@ struct NamingSheet: View {
         }
         .onAppear {
             isTextFieldFocused = true
+            appData.imageName = imageName
         }
         .onChange(of: appData.imageName) { _, newValue in
             imageName = newValue
