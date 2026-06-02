@@ -27,4 +27,5 @@ struct UploadableFile: Identifiable, Sendable {
     var name: String
     var fileURL: URL
     var kind: UploadFileKind
+    var sourceImageIDs: Set<UUID> = []
 }

@@ -606,7 +606,8 @@ struct GalleryView: View {
                             id: request.image.id,
                             name: request.name,
                             fileURL: exportURL,
-                            kind: .jpeg
+                            kind: .jpeg,
+                            sourceImageIDs: [request.image.id]
                         )
                     }
                     return (request.order, file)
@@ -705,7 +706,8 @@ struct GalleryView: View {
                     id: UUID(),
                     name: finalName,
                     fileURL: pdfURL,
-                    kind: .pdf
+                    kind: .pdf,
+                    sourceImageIDs: Set(itemsToProcess.compactMap { $0.capturedImage?.id })
                 )
 
                 await MainActor.run {

@@ -332,12 +332,21 @@ struct UploadView: View {
     }
 
     func clearAndDeleteAllImages() async {
+        let sourceImageIDs = appData.pendingUploadFiles?
+            .reduce(into: Set<UUID>()) { ids, file in
+                ids.formUnion(file.sourceImageIDs)
+            } ?? []
+
         if let pending = appData.pendingUploadFiles {
             for file in pending {
                 try? await appData.fileService.removeItem(at: file.fileURL)
             }
         }
-        await appData.deleteAllRetainedImages()
+        if sourceImageIDs.isEmpty {
+            await appData.deleteAllRetainedImages()
+        } else {
+            await appData.deleteRetainedImages(withIDs: sourceImageIDs)
+        }
         await MainActor.run {
             appData.pendingUploadFiles = nil
             uploadStatuses.removeAll()

@@ -242,6 +242,18 @@ class AppData: ObservableObject {
         }
     }
 
+    func deleteRetainedImages(withIDs idsToDelete: Set<UUID>) async {
+        guard !idsToDelete.isEmpty else { return }
+        let imagesToDelete = images.filter { idsToDelete.contains($0.id) }
+        for image in imagesToDelete {
+            try? await fileService.removeItem(at: image.fileURL)
+        }
+        await MainActor.run {
+            images.removeAll { idsToDelete.contains($0.id) }
+            selectedImageIDs.subtract(idsToDelete)
+        }
+    }
+
     func updateCrop(for id: UUID, crop: DocumentCrop) {
         guard let index = images.firstIndex(where: { $0.id == id }) else { return }
         images[index].crop = crop.clamped()

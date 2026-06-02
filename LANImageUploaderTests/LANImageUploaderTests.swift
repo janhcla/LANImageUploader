@@ -588,6 +588,27 @@ struct LANImageUploaderTests {
         #expect(mockFile.removedItems == [first.fileURL, second.fileURL])
     }
 
+    @Test @MainActor func deleteRetainedImagesWithIDsKeepsUnuploadedImages() async {
+        let mockFile = MockFileService()
+        let appData = AppData(
+            fileService: mockFile,
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService()
+        )
+        let first = CapturedImage(name: "page-1", fileURL: URL(fileURLWithPath: "/tmp/mock/images/page-1.jpg"))
+        let second = CapturedImage(name: "page-2", fileURL: URL(fileURLWithPath: "/tmp/mock/images/page-2.jpg"))
+        let third = CapturedImage(name: "page-3", fileURL: URL(fileURLWithPath: "/tmp/mock/images/page-3.jpg"))
+        appData.images = [first, second, third]
+        appData.selectedImageIDs = [first.id, third.id]
+
+        await appData.deleteRetainedImages(withIDs: [first.id, second.id])
+
+        #expect(appData.images.map(\.id) == [third.id])
+        #expect(appData.selectedImageIDs == [third.id])
+        #expect(mockFile.removedItems == [first.fileURL, second.fileURL])
+    }
+
     @Test func scanOverlayMapsNormalizedCropIntoAspectFillPreview() {
         let mapped = DocumentPreviewGeometry.points(
             for: DocumentCrop.fullFrame,

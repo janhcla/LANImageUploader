@@ -28,5 +28,6 @@ struct UploadableFileTests {
         #expect(file.name == "Test Image")
         #expect(file.fileURL == url)
         #expect(file.kind == .jpeg)
+        #expect(file.sourceImageIDs.isEmpty)
     }
 }

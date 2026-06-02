@@ -168,10 +168,10 @@ final class ImageUploadService: ImageUploadServiceProtocol {
                 }
             } catch {
                 let writeError = error
-                if (try? await remoteFileMatchesExpectedSize(
+                if (try? await remoteFileMatchesExpectedContents(
                     client: client,
                     path: destinationPath,
-                    expectedSize: fileData.count
+                    expectedData: fileData
                 )) == true {
                     onProgress(1.0)
                 } else {
@@ -203,16 +203,23 @@ final class ImageUploadService: ImageUploadServiceProtocol {
         return "\(sanitizedName).\(file.kind.fileExtension)"
     }
 
-    private func remoteFileMatchesExpectedSize(
+    private func remoteFileMatchesExpectedContents(
         client: SMB2Manager,
         path: String,
-        expectedSize: Int
+        expectedData: Data
     ) async throws -> Bool {
         let attributes = try await client.attributesOfItem(atPath: path)
         guard let size = attributes[URLResourceKey.fileSizeKey] as? NSNumber else {
             return false
         }
-        return size.intValue == expectedSize
+        guard size.intValue == expectedData.count else {
+            return false
+        }
+        let remoteData = try await client.contents(
+            atPath: path,
+            range: UInt64(0)..<UInt64(expectedData.count)
+        )
+        return remoteData == expectedData
     }
     
     private func mapUnderlyingError(_ error: Error, fileName: String) -> UploadError {
