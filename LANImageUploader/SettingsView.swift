@@ -174,7 +174,7 @@ struct SettingsView: View {
 
     var firstSetupView: some View {
         Group {
-            Section("First Setup") {
+            Section("Server Connection") {
                 Text("Enter your credentials and target folder. Then choose 'Auto-Fill' to detect your SMB server automatically, or select 'Try Direct IP' if you already know the server's IP address. Note: Sometimes 'Auto-Fill' cannot extract the server info automatically. This app stores your password in a secure keychain.")
                     .font(.caption)
                     .foregroundStyle(.gray)
@@ -285,7 +285,7 @@ struct SettingsView: View {
 
     var completeSetupView: some View {
         Group {
-            Section("Server Configuration") {
+            Section("Server Connection") {
                 if isDiscovering {
                     HStack(spacing: 15) {
                         ProgressView()

@@ -45,3 +45,4 @@ htmlcov/
 !.vscode/extensions.json
 *.swp
 *~
+.superpowers/

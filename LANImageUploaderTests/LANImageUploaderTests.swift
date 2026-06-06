@@ -29,6 +29,53 @@ private final class ProgressRecorder: @unchecked Sendable {
 
 struct LANImageUploaderTests {
 
+    @Test func onboardingCoversTheApprovedFourChapterFlow() {
+        #expect(OnboardingPage.allCases == [.privacy, .capture, .organize, .ready])
+        #expect(OnboardingPage.capture.message.localizedCaseInsensitiveContains("multi-page"))
+        #expect(OnboardingPage.organize.message.localizedCaseInsensitiveContains("PDF"))
+        #expect(OnboardingPage.ready.detailItems.contains { $0.title == "Settings > Server Connection" })
+    }
+
+    @Test func helpContentCoversEveryTopic() {
+        for topic in HelpTopic.allCases {
+            #expect(!topic.articles.isEmpty, "Expected at least one article for \(topic.title)")
+        }
+    }
+
+    @Test func helpSearchIndexesTitlesKeywordsAndSteps() {
+        #expect(HelpContent.search("multi-page").contains { $0.id == "scan-document" })
+        #expect(HelpContent.search("direct IP").contains { $0.id == "connect-server" })
+        #expect(HelpContent.search("page numbers compression").contains { $0.id == "pdf-settings" })
+    }
+
+    @Test func helpSearchRequiresEverySearchTerm() {
+        let results = HelpContent.search("server password")
+
+        #expect(results.contains { $0.id == "connect-server" })
+        #expect(!results.contains { $0.id == "capture-photo" })
+    }
+
+    @Test func serverConnectionRequiresEveryUploadCredential() {
+        let complete = ServerSettings(
+            serverIP: "192.168.1.10",
+            shareName: "Images",
+            targetDirectory: nil,
+            username: "uploader",
+            port: nil
+        )
+        let missingShare = ServerSettings(
+            serverIP: "192.168.1.10",
+            shareName: " ",
+            targetDirectory: nil,
+            username: "uploader",
+            port: nil
+        )
+
+        #expect(ServerConnectionReadiness.isComplete(settings: complete, password: "secret"))
+        #expect(!ServerConnectionReadiness.isComplete(settings: complete, password: nil))
+        #expect(!ServerConnectionReadiness.isComplete(settings: missingShare, password: "secret"))
+    }
+
     @Test @MainActor func appDataInitialization() async throws {
         let mockFile = MockFileService()
         let mockUpload = MockImageUploadService()

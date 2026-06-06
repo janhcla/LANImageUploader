@@ -2,156 +2,252 @@
 //  HomeView.swift
 //  LANImageUploader
 //
-//  Created by Jan Hagen Clausen on 21/02/2025.
-//
 
 import SwiftUI
 
-struct TransparentNavigationBar: ViewModifier {
-    func body(content: Content) -> some View {
-        content
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-            .navigationBarTitleDisplayMode(.large)
-    }
-}
-
-extension View {
-    func withTransparentNavigationBar() -> some View {
-        self.modifier(TransparentNavigationBar())
-    }
-}
-
 struct HomeView: View {
-    @EnvironmentObject var appData: AppData
-    @State private var hasAppeared = false
+    @EnvironmentObject private var appData: AppData
     @State private var activeCameraMode: CameraCaptureMode?
-    @Environment(\.colorScheme) private var colorScheme
-    
-    var areSettingsComplete: Bool {
-        !appData.settings.serverIP.isEmpty && !appData.settings.shareName.isEmpty
-            && !appData.settings.username.isEmpty && appData.getPassword() != nil
+
+    private var isServerConnectionComplete: Bool {
+        ServerConnectionReadiness.isComplete(
+            settings: appData.settings,
+            password: appData.getPassword()
+        )
     }
 
     var body: some View {
         NavigationStack {
-            Color.clear
-                .ignoresSafeArea()
-                .background(
-                    LinearGradient(
-                        gradient: Gradient(colors: [
-                            colorScheme == .dark ? Color(uiColor: .systemGray2) : Color.white,
-                            colorScheme == .dark ? Color.black : Color(uiColor: .systemGray3)
-                        ]),
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .ignoresSafeArea()
-                )
-                .overlay(
-                    VStack {
-                        Spacer()
-                        
-                        VStack(spacing: 20) {
-                            Button {
-                                activeCameraMode = .photo
-                            } label: {
-                                Label("Capture Image", systemImage: "camera")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.blue)
-                                    .foregroundColor(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
+            BackgroundContainerView {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 22) {
+                        HomeHeader()
 
-                            Button {
-                                activeCameraMode = .scan
-                            } label: {
-                                Label("Scan Documents", systemImage: "doc.viewfinder")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.indigo)
-                                    .foregroundColor(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
-
-                            NavigationLink(destination: GalleryView()) {
-                                Label("View Gallery", systemImage: "photo.on.rectangle")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.green)
-                                    .foregroundColor(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
-                            
-                            NavigationLink(destination: UploadView()) {
-                                Label("Upload", systemImage: "arrow.up.circle")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.orange)
-                                    .foregroundColor(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
-                            
-                            NavigationLink(destination: SettingsView()) {
-                                Label("Settings", systemImage: "gear")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.gray)
-                                    .foregroundColor(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
-                            .badge(areSettingsComplete ? nil : "!")
-                            .badgeProminence(.increased)
-                            
-                            NavigationLink(destination: ArchiveView()) {
-                                Label("Archives", systemImage: "archivebox")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color.purple)
-                                    .foregroundColor(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
+                        if !isServerConnectionComplete {
+                            ServerSetupCard()
+                                .transition(.move(edge: .top).combined(with: .opacity))
                         }
-                        .padding(.horizontal)
-                        
-                        Spacer()
+
+                        HomeCaptureActions(activeCameraMode: $activeCameraMode)
+                        HomeLibraryActions()
                     }
-                )
-                .navigationTitle("ImageDropX")
-                .toolbarColorScheme(colorScheme, for: .navigationBar)
-                .toolbarBackground(.hidden, for: .navigationBar)
-                .fullScreenCover(item: $activeCameraMode) { mode in
-                    CameraView(initialMode: mode)
-                        .environmentObject(appData)
+                    .padding(20)
                 }
+            }
+            .navigationTitle("ImageDropX")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .fullScreenCover(item: $activeCameraMode) { mode in
+                CameraView(initialMode: mode)
+                    .environmentObject(appData)
+            }
+            .animation(.snappy, value: isServerConnectionComplete)
         }
-        .onAppear {
-            if !hasAppeared {
-                DispatchQueue.main.async {
-                    if #available(iOS 15.0, *) {
-                        let appearance = UINavigationBarAppearance()
-                        appearance.configureWithTransparentBackground()
-                        appearance.backgroundColor = UIColor.clear
-                        appearance.shadowColor = nil
-                        
-                        let textColor = colorScheme == .dark ? UIColor.white : UIColor.black
-                        appearance.titleTextAttributes = [.foregroundColor: textColor]
-                        appearance.largeTitleTextAttributes = [.foregroundColor: textColor]
-                        
-                        UINavigationBar.appearance().standardAppearance = appearance
-                        UINavigationBar.appearance().compactAppearance = appearance
-                        UINavigationBar.appearance().scrollEdgeAppearance = appearance
-                    } else {
-                        UINavigationBar.appearance().setBackgroundImage(UIImage(), for: .default)
-                        UINavigationBar.appearance().shadowImage = UIImage()
-                        UINavigationBar.appearance().isTranslucent = true
-                        UINavigationBar.appearance().backgroundColor = .clear
+    }
+}
+
+enum ServerConnectionReadiness {
+    static func isComplete(settings: ServerSettings, password: String?) -> Bool {
+        !settings.serverIP.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !settings.shareName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !settings.username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !(password?.isEmpty ?? true)
+    }
+}
+
+private struct HomeHeader: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Capture. Organize. Upload.")
+                .font(.largeTitle.bold())
+            Text("Photos and documents stay on this device until you send them to your local server.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .lineSpacing(3)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct ServerSetupCard: View {
+    var body: some View {
+        AppGlassCard(tint: .blue) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 14) {
+                    AppSymbolTile(systemImage: "network", tint: .blue, size: 56)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Get upload ready")
+                            .font(.title3.bold())
+                        Text("Connect your local SMB server. Capture and scanning already work without it.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    hasAppeared = true
+                }
+
+                NavigationLink {
+                    SettingsView()
+                } label: {
+                    FullWidthGlassButtonLabel("Open Server Connection", systemImage: "arrow.right")
+                }
+                .buttonStyle(.glassProminent)
+
+                Label("Settings > Server Connection", systemImage: "gearshape")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+        }
+        .accessibilityIdentifier("server-setup-card")
+    }
+}
+
+private struct HomeCaptureActions: View {
+    @Binding var activeCameraMode: CameraCaptureMode?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Create")
+                .font(.headline)
+
+            GlassEffectContainer(spacing: 12) {
+                HStack(spacing: 12) {
+                    HomeActionButton(
+                        title: "Capture Image",
+                        subtitle: "Take a photo",
+                        systemImage: "camera.fill",
+                        tint: .blue
+                    ) {
+                        activeCameraMode = .photo
+                    }
+
+                    HomeActionButton(
+                        title: "Scan Documents",
+                        subtitle: "Multi-page scan",
+                        systemImage: "doc.viewfinder",
+                        tint: .indigo
+                    ) {
+                        activeCameraMode = .scan
+                    }
                 }
             }
         }
+    }
+}
+
+private struct HomeLibraryActions: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Library & Transfer")
+                .font(.headline)
+
+            GlassEffectContainer(spacing: 12) {
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), spacing: 12),
+                        GridItem(.flexible(), spacing: 12)
+                    ],
+                    spacing: 12
+                ) {
+                    NavigationLink {
+                        GalleryView()
+                    } label: {
+                        HomeActionCard(
+                            title: "Gallery",
+                            subtitle: "Organize & create PDF",
+                            systemImage: "photo.stack.fill",
+                            tint: .green
+                        )
+                    }
+
+                    NavigationLink {
+                        UploadView()
+                    } label: {
+                        HomeActionCard(
+                            title: "Upload",
+                            subtitle: "Send queued files",
+                            systemImage: "arrow.up.circle.fill",
+                            tint: .orange
+                        )
+                    }
+
+                    NavigationLink {
+                        ArchiveView()
+                    } label: {
+                        HomeActionCard(
+                            title: "Archives",
+                            subtitle: "Restore saved work",
+                            systemImage: "archivebox.fill",
+                            tint: .purple
+                        )
+                    }
+
+                    NavigationLink {
+                        SettingsView()
+                    } label: {
+                        HomeActionCard(
+                            title: "Settings",
+                            subtitle: "Server, PDF & privacy",
+                            systemImage: "gearshape.fill",
+                            tint: .gray
+                        )
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+private struct HomeActionButton: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HomeActionCard(
+                title: title,
+                subtitle: subtitle,
+                systemImage: systemImage,
+                tint: tint
+            )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct HomeActionCard: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 40, height: 40)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 124, alignment: .leading)
+        .padding(16)
+        .glassEffect(.regular.tint(tint.opacity(0.1)).interactive(), in: .rect(cornerRadius: 22))
+        .contentShape(.rect(cornerRadius: 22))
     }
 }
 

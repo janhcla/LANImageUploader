@@ -2,660 +2,283 @@
 //  OnboardingView.swift
 //  LANImageUploader
 //
-//  Created by Jan Hagen Clausen on 22/02/2025.
-//
 
 import SwiftUI
-import AMSMB2
-import Network
 
 public struct OnboardingView: View {
-    @EnvironmentObject var appData: AppData
-    @AppStorage("onboardingCompleted") var onboardingCompleted: Bool = false
-    @State private var currentStep = 0
-    @State private var showHelpGuide = false
-    @State private var showNetworkSetup = false
+    @AppStorage(Constants.UserDefaults.onboardingCompleted) private var onboardingCompleted = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var selectedPage = 0
 
-    private let steps: [OnboardingStep] = [
-        .welcome, .features, .settings, .tutorial, .helpGuide, .completion
-    ]
+    private let pages = OnboardingPage.allCases
 
     public var body: some View {
         BackgroundContainerView {
-            NavigationStack {
-                VStack {
-                    switch steps[currentStep] {
-                    case .welcome:
-                        WelcomePage(nextAction: nextStep)
-                    case .features:
-                        FeaturesPage(nextAction: nextStep)
-                    case .settings:
-                        if showNetworkSetup {
-                            NetworkSetupView(nextAction: nextStep)
-                                .environmentObject(appData)
-                        } else {
-                            OnboardingSettingsView(nextAction: nextStep)
-                                .environmentObject(appData)
-                        }
-                    case .tutorial:
-                        TutorialPage(nextAction: nextStep)
-                    case .helpGuide:
-                        HelpGuideIntroPage(nextAction: nextStep, showHelpGuide: $showHelpGuide)
-                    case .completion:
-                        CompletionPage(completeAction: completeOnboarding)
+            VStack(spacing: 0) {
+                OnboardingHeader(
+                    currentPage: selectedPage,
+                    pageCount: pages.count,
+                    onSkip: completeOnboarding
+                )
+
+                TabView(selection: $selectedPage) {
+                    ForEach(Array(pages.enumerated()), id: \.element) { (index, page) in
+                        OnboardingPageView(page: page)
+                            .tag(index)
                     }
                 }
-                .navigationBarHidden(true)
-                .background(Color.clear)
-                .scrollContentBackground(.hidden)
-                .sheet(isPresented: $showHelpGuide) {
-                    HelpGuideView()
-                }
-                .onChange(of: currentStep) { _, newStep in
-                    if steps[newStep] == .settings {
-                        checkSettings()
-                    }
-                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .animation(reduceMotion ? nil : .snappy, value: selectedPage)
+
+                OnboardingFooter(
+                    isFirstPage: selectedPage == 0,
+                    isLastPage: selectedPage == pages.count - 1,
+                    onBack: previousPage,
+                    onContinue: advance
+                )
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
         }
     }
 
-    func nextStep() {
-        if currentStep < steps.count - 1 {
-            currentStep += 1
+    private func previousPage() {
+        guard selectedPage > 0 else { return }
+        withAnimation(reduceMotion ? nil : .snappy) {
+            selectedPage -= 1
         }
     }
 
-    func completeOnboarding() {
+    private func advance() {
+        guard selectedPage < pages.count - 1 else {
+            completeOnboarding()
+            return
+        }
+        withAnimation(reduceMotion ? nil : .snappy) {
+            selectedPage += 1
+        }
+    }
+
+    private func completeOnboarding() {
         onboardingCompleted = true
     }
-
-    private func checkSettings() {
-        let settings = appData.settings
-        let password = appData.getPassword()
-        showNetworkSetup = settings.serverIP.isEmpty || settings.shareName.isEmpty ||
-                           (settings.targetDirectory?.isEmpty ?? true) || settings.username.isEmpty ||
-                           password == nil
-    }
 }
 
-public enum OnboardingStep {
-    case welcome, features, settings, tutorial, helpGuide, completion
-}
+enum OnboardingPage: String, CaseIterable {
+    case privacy
+    case capture
+    case organize
+    case ready
 
-struct WelcomePage: View {
-    let nextAction: () -> Void
-
-    var body: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            Text("Welcome to ImageDropX!")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            Text("A simple and secure tool to capture images and upload them directly to your local network share.")
-                .font(.body)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-            Text("Copyright © 2025 Jan H. Clausen, Midtbylægerne")
-                .font(.footnote)
-                .foregroundStyle(.gray)
-            Spacer()
-            Button("Get Started") {
-                nextAction()
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.blue)
-            .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal)
+    var title: String {
+        switch self {
+        case .privacy: "Capture anything. Keep it private."
+        case .capture: "Photo or document"
+        case .organize: "Your gallery, your workflow"
+        case .ready: "You're ready"
         }
-        .padding(.vertical)
     }
-}
 
-struct FeaturesPage: View {
-    let nextAction: () -> Void
-
-    var body: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            Text("Key Features")
-                .font(.title)
-                .fontWeight(.bold)
-            VStack(alignment: .center, spacing: 20) {
-                FeatureItem(icon: "camera.fill", title: "Capture Images", description: "Take high-quality photos with your device camera.")
-                FeatureItem(icon: "photo.on.rectangle", title: "Manage Gallery", description: "View and organize your captured images.")
-                FeatureItem(icon: "arrow.up.circle", title: "Upload Securely", description: "Send images to your local network share for storage.")
-            }
-            .padding(.horizontal, 30)
-            .frame(maxWidth: 500)
-            Spacer()
-            Button("Next") {
-                nextAction()
-            }
-            .frame(maxWidth: 300)
-            .padding()
-            .background(Color.blue)
-            .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal)
+    var message: String {
+        switch self {
+        case .privacy:
+            "Photos and documents stay on your device until you choose to upload them to your local server."
+        case .capture:
+            "Take a photo, or scan multi-page documents with edge detection, auto-capture, crop, and rotation."
+        case .organize:
+            "Rename, reorder, archive, or combine selected images into one optimized PDF."
+        case .ready:
+            "Start capturing now. To upload, connect your SMB server from Settings."
         }
-        .padding(.vertical, 40)
+    }
+
+    var systemImage: String {
+        switch self {
+        case .privacy: "lock.shield.fill"
+        case .capture: "doc.viewfinder"
+        case .organize: "photo.stack.fill"
+        case .ready: "checkmark"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .privacy: .blue
+        case .capture: .indigo
+        case .organize: .teal
+        case .ready: .green
+        }
+    }
+
+    var detailItems: [OnboardingDetailItem] {
+        switch self {
+        case .privacy:
+            [
+                OnboardingDetailItem(icon: "iphone", title: "On-device by default", detail: "Your gallery and archives remain local."),
+                OnboardingDetailItem(icon: "network", title: "Your network, your server", detail: "Uploads go only to the SMB share you configure.")
+            ]
+        case .capture:
+            [
+                OnboardingDetailItem(icon: "camera.fill", title: "Capture photos", detail: "Take, review, and retake high-quality images."),
+                OnboardingDetailItem(icon: "rectangle.stack.fill", title: "Scan documents", detail: "Capture several pages in portrait or landscape.")
+            ]
+        case .organize:
+            [
+                OnboardingDetailItem(icon: "doc.richtext.fill", title: "Create PDFs", detail: "Choose page size, layout, page numbers, and compression."),
+                OnboardingDetailItem(icon: "archivebox.fill", title: "Keep work organized", detail: "Rename items and restore them from dated archives.")
+            ]
+        case .ready:
+            [
+                OnboardingDetailItem(icon: "gearshape.fill", title: "Settings > Server Connection", detail: "Add your server, share, username, and password."),
+                OnboardingDetailItem(icon: "house.fill", title: "Follow the Home setup card", detail: "It remains visible until upload is ready.")
+            ]
+        }
     }
 }
 
-struct FeatureItem: View {
+struct OnboardingDetailItem: Identifiable {
     let icon: String
     let title: String
-    let description: String
+    let detail: String
+
+    var id: String { title }
+}
+
+private struct OnboardingHeader: View {
+    let currentPage: Int
+    let pageCount: Int
+    let onSkip: () -> Void
 
     var body: some View {
-        HStack(spacing: 20) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(.blue)
-            VStack(alignment: .leading, spacing: 5) {
-                Text(title)
-                    .font(.headline)
-                Text(description)
-                    .font(.subheadline)
-                    .foregroundStyle(.gray)
-                    .lineLimit(2)
-            }
+        HStack(spacing: 16) {
+            OnboardingProgress(currentPage: currentPage, pageCount: pageCount)
             Spacer()
+            Button("Skip", action: onSkip)
+                .buttonStyle(.glass)
+                .accessibilityHint("Closes onboarding and opens the app")
         }
-        .padding(.vertical, 10)
+        .frame(minHeight: 48)
     }
 }
 
-struct OnboardingSettingsView: View {
-    @EnvironmentObject var appData: AppData
-    let nextAction: () -> Void
-    @AppStorage(Constants.UserDefaults.ocrMode) private var ocrModeRawValue: String = OCRMode.full.rawValue
-    @State private var serverIP = ""
-    @State private var shareName = ""
-    @State private var targetDirectory = ""
-    @State private var username = ""
-    @State private var password = ""
-    @State private var showWarning = false
-    @State private var port = ""
-
-    var areSettingsComplete: Bool {
-        !serverIP.isEmpty && !shareName.isEmpty && !targetDirectory.isEmpty && !username.isEmpty && !password.isEmpty
-    }
-    
-    private var ocrModeBinding: Binding<OCRMode> {
-        Binding(
-            get: { OCRMode(rawValue: ocrModeRawValue) ?? .full },
-            set: { ocrModeRawValue = $0.rawValue }
-        )
-    }
+private struct OnboardingProgress: View {
+    let currentPage: Int
+    let pageCount: Int
 
     var body: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            Text("Set Up Your Server")
-                .font(.title)
-                .fontWeight(.bold)
-            Text("Enter your server details to enable image uploads (recommended). You can skip this and set it up later in Settings.")
-                .font(.subheadline)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.gray)
-                .padding(.horizontal)
-            Form {
-                TextField("Server IP (e.g., 192.168.1.100)", text: $serverIP)
-                    .textContentType(.URL)
-                    .keyboardType(.numbersAndPunctuation)
-                    .autocapitalization(.none)
-                TextField("", text: $port)
-                    .keyboardType(.numberPad)
-                    .placeholder(when: port.isEmpty) {
-                        Text("Port (optional)")
-                            .foregroundStyle(.gray)
-                    }
-                TextField("Share Name (e.g., Images)", text: $shareName)
-                    .autocapitalization(.none)
-                TextField("Target Directory (e.g., Uploads)", text: $targetDirectory)
-                    .autocapitalization(.none)
-                TextField("Username", text: $username)
-                    .textContentType(.username)
-                SecureField("Password", text: $password)
-                    .textContentType(.password)
-                Section("OCR") {
-                    Picker("OCR Mode", selection: ocrModeBinding) {
-                        ForEach(OCRMode.allCases) { mode in
-                            Text(mode.displayName).tag(mode)
+        HStack(spacing: 7) {
+            ForEach(0..<pageCount, id: \.self) { index in
+                Capsule()
+                    .fill(index == currentPage ? Color.accentColor : Color.secondary.opacity(0.28))
+                    .frame(width: index == currentPage ? 28 : 8, height: 8)
+            }
+        }
+        .animation(.snappy, value: currentPage)
+        .accessibilityElement()
+        .accessibilityLabel("Onboarding progress")
+        .accessibilityValue("Page \(currentPage + 1) of \(pageCount)")
+    }
+}
+
+private struct OnboardingPageView: View {
+    let page: OnboardingPage
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 26) {
+                Spacer(minLength: 16)
+
+                AppSymbolTile(systemImage: page.systemImage, tint: page.tint, size: 104)
+
+                VStack(spacing: 12) {
+                    Text(page.title)
+                        .font(.largeTitle.bold())
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.primary)
+
+                    Text(page.message)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(3)
+                }
+                .frame(maxWidth: 560)
+
+                GlassEffectContainer(spacing: 14) {
+                    VStack(spacing: 14) {
+                        ForEach(page.detailItems) { item in
+                            OnboardingDetailRow(item: item, tint: page.tint)
                         }
                     }
-                    .pickerStyle(.segmented)
                 }
-            }
-            .frame(maxHeight: 260)
-            Button("Save and Next") {
-                saveSettings()
-                nextAction()
+                .frame(maxWidth: 560)
+
+                Spacer(minLength: 20)
             }
             .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.blue)
-            .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal)
-            Button("Skip") {
-                if !areSettingsComplete {
-                    showWarning = true
-                } else {
-                    nextAction()
-                }
-            }
-            .foregroundStyle(.gray)
-            Spacer()
+            .padding(.vertical, 12)
         }
-        .alert("Settings Incomplete", isPresented: $showWarning) {
-            Button("Set Up Now", role: .cancel) {}
-            Button("Skip Anyway") { nextAction() }
-        } message: {
-            Text("Uploads won't work without server details. Please set them up in Settings later if you skip now.")
-        }
-    }
-
-    func saveSettings() {
-            // Validate port if provided
-            let portNumber: Int?
-            if !port.isEmpty {
-                guard let number = Int(port), number > 0, number <= 65535 else {
-                    return
-                }
-                portNumber = number
-            } else {
-                portNumber = nil
-            }
-            
-            appData.settings = ServerSettings(
-                serverIP: serverIP,
-                shareName: shareName,
-                targetDirectory: targetDirectory,
-                username: username,
-                port: portNumber  // Add port to settings
-            )
-            try? appData.savePassword(password)
-        }
-}
-
-struct TutorialPage: View {
-    let nextAction: () -> Void
-
-    var body: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            Text("How to Use ImageDropX")
-                .font(.title)
-                .fontWeight(.bold)
-            VStack(spacing: 20) {
-                StepItem(number: 1, text: "Tap 'Take Photo' to capture an image.", imageName: "capture_screen")
-                StepItem(number: 2, text: "View and rename images in the gallery.", imageName: "gallery_screen")
-                StepItem(number: 3, text: "Upload images to your server (settings required).", imageName: "upload_screen")
-            }
-            .padding(.horizontal, 10)
-            Spacer()
-            Button("Next") {
-                nextAction()
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.blue)
-            .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal)
-        }
-        .padding(.vertical)
+        .scrollIndicators(.hidden)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("onboarding-\(page.rawValue)")
     }
 }
 
-struct StepItem: View {
-    let number: Int
-    let text: String
-    let imageName: String
+private struct OnboardingDetailRow: View {
+    let item: OnboardingDetailItem
+    let tint: Color
 
     var body: some View {
-        HStack(spacing: 15) {
-            Image(imageName)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(maxWidth: .infinity, maxHeight: 150)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-                .onAppear {
-                    print("Loading image: \(imageName) – Found: \(UIImage(named: imageName) != nil)")
+        AppGlassCard(tint: tint) {
+            HStack(spacing: 14) {
+                Image(systemName: item.icon)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(tint)
+                    .frame(width: 36, height: 36)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(item.title)
+                        .font(.headline)
+                    Text(item.detail)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
-                .overlay(
-                    Text("Image not found: \(imageName)")
-                        .foregroundStyle(.red)
-                        .opacity(UIImage(named: imageName) == nil ? 1 : 0)
+            }
+        }
+    }
+}
+
+private struct OnboardingFooter: View {
+    let isFirstPage: Bool
+    let isLastPage: Bool
+    let onBack: () -> Void
+    let onContinue: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            if !isFirstPage {
+                Button(action: onBack) {
+                    Image(systemName: "chevron.left")
+                        .font(.headline)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.glass)
+                .accessibilityLabel("Previous page")
+            }
+
+            Button(action: onContinue) {
+                FullWidthGlassButtonLabel(
+                    isLastPage ? "Start Using ImageDropX" : "Continue",
+                    systemImage: isLastPage ? "checkmark" : "arrow.right"
                 )
-            VStack(alignment: .leading, spacing: 10) {
-                Text("\(number). \(text)")
-                    .font(.body)
-                    .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .buttonStyle(.glassProminent)
+            .accessibilityIdentifier(isLastPage ? "finish-onboarding" : "continue-onboarding")
         }
+        .padding(.top, 8)
     }
 }
-
-struct HelpGuideIntroPage: View {
-    let nextAction: () -> Void
-    @Binding var showHelpGuide: Bool
-
-    var body: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            Text("Need Help?")
-                .font(.title)
-                .fontWeight(.bold)
-            Text("Access the Help Guide anytime for detailed instructions on setting up your server and using the app.")
-                .font(.body)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-            Button("View Help Guide") {
-                showHelpGuide = true
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.gray)
-            .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal)
-            Spacer()
-            Button("Next") {
-                nextAction()
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.blue)
-            .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal)
-        }
-        .padding(.vertical)
-    }
-}
-
-struct CompletionPage: View {
-    let completeAction: () -> Void
-
-    var body: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            Text("You're Ready!")
-                .font(.title)
-                .fontWeight(.bold)
-            Text("Start capturing and uploading images now. Set up server details in Settings if you haven't already.")
-                .font(.body)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-            Image(systemName: "checkmark.circle.fill")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 100, height: 100)
-                .foregroundStyle(.green)
-            Spacer()
-            Button("Start Using ImageDropX") {
-                completeAction()
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.blue)
-            .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal)
-        }
-        .padding(.vertical)
-    }
-}
-
-struct NetworkSetupView: View {
-    @EnvironmentObject var appData: AppData
-    let nextAction: () -> Void
-    @AppStorage(Constants.UserDefaults.ocrMode) private var ocrModeRawValue: String = OCRMode.full.rawValue
-    @State private var targetDirectory = ""
-    @State private var username = ""
-    @State private var password = ""
-    @State private var port = ""
-    @State private var showWarning = false
-    @State private var showError = false
-    @State private var errorMessage = ""
-    @State private var showSuccess = false
-    @State private var networkInfo: NetworkInfo?
-    @State private var isDiscovering = false
-    @State private var discoveryProgress = "Initializing..."
-    @State private var discoveryTask: Task<Void, Never>? = nil
-    @State private var showDiscoveryResults = false
-
-    var canAutoFill: Bool {
-        !targetDirectory.isEmpty && !username.isEmpty && !password.isEmpty
-    }
-    
-    private var ocrModeBinding: Binding<OCRMode> {
-        Binding(
-            get: { OCRMode(rawValue: ocrModeRawValue) ?? .full },
-            set: { ocrModeRawValue = $0.rawValue }
-        )
-    }
-
-    private func stopAutoFill() {
-        discoveryTask?.cancel()
-        discoveryTask = nil
-        isDiscovering = false
-        discoveryProgress = "Ready"
-    }
-
-    var body: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            Text("Network Setup")
-                .font(.title)
-                .fontWeight(.bold)
-            Text("Enter the target folder and credentials to auto-fill server details (recommended). You can skip and set up later.")
-                .font(.subheadline)
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.gray)
-                .padding(.horizontal)
-            Form {
-                if isDiscovering {
-                    HStack(spacing: 15) {
-                        ProgressView()
-                            .controlSize(.small)
-                        Text(discoveryProgress)
-                            .foregroundStyle(.blue)
-                            .font(.caption)
-                        Spacer()
-                        Button("Cancel") {
-                            stopAutoFill()
-                        }
-                        .buttonStyle(.borderless)
-                        .foregroundStyle(.red)
-                    }
-                    .padding(.vertical, 4)
-                }
-                
-                TextField("Target Directory (e.g., MediaCapture)", text: $targetDirectory)
-                    .autocapitalization(.none)
-                TextField("Username (e.g., WORKGROUP\\user)", text: $username)
-                    .textContentType(.username)
-                SecureField("Password", text: $password)
-                    .textContentType(.password)
-                TextField("Port (optional)", text: $port)
-                    .keyboardType(.numberPad)
-                Section("OCR") {
-                    Picker("OCR Mode", selection: ocrModeBinding) {
-                        ForEach(OCRMode.allCases) { mode in
-                            Text(mode.displayName).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
-            }
-            .frame(maxHeight: 260)
-            
-            Button("Browse & Auto-Fill") {
-                showDiscoveryResults = true
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(canAutoFill ? Color.blue : Color.gray)
-            .foregroundStyle(.white)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .padding(.horizontal)
-            .disabled(!canAutoFill || isDiscovering)
-            
-            Button("Skip") {
-                showWarning = true
-            }
-            .foregroundStyle(.gray)
-            Spacer()
-        }
-        .sheet(isPresented: $showDiscoveryResults) {
-            DiscoveryResultsView(
-                username: username,
-                password: password,
-                port: Int(port),
-                onSelect: { info in
-                    networkInfo = info
-                    showSuccess = true
-                }
-            )
-            .environmentObject(appData)
-        }
-        .alert("Settings Incomplete", isPresented: $showWarning) {
-            Button("Set Up Now", role: .cancel) {}
-            Button("Skip Anyway") { nextAction() }
-        } message: {
-            Text("Uploads won't work without server details. Set them up in Settings later if you skip now.")
-        }
-        .alert("Network Error", isPresented: $showError) {
-            Button("Try Again", role: .cancel) {}
-            Button("Skip") { nextAction() }
-        } message: {
-            Text(errorMessage)
-        }
-        .alert("Success", isPresented: $showSuccess) {
-            Button("Save") { saveSettings() }
-            Button("Discard") { nextAction() }
-        } message: {
-            Text("Server details retrieved successfully:\nIP: \(networkInfo?.serverIP ?? "")\nShare: \(networkInfo?.shareName ?? "")\nPath: \(networkInfo?.targetDirectory ?? "")")
-        }
-    }
-
-    private func autoFillNetworkInfo() {
-        discoveryTask?.cancel()
-        discoveryTask = Task {
-            await performAutoFill()
-        }
-    }
-
-    private func performAutoFill() async {
-        isDiscovering = true
-        discoveryProgress = "Checking network connection..."
-        
-        defer {
-            Task { @MainActor in
-                isDiscovering = false
-                discoveryTask = nil
-            }
-        }
-        
-        do {
-            let portNumber = Int(port)
-            discoveryProgress = "Searching for SMB servers..."
-            // Use direct IP from existing settings if present; otherwise nil
-            let directIPFromSettings = appData.settings.serverIP.trimmingCharacters(in: .whitespacesAndNewlines)
-            let directIP = directIPFromSettings.isEmpty ? nil : directIPFromSettings
-
-            let info = try await appData.discoveryService.retrieveNetworkInfo(
-                targetFolder: targetDirectory,
-                username: username,
-                password: password,
-                directIP: directIP,
-                port: portNumber,
-                onStatus: { status in
-                    Task { @MainActor in
-                        guard !Task.isCancelled else { return }
-                        appData.connectionStatus = status
-                        switch status {
-                        case .discovery(let state):
-                            switch state {
-                            case .subnetScan(let progress):
-                                discoveryProgress = "Scanning subnet (\(Int(progress * 100))%)..."
-                            case .bonjourSearch:
-                                discoveryProgress = "Searching via Bonjour..."
-                            case .resolving(let name):
-                                discoveryProgress = "Resolving \(name)..."
-                            }
-                        case .connecting(let host):
-                            discoveryProgress = "Connecting to \(host)..."
-                        case .authenticating:
-                            discoveryProgress = "Authenticating..."
-                        case .connected:
-                            discoveryProgress = "Connected!"
-                        case .failure(let error):
-                            discoveryProgress = "Failed: \(error.localizedDescription)"
-                        case .disconnected:
-                            discoveryProgress = "Ready"
-                        }
-                    }
-                }
-            )
-            
-            if Task.isCancelled { return }
-                
-            await MainActor.run {
-                networkInfo = info
-                showSuccess = true
-            }
-        } catch is CancellationError {
-            // Cancelled
-        } catch {
-            if !Task.isCancelled {
-                await MainActor.run {
-                    showError = true
-                    errorMessage = "Failed to retrieve network info: \(error.localizedDescription)"
-                }
-            }
-        }
-    }
-
-    private func saveSettings() {
-        guard let info = networkInfo else { return }
-        
-        // Validate port if provided
-        let portNumber: Int?
-        if !port.isEmpty {
-            guard let number = Int(port), number > 0, number <= 65535 else {
-                showError = true
-                errorMessage = "Please enter a valid port number (1-65535)"
-                return
-            }
-            portNumber = number
-        } else {
-            portNumber = nil
-        }
-        
-        appData.settings = ServerSettings(
-            serverIP: info.serverIP,
-            shareName: info.shareName,
-            targetDirectory: info.targetDirectory,
-            username: username,
-            port: portNumber
-        )
-        try? appData.savePassword(password)
-        nextAction()
-    }
-}
-
-// Rest of the file (OnboardingView, other view structures) remains unchanged...
 
 #Preview {
     OnboardingView()
-        .environmentObject(AppData.preview)
 }

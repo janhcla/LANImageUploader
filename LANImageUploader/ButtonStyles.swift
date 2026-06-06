@@ -51,3 +51,25 @@ struct BlueButtonStyle: ButtonStyle {
         LiquidButtonStyle(backgroundColor: .blue).makeBody(configuration: configuration)
     }
 }
+
+struct FullWidthGlassButtonLabel: View {
+    let title: String
+    let systemImage: String?
+
+    init(_ title: String, systemImage: String? = nil) {
+        self.title = title
+        self.systemImage = systemImage
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(title)
+            if let systemImage {
+                Image(systemName: systemImage)
+            }
+        }
+        .font(.headline)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 7)
+    }
+}

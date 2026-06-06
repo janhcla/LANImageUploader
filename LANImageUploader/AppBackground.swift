@@ -65,6 +65,42 @@ struct BackgroundContainerView<Content: View>: View {
 
 // MARK: - iOS 26 Liquid Glass
 
+struct AppGlassCard<Content: View>: View {
+    let tint: Color?
+    @ViewBuilder let content: Content
+
+    init(tint: Color? = nil, @ViewBuilder content: () -> Content) {
+        self.tint = tint
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(
+                tint.map { .regular.tint($0.opacity(0.14)) } ?? .regular,
+                in: .rect(cornerRadius: 24)
+            )
+    }
+}
+
+struct AppSymbolTile: View {
+    let systemImage: String
+    let tint: Color
+    var size: CGFloat = 64
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(.system(size: size * 0.42, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(tint.gradient, in: RoundedRectangle(cornerRadius: size * 0.32, style: .continuous))
+            .shadow(color: tint.opacity(0.28), radius: 18, y: 10)
+            .accessibilityHidden(true)
+    }
+}
+
 struct GlassContainer<Content: View>: View {
     let cornerRadius: CGFloat
     @ViewBuilder let content: Content
