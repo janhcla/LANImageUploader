@@ -22,7 +22,7 @@ public struct OnboardingView: View {
                 )
 
                 TabView(selection: $selectedPage) {
-                    ForEach(Array(pages.enumerated()), id: \.element) { index, page in
+                    ForEach(Array(pages.enumerated()), id: \.element) { (index, page) in
                         OnboardingPageView(page: page)
                             .tag(index)
                     }

@@ -348,15 +348,17 @@ private struct HelpQuickActions: View {
                 .font(.headline)
 
             AppGlassCard(tint: .blue) {
-                NavigationLink(value: HelpContent.articles.first { $0.id == "connect-server" }!) {
-                    HelpActionRow(
-                        systemImage: "network",
-                        tint: .blue,
-                        title: "Connect your server",
-                        subtitle: "Set up local SMB upload"
-                    )
+                if let connectServerArticle = HelpContent.articles.first(where: { $0.id == "connect-server" }) {
+                    NavigationLink(value: connectServerArticle) {
+                        HelpActionRow(
+                            systemImage: "network",
+                            tint: .blue,
+                            title: "Connect your server",
+                            subtitle: "Set up local SMB upload"
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
 
                 Divider()
                     .padding(.vertical, 8)
