@@ -43,10 +43,14 @@ struct LANImageUploaderTests {
             bottomLeft: CGPoint(x: 0.1, y: 0.2)
         )
 
-        #expect(crop.topLeft == CGPoint(x: 0.1, y: 0.1))
-        #expect(crop.topRight == CGPoint(x: 0.9, y: 0.1))
-        #expect(crop.bottomRight == CGPoint(x: 0.9, y: 0.8))
-        #expect(crop.bottomLeft == CGPoint(x: 0.1, y: 0.8))
+        #expect(abs(crop.topLeft.x - 0.1) < 0.0001)
+        #expect(abs(crop.topLeft.y - 0.1) < 0.0001)
+        #expect(abs(crop.topRight.x - 0.9) < 0.0001)
+        #expect(abs(crop.topRight.y - 0.1) < 0.0001)
+        #expect(abs(crop.bottomRight.x - 0.9) < 0.0001)
+        #expect(abs(crop.bottomRight.y - 0.8) < 0.0001)
+        #expect(abs(crop.bottomLeft.x - 0.1) < 0.0001)
+        #expect(abs(crop.bottomLeft.y - 0.8) < 0.0001)
     }
 
     @Test func cropMapsBetweenAspectFillVideoAndPhotoCoordinates() throws {
@@ -132,6 +136,76 @@ struct LANImageUploaderTests {
             CGSize(width: 1920, height: 1080),
             orientation: .right
         ) == CGSize(width: 1080, height: 1920))
+    }
+
+    @Test @MainActor func invalidPerspectiveCropFallsBackToOriginalImage() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let source = UIGraphicsImageRenderer(
+            size: CGSize(width: 200, height: 300),
+            format: format
+        ).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 200, height: 300))
+        }
+        let crossing = DocumentCrop(
+            topLeft: CGPoint(x: 0.1, y: 0.1),
+            topRight: CGPoint(x: 0.9, y: 0.9),
+            bottomRight: CGPoint(x: 0.9, y: 0.1),
+            bottomLeft: CGPoint(x: 0.1, y: 0.9)
+        )
+
+        let rendered = DocumentImageProcessor.renderedImage(source, crop: crossing)
+
+        #expect(rendered.size == source.size)
+    }
+
+    @Test @MainActor func validPerspectiveCropProducesNonBlackImage() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let source = UIGraphicsImageRenderer(
+            size: CGSize(width: 240, height: 320),
+            format: format
+        ).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 240, height: 320))
+            UIColor.black.setStroke()
+            context.cgContext.setLineWidth(4)
+            context.stroke(CGRect(x: 30, y: 25, width: 180, height: 270))
+        }
+        let crop = DocumentCrop(
+            topLeft: CGPoint(x: 0.12, y: 0.08),
+            topRight: CGPoint(x: 0.88, y: 0.08),
+            bottomRight: CGPoint(x: 0.88, y: 0.92),
+            bottomLeft: CGPoint(x: 0.12, y: 0.92)
+        )
+
+        let rendered = DocumentImageProcessor.renderedImage(source, crop: crop)
+
+        #expect(rendered.size.width > 0)
+        #expect(rendered.size.height > 0)
+        #expect(try Self.centerBrightness(of: rendered) > 0.9)
+    }
+
+    @Test @MainActor func scanWithoutConfidentCropRemainsDocumentScan() async throws {
+        let mockFile = MockFileService()
+        mockFile.saveImageResult = URL(fileURLWithPath: "/tmp/mock/images/scan.jpg")
+        let appData = AppData(
+            fileService: mockFile,
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService()
+        )
+        let image = try #require(Self.makeImage())
+
+        let captured = try await appData.saveCapturedImage(
+            image,
+            crop: nil,
+            isDocumentScan: true
+        )
+
+        #expect(captured.crop == nil)
+        #expect(captured.isDocumentScan)
     }
 
     @Test func onboardingCoversTheApprovedFourChapterFlow() {
@@ -796,6 +870,28 @@ struct LANImageUploaderTests {
             }
             context.cgContext.strokePath()
         }
+    }
+
+    private static func centerBrightness(of image: UIImage) throws -> CGFloat {
+        let cgImage = try #require(image.cgImage)
+        let x = cgImage.width / 2
+        let y = cgImage.height / 2
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let context = try #require(CGContext(
+            data: &pixel,
+            width: 1,
+            height: 1,
+            bitsPerComponent: 8,
+            bytesPerRow: 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.draw(
+            cgImage,
+            in: CGRect(x: -x, y: y - cgImage.height, width: cgImage.width, height: cgImage.height)
+        )
+        return (CGFloat(pixel[0]) + CGFloat(pixel[1]) + CGFloat(pixel[2])) / (3 * 255)
     }
 }
 

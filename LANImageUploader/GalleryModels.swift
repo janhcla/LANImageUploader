@@ -347,20 +347,66 @@ enum DocumentImageProcessor {
 
     private static func perspectiveCorrected(_ image: CIImage, crop: DocumentCrop) -> CIImage? {
         let extent = image.extent
-        let normalizedCrop = crop.clamped()
-        func vector(_ point: CGPoint) -> CIVector {
-            CIVector(
-                x: extent.minX + point.x * extent.width,
-                y: extent.minY + (1 - point.y) * extent.height
-            )
+        guard extent.width.isFinite, extent.height.isFinite,
+              extent.width > 1, extent.height > 1,
+              crop.isValidForPerspectiveCorrection() else {
+            return nil
         }
+        let normalizedCrop = crop.clamped()
+        let points = normalizedCrop.coreImagePoints(in: extent)
         guard let filter = CIFilter(name: "CIPerspectiveCorrection") else { return nil }
         filter.setValue(image, forKey: kCIInputImageKey)
-        filter.setValue(vector(normalizedCrop.topLeft), forKey: "inputTopLeft")
-        filter.setValue(vector(normalizedCrop.topRight), forKey: "inputTopRight")
-        filter.setValue(vector(normalizedCrop.bottomRight), forKey: "inputBottomRight")
-        filter.setValue(vector(normalizedCrop.bottomLeft), forKey: "inputBottomLeft")
-        return filter.outputImage
+        filter.setValue(CIVector(cgPoint: points.topLeft), forKey: "inputTopLeft")
+        filter.setValue(CIVector(cgPoint: points.topRight), forKey: "inputTopRight")
+        filter.setValue(CIVector(cgPoint: points.bottomRight), forKey: "inputBottomRight")
+        filter.setValue(CIVector(cgPoint: points.bottomLeft), forKey: "inputBottomLeft")
+        guard let output = filter.outputImage,
+              isPlausible(output.extent, comparedWith: extent),
+              !isMostlyBlack(output) else {
+            return nil
+        }
+        return output
+    }
+
+    private static func isPlausible(_ output: CGRect, comparedWith source: CGRect) -> Bool {
+        guard output.minX.isFinite, output.minY.isFinite,
+              output.width.isFinite, output.height.isFinite,
+              output.width > 1, output.height > 1 else {
+            return false
+        }
+        let areaRatio = (output.width * output.height) / (source.width * source.height)
+        let aspect = output.width / output.height
+        return areaRatio >= 0.01 && areaRatio <= 4
+            && aspect >= 0.1 && aspect <= 10
+            && max(output.width, output.height) <= max(source.width, source.height) * 4
+    }
+
+    private static func isMostlyBlack(_ image: CIImage) -> Bool {
+        let sampleSize = 32
+        guard let cgImage = context.createCGImage(image, from: image.extent) else { return true }
+        var pixels = [UInt8](repeating: 0, count: sampleSize * sampleSize * 4)
+        guard let bitmap = CGContext(
+            data: &pixels,
+            width: sampleSize,
+            height: sampleSize,
+            bitsPerComponent: 8,
+            bytesPerRow: sampleSize * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            return true
+        }
+        bitmap.interpolationQuality = .low
+        bitmap.draw(cgImage, in: CGRect(x: 0, y: 0, width: sampleSize, height: sampleSize))
+        let blackPixels = stride(from: 0, to: pixels.count, by: 4).reduce(into: 0) { count, index in
+            let luminance = 0.2126 * Double(pixels[index])
+                + 0.7152 * Double(pixels[index + 1])
+                + 0.0722 * Double(pixels[index + 2])
+            if luminance < 8 {
+                count += 1
+            }
+        }
+        return Double(blackPixels) / Double(sampleSize * sampleSize) >= 0.70
     }
 
     private static func applyRotation(to image: CIImage, rotation: ImageRotation) -> CIImage {

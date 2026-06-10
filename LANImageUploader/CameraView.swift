@@ -25,7 +25,7 @@ struct CameraView: View {
             scannedPageCount: scannedCount,
             onScanCapture: { image, crop in
                 Task {
-                    await saveImage(image: image, crop: crop)
+                    await saveImage(image: image, crop: crop, isDocumentScan: true)
                 }
             },
             onKeepPhoto: { image in
@@ -62,9 +62,17 @@ struct CameraView: View {
         }
     }
 
-    func saveImage(image: UIImage, crop: DocumentCrop? = nil) async {
+    func saveImage(
+        image: UIImage,
+        crop: DocumentCrop? = nil,
+        isDocumentScan: Bool = false
+    ) async {
         do {
-            try await appData.saveCapturedImage(image, crop: crop)
+            try await appData.saveCapturedImage(
+                image,
+                crop: crop,
+                isDocumentScan: isDocumentScan
+            )
             await MainActor.run {
                 appData.hapticService.playNotification(type: .success)
             }

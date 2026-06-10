@@ -191,6 +191,7 @@ class AppData: ObservableObject {
     func saveCapturedImage(
         _ image: UIImage,
         crop: DocumentCrop? = nil,
+        isDocumentScan: Bool? = nil,
         capturedAt date: Date = Date()
     ) async throws -> CapturedImage {
         let formatter = DateFormatter()
@@ -207,7 +208,7 @@ class AppData: ObservableObject {
             name: fileName.removingSuffix(".jpg"),
             fileURL: fileURL,
             crop: crop,
-            isDocumentScan: crop != nil
+            isDocumentScan: isDocumentScan ?? (crop != nil)
         )
 
         await MainActor.run {

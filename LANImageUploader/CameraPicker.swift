@@ -252,7 +252,7 @@ struct DocumentPreviewGeometry {
 struct ScannerCaptureView: View {
     let keptPhotoCount: Int
     let scannedPageCount: Int
-    let onScanCapture: (UIImage, DocumentCrop) -> Void
+    let onScanCapture: (UIImage, DocumentCrop?) -> Void
     let onKeepPhoto: (UIImage) -> Void
     let onCountdownTick: () -> Void
     let onOpenGallery: (CameraCaptureMode) -> Void
@@ -272,7 +272,7 @@ struct ScannerCaptureView: View {
         initialMode: CameraCaptureMode,
         keptPhotoCount: Int,
         scannedPageCount: Int,
-        onScanCapture: @escaping (UIImage, DocumentCrop) -> Void,
+        onScanCapture: @escaping (UIImage, DocumentCrop?) -> Void,
         onKeepPhoto: @escaping (UIImage) -> Void,
         onCountdownTick: @escaping () -> Void,
         onOpenGallery: @escaping (CameraCaptureMode) -> Void,
@@ -686,7 +686,7 @@ struct DocumentCameraPreview: UIViewControllerRepresentable {
     @Binding var autoCapture: Bool
     let captureRequest: UUID
     let selectedZoomFactor: CGFloat
-    let onScanCapture: (UIImage, DocumentCrop) -> Void
+    let onScanCapture: (UIImage, DocumentCrop?) -> Void
     let onPhotoCapture: (UIImage) -> Void
     let onDetectionChanged: (String, Bool) -> Void
     let onCountdownChanged: (Int?) -> Void
@@ -761,7 +761,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
             onDetectionChanged?(newValue == .scan ? "Point the camera at a document" : "", false)
         }
     }
-    var onScanCapture: ((UIImage, DocumentCrop) -> Void)?
+    var onScanCapture: ((UIImage, DocumentCrop?) -> Void)?
     var onPhotoCapture: ((UIImage) -> Void)?
     var onDetectionChanged: ((String, Bool) -> Void)?
     var onCountdownChanged: ((Int?) -> Void)?
@@ -1013,7 +1013,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
                             toImageSize: photoSize
                         )
                         .flatMap { $0.isValidForPerspectiveCorrection() ? $0.clamped() : nil }
-                    self.onScanCapture?(upright, crop ?? .fullFrame)
+                    self.onScanCapture?(upright, crop)
                 } else {
                     self.onPhotoCapture?(PhotoCaptureFraming.image(
                         image,
