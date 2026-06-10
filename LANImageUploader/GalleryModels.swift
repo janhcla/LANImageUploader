@@ -383,21 +383,28 @@ enum DocumentImageProcessor {
 
     private static func isMostlyBlack(_ image: CIImage) -> Bool {
         let sampleSize = 32
-        guard let cgImage = context.createCGImage(image, from: image.extent) else { return true }
-        var pixels = [UInt8](repeating: 0, count: sampleSize * sampleSize * 4)
-        guard let bitmap = CGContext(
-            data: &pixels,
-            width: sampleSize,
-            height: sampleSize,
-            bitsPerComponent: 8,
-            bytesPerRow: sampleSize * 4,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else {
+        let extent = image.extent
+        guard extent.width.isFinite, extent.height.isFinite,
+              extent.width > 0, extent.height > 0 else {
             return true
         }
-        bitmap.interpolationQuality = .low
-        bitmap.draw(cgImage, in: CGRect(x: 0, y: 0, width: sampleSize, height: sampleSize))
+        let translated = image.transformed(by: CGAffineTransform(
+            translationX: -extent.minX,
+            y: -extent.minY
+        ))
+        let sampledImage = translated.transformed(by: CGAffineTransform(
+            scaleX: CGFloat(sampleSize) / extent.width,
+            y: CGFloat(sampleSize) / extent.height
+        ))
+        var pixels = [UInt8](repeating: 0, count: sampleSize * sampleSize * 4)
+        context.render(
+            sampledImage,
+            toBitmap: &pixels,
+            rowBytes: sampleSize * 4,
+            bounds: CGRect(x: 0, y: 0, width: sampleSize, height: sampleSize),
+            format: .RGBA8,
+            colorSpace: CGColorSpaceCreateDeviceRGB()
+        )
         let blackPixels = stride(from: 0, to: pixels.count, by: 4).reduce(into: 0) { count, index in
             let luminance = 0.2126 * Double(pixels[index])
                 + 0.7152 * Double(pixels[index + 1])
