@@ -316,6 +316,34 @@ struct LANImageUploaderTests {
         #expect(appData.images.map { $0.name } == ["IMG_20260515_101112"])
     }
 
+    @Test func capturedImageTimestampFormatterIsDeterministicAndThreadSafe() async throws {
+        var components = DateComponents()
+        components.calendar = Calendar(identifier: .gregorian)
+        components.timeZone = TimeZone(secondsFromGMT: 0)
+        components.year = 2026
+        components.month = 5
+        components.day = 15
+        components.hour = 10
+        components.minute = 11
+        components.second = 12
+        let date = try #require(components.date)
+
+        let timestamps = await withTaskGroup(of: String.self, returning: [String].self) { group in
+            for _ in 0..<32 {
+                group.addTask {
+                    CapturedImageTimestampFormatter.shared.string(
+                        from: date,
+                        timeZone: TimeZone(secondsFromGMT: 0)!
+                    )
+                }
+            }
+            return await group.reduce(into: []) { $0.append($1) }
+        }
+
+        #expect(timestamps.count == 32)
+        #expect(timestamps.allSatisfy { $0 == "20260515_101112" })
+    }
+
     @Test @MainActor func cameraSaveImageFailureDoesNotAppendGalleryItem() async throws {
         let mockFile = MockFileService()
         mockFile.saveImageError = NSError(domain: "test", code: 2)
