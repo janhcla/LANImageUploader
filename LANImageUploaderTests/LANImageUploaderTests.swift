@@ -8,6 +8,7 @@
 import Testing
 import Foundation
 import UIKit
+import ImageIO
 @testable import LANImageUploader
 
 private final class ProgressRecorder: @unchecked Sendable {
@@ -28,6 +29,184 @@ private final class ProgressRecorder: @unchecked Sendable {
 }
 
 struct LANImageUploaderTests {
+
+    @Test func scannerCapturePolicyNeverConfiguresOrCapturesAudio() {
+        #expect(!ScannerCapturePolicy.automaticallyConfiguresApplicationAudioSession)
+        #expect(!ScannerCapturePolicy.includesAudioInput)
+    }
+
+    @Test func visionRectangleConvertsToTopLeftCoordinates() {
+        let crop = DocumentCrop.visionNormalized(
+            topLeft: CGPoint(x: 0.1, y: 0.9),
+            topRight: CGPoint(x: 0.9, y: 0.9),
+            bottomRight: CGPoint(x: 0.9, y: 0.2),
+            bottomLeft: CGPoint(x: 0.1, y: 0.2)
+        )
+
+        #expect(abs(crop.topLeft.x - 0.1) < 0.0001)
+        #expect(abs(crop.topLeft.y - 0.1) < 0.0001)
+        #expect(abs(crop.topRight.x - 0.9) < 0.0001)
+        #expect(abs(crop.topRight.y - 0.1) < 0.0001)
+        #expect(abs(crop.bottomRight.x - 0.9) < 0.0001)
+        #expect(abs(crop.bottomRight.y - 0.8) < 0.0001)
+        #expect(abs(crop.bottomLeft.x - 0.1) < 0.0001)
+        #expect(abs(crop.bottomLeft.y - 0.8) < 0.0001)
+    }
+
+    @Test func cropMapsBetweenAspectFillVideoAndPhotoCoordinates() throws {
+        let detected = DocumentCrop(
+            topLeft: CGPoint(x: 0.1, y: 0.1),
+            topRight: CGPoint(x: 0.9, y: 0.1),
+            bottomRight: CGPoint(x: 0.9, y: 0.9),
+            bottomLeft: CGPoint(x: 0.1, y: 0.9)
+        )
+
+        let portrait = try #require(detected.mapped(
+            fromAspectFillImageSize: CGSize(width: 1080, height: 1920),
+            toImageSize: CGSize(width: 3024, height: 4032)
+        ))
+        #expect(abs(portrait.topLeft.x - 0.2) < 0.001)
+        #expect(abs(portrait.topRight.x - 0.8) < 0.001)
+        #expect(abs(portrait.topLeft.y - 0.1) < 0.001)
+
+        let landscape = try #require(detected.mapped(
+            fromAspectFillImageSize: CGSize(width: 1920, height: 1080),
+            toImageSize: CGSize(width: 4032, height: 3024)
+        ))
+        #expect(abs(landscape.topLeft.x - 0.1) < 0.001)
+        #expect(abs(landscape.topLeft.y - 0.2) < 0.001)
+        #expect(abs(landscape.bottomLeft.y - 0.8) < 0.001)
+    }
+
+    @Test func documentCropValidationRejectsUnsafeGeometry() {
+        let valid = DocumentCrop(
+            topLeft: CGPoint(x: 0.12, y: 0.08),
+            topRight: CGPoint(x: 0.88, y: 0.1),
+            bottomRight: CGPoint(x: 0.84, y: 0.92),
+            bottomLeft: CGPoint(x: 0.16, y: 0.9)
+        )
+        let tiny = DocumentCrop(
+            topLeft: CGPoint(x: 0.45, y: 0.45),
+            topRight: CGPoint(x: 0.55, y: 0.45),
+            bottomRight: CGPoint(x: 0.55, y: 0.55),
+            bottomLeft: CGPoint(x: 0.45, y: 0.55)
+        )
+        let crossing = DocumentCrop(
+            topLeft: CGPoint(x: 0.1, y: 0.1),
+            topRight: CGPoint(x: 0.9, y: 0.9),
+            bottomRight: CGPoint(x: 0.9, y: 0.1),
+            bottomLeft: CGPoint(x: 0.1, y: 0.9)
+        )
+        let outside = DocumentCrop(
+            topLeft: CGPoint(x: -0.2, y: 0.1),
+            topRight: CGPoint(x: 0.9, y: 0.1),
+            bottomRight: CGPoint(x: 0.9, y: 0.9),
+            bottomLeft: CGPoint(x: 0.1, y: 0.9)
+        )
+        let flat = DocumentCrop(
+            topLeft: CGPoint(x: 0.1, y: 0.48),
+            topRight: CGPoint(x: 0.9, y: 0.48),
+            bottomRight: CGPoint(x: 0.9, y: 0.52),
+            bottomLeft: CGPoint(x: 0.1, y: 0.52)
+        )
+
+        #expect(valid.isValidForPerspectiveCorrection())
+        #expect(!tiny.isValidForPerspectiveCorrection())
+        #expect(!crossing.isValidForPerspectiveCorrection())
+        #expect(!outside.isValidForPerspectiveCorrection())
+        #expect(!flat.isValidForPerspectiveCorrection())
+    }
+
+    @Test func fullFrameCropMapsToCoreImageExtent() {
+        let extent = CGRect(x: 20, y: 40, width: 1200, height: 1600)
+        let points = DocumentCrop.fullFrame.coreImagePoints(in: extent)
+
+        #expect(points.topLeft == CGPoint(x: 20, y: 1640))
+        #expect(points.topRight == CGPoint(x: 1220, y: 1640))
+        #expect(points.bottomRight == CGPoint(x: 1220, y: 40))
+        #expect(points.bottomLeft == CGPoint(x: 20, y: 40))
+    }
+
+    @Test func visionOrientationMatchesCaptureRotationAngle() {
+        #expect(DocumentCaptureOrientation.visionOrientation(forVideoRotationAngle: 0) == .up)
+        #expect(DocumentCaptureOrientation.visionOrientation(forVideoRotationAngle: 90) == .right)
+        #expect(DocumentCaptureOrientation.visionOrientation(forVideoRotationAngle: 180) == .down)
+        #expect(DocumentCaptureOrientation.visionOrientation(forVideoRotationAngle: 270) == .left)
+        #expect(DocumentCaptureOrientation.orientedSize(
+            CGSize(width: 1920, height: 1080),
+            orientation: .right
+        ) == CGSize(width: 1080, height: 1920))
+    }
+
+    @Test @MainActor func invalidPerspectiveCropFallsBackToOriginalImage() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let source = UIGraphicsImageRenderer(
+            size: CGSize(width: 200, height: 300),
+            format: format
+        ).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 200, height: 300))
+        }
+        let crossing = DocumentCrop(
+            topLeft: CGPoint(x: 0.1, y: 0.1),
+            topRight: CGPoint(x: 0.9, y: 0.9),
+            bottomRight: CGPoint(x: 0.9, y: 0.1),
+            bottomLeft: CGPoint(x: 0.1, y: 0.9)
+        )
+
+        let rendered = DocumentImageProcessor.renderedImage(source, crop: crossing)
+
+        #expect(rendered.size == source.size)
+    }
+
+    @Test @MainActor func validPerspectiveCropProducesNonBlackImage() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let source = UIGraphicsImageRenderer(
+            size: CGSize(width: 240, height: 320),
+            format: format
+        ).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 240, height: 320))
+            UIColor.black.setStroke()
+            context.cgContext.setLineWidth(4)
+            context.stroke(CGRect(x: 30, y: 25, width: 180, height: 270))
+        }
+        let crop = DocumentCrop(
+            topLeft: CGPoint(x: 0.12, y: 0.08),
+            topRight: CGPoint(x: 0.88, y: 0.08),
+            bottomRight: CGPoint(x: 0.88, y: 0.92),
+            bottomLeft: CGPoint(x: 0.12, y: 0.92)
+        )
+
+        let rendered = DocumentImageProcessor.renderedImage(source, crop: crop)
+
+        #expect(rendered.size.width > 0)
+        #expect(rendered.size.height > 0)
+        #expect(try Self.centerBrightness(of: rendered) > 0.9)
+    }
+
+    @Test @MainActor func scanWithoutConfidentCropRemainsDocumentScan() async throws {
+        let mockFile = MockFileService()
+        mockFile.saveImageResult = URL(fileURLWithPath: "/tmp/mock/images/scan.jpg")
+        let appData = AppData(
+            fileService: mockFile,
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService()
+        )
+        let image = try #require(Self.makeImage())
+
+        let captured = try await appData.saveCapturedImage(
+            image,
+            crop: nil,
+            isDocumentScan: true
+        )
+
+        #expect(captured.crop == nil)
+        #expect(captured.isDocumentScan)
+    }
 
     @Test func onboardingCoversTheApprovedFourChapterFlow() {
         #expect(OnboardingPage.allCases == [.privacy, .capture, .organize, .ready])
@@ -135,6 +314,34 @@ struct LANImageUploaderTests {
         #expect(mockFile.savedImages.first?.fileName == "IMG_20260515_101112.jpg")
         #expect(captured.name == "IMG_20260515_101112")
         #expect(appData.images.map { $0.name } == ["IMG_20260515_101112"])
+    }
+
+    @Test func capturedImageTimestampFormatterIsDeterministicAndThreadSafe() async throws {
+        var components = DateComponents()
+        components.calendar = Calendar(identifier: .gregorian)
+        components.timeZone = TimeZone(secondsFromGMT: 0)
+        components.year = 2026
+        components.month = 5
+        components.day = 15
+        components.hour = 10
+        components.minute = 11
+        components.second = 12
+        let date = try #require(components.date)
+
+        let timestamps = await withTaskGroup(of: String.self, returning: [String].self) { group in
+            for _ in 0..<32 {
+                group.addTask {
+                    CapturedImageTimestampFormatter.shared.string(
+                        from: date,
+                        timeZone: TimeZone(secondsFromGMT: 0)!
+                    )
+                }
+            }
+            return await group.reduce(into: []) { $0.append($1) }
+        }
+
+        #expect(timestamps.count == 32)
+        #expect(timestamps.allSatisfy { $0 == "20260515_101112" })
     }
 
     @Test @MainActor func cameraSaveImageFailureDoesNotAppendGalleryItem() async throws {
@@ -691,6 +898,28 @@ struct LANImageUploaderTests {
             }
             context.cgContext.strokePath()
         }
+    }
+
+    private static func centerBrightness(of image: UIImage) throws -> CGFloat {
+        let cgImage = try #require(image.cgImage)
+        let x = cgImage.width / 2
+        let y = cgImage.height / 2
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let context = try #require(CGContext(
+            data: &pixel,
+            width: 1,
+            height: 1,
+            bitsPerComponent: 8,
+            bytesPerRow: 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.draw(
+            cgImage,
+            in: CGRect(x: -x, y: y - cgImage.height, width: cgImage.width, height: cgImage.height)
+        )
+        return (CGFloat(pixel[0]) + CGFloat(pixel[1]) + CGFloat(pixel[2])) / (3 * 255)
     }
 }
 

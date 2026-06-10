@@ -10,6 +10,28 @@ import Combine
 import Security
 import SwiftUI
 
+final class CapturedImageTimestampFormatter: @unchecked Sendable {
+    static let shared = CapturedImageTimestampFormatter()
+
+    private let lock = NSLock()
+    private let formatter: DateFormatter
+
+    private init() {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.dateFormat = "yyyyMMdd_HHmmss"
+        self.formatter = formatter
+    }
+
+    func string(from date: Date, timeZone: TimeZone = .current) -> String {
+        lock.withLock {
+            formatter.timeZone = timeZone
+            return formatter.string(from: date)
+        }
+    }
+}
+
 struct NetworkInfo: Equatable {
     let serverIP: String
     let shareName: String
@@ -191,11 +213,10 @@ class AppData: ObservableObject {
     func saveCapturedImage(
         _ image: UIImage,
         crop: DocumentCrop? = nil,
+        isDocumentScan: Bool? = nil,
         capturedAt date: Date = Date()
     ) async throws -> CapturedImage {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd_HHmmss"
-        let timestamp = formatter.string(from: date)
+        let timestamp = CapturedImageTimestampFormatter.shared.string(from: date)
         let fileName = "IMG_\(timestamp).jpg"
 
         guard let data = image.jpegData(compressionQuality: 0.8) else {
@@ -207,7 +228,7 @@ class AppData: ObservableObject {
             name: fileName.removingSuffix(".jpg"),
             fileURL: fileURL,
             crop: crop,
-            isDocumentScan: crop != nil
+            isDocumentScan: isDocumentScan ?? (crop != nil)
         )
 
         await MainActor.run {
@@ -268,9 +289,7 @@ class AppData: ObservableObject {
     // Save images to a dated folder
     // Save a new captured image, reusable for camera and retake
     func saveCapturedUIImage(_ image: UIImage, suggestedPrefix: String = "IMG") async throws -> CapturedImage {
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyyMMdd_HHmmss"
-        let timestamp = dateFormatter.string(from: Date())
+        let timestamp = CapturedImageTimestampFormatter.shared.string(from: Date())
         let fileName = "\(suggestedPrefix)_\(timestamp).jpg"
 
         guard let data = image.jpegData(compressionQuality: 0.8) else {
