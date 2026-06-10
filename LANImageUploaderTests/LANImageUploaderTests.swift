@@ -29,6 +29,11 @@ private final class ProgressRecorder: @unchecked Sendable {
 
 struct LANImageUploaderTests {
 
+    @Test func scannerCapturePolicyNeverConfiguresOrCapturesAudio() {
+        #expect(!ScannerCapturePolicy.automaticallyConfiguresApplicationAudioSession)
+        #expect(!ScannerCapturePolicy.includesAudioInput)
+    }
+
     @Test func onboardingCoversTheApprovedFourChapterFlow() {
         #expect(OnboardingPage.allCases == [.privacy, .capture, .organize, .ready])
         #expect(OnboardingPage.capture.message.localizedCaseInsensitiveContains("multi-page"))

@@ -9,6 +9,14 @@ import SwiftUI
 import UIKit
 @preconcurrency import AVFoundation
 import Vision
+#if DEBUG
+import OSLog
+#endif
+
+enum ScannerCapturePolicy {
+    static let automaticallyConfiguresApplicationAudioSession = false
+    static let includesAudioInput = false
+}
 
 struct CameraPicker: UIViewControllerRepresentable {
     @Binding var image: UIImage?
@@ -17,6 +25,8 @@ struct CameraPicker: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
         picker.sourceType = .camera
+        picker.mediaTypes = ["public.image"]
+        picker.cameraCaptureMode = .photo
         picker.delegate = context.coordinator
         return picker
     }
@@ -692,6 +702,13 @@ struct DocumentCameraPreview: UIViewControllerRepresentable {
 }
 
 final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVCaptureVideoDataOutputSampleBufferDelegate {
+#if DEBUG
+    private static let audioLogger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "ImageDrop",
+        category: "CameraAudioSession"
+    )
+#endif
+
     private let modeLock = NSLock()
     private var storedMode: CameraCaptureMode = .scan
     var mode: CameraCaptureMode {
@@ -771,6 +788,26 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(focusAndExpose(at:)))
         tapGesture.cancelsTouchesInView = false
         view.addGestureRecognizer(tapGesture)
+#if DEBUG
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioSessionInterruption(_:)),
+            name: AVAudioSession.interruptionNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAudioRouteChange(_:)),
+            name: AVAudioSession.routeChangeNotification,
+            object: nil
+        )
+#endif
+    }
+
+    deinit {
+#if DEBUG
+        NotificationCenter.default.removeObserver(self)
+#endif
     }
 
     override func viewDidLayoutSubviews() {
@@ -808,9 +845,12 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     private func configureAndStartSession() {
         sessionQueue.async { [weak self] in
             guard let self, !self.session.isRunning else { return }
+            self.session.automaticallyConfiguresApplicationAudioSession =
+                ScannerCapturePolicy.automaticallyConfiguresApplicationAudioSession
             self.session.beginConfiguration()
             self.session.sessionPreset = .photo
             guard let device = self.preferredBackCamera(),
+                  device.hasMediaType(.video),
                   let input = try? AVCaptureDeviceInput(device: device),
                   self.session.canAddInput(input) else {
                 self.session.commitConfiguration()
@@ -831,6 +871,9 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
                 self.updateCaptureOrientation()
             }
             self.session.startRunning()
+#if DEBUG
+            assert(!self.session.inputs.contains { $0.ports.contains { $0.mediaType == .audio } })
+#endif
             let options = self.zoomOptions(for: device)
             let currentFactor = self.nearestZoomFactor(to: device.videoZoomFactor, options: options)
             DispatchQueue.main.async {
@@ -838,6 +881,18 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
             }
         }
     }
+
+#if DEBUG
+    @objc private func handleAudioSessionInterruption(_ notification: Notification) {
+        let rawType = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+        Self.audioLogger.debug("Observed audio interruption type: \(rawType.map(String.init) ?? "unknown", privacy: .public)")
+    }
+
+    @objc private func handleAudioRouteChange(_ notification: Notification) {
+        let rawReason = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt
+        Self.audioLogger.debug("Observed audio route change reason: \(rawReason.map(String.init) ?? "unknown", privacy: .public)")
+    }
+#endif
 
     private func updateCaptureOrientation() {
         let angle = currentVideoRotationAngle()
