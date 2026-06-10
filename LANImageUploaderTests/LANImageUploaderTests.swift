@@ -8,6 +8,7 @@
 import Testing
 import Foundation
 import UIKit
+import ImageIO
 @testable import LANImageUploader
 
 private final class ProgressRecorder: @unchecked Sendable {
@@ -32,6 +33,105 @@ struct LANImageUploaderTests {
     @Test func scannerCapturePolicyNeverConfiguresOrCapturesAudio() {
         #expect(!ScannerCapturePolicy.automaticallyConfiguresApplicationAudioSession)
         #expect(!ScannerCapturePolicy.includesAudioInput)
+    }
+
+    @Test func visionRectangleConvertsToTopLeftCoordinates() {
+        let crop = DocumentCrop.visionNormalized(
+            topLeft: CGPoint(x: 0.1, y: 0.9),
+            topRight: CGPoint(x: 0.9, y: 0.9),
+            bottomRight: CGPoint(x: 0.9, y: 0.2),
+            bottomLeft: CGPoint(x: 0.1, y: 0.2)
+        )
+
+        #expect(crop.topLeft == CGPoint(x: 0.1, y: 0.1))
+        #expect(crop.topRight == CGPoint(x: 0.9, y: 0.1))
+        #expect(crop.bottomRight == CGPoint(x: 0.9, y: 0.8))
+        #expect(crop.bottomLeft == CGPoint(x: 0.1, y: 0.8))
+    }
+
+    @Test func cropMapsBetweenAspectFillVideoAndPhotoCoordinates() throws {
+        let detected = DocumentCrop(
+            topLeft: CGPoint(x: 0.1, y: 0.1),
+            topRight: CGPoint(x: 0.9, y: 0.1),
+            bottomRight: CGPoint(x: 0.9, y: 0.9),
+            bottomLeft: CGPoint(x: 0.1, y: 0.9)
+        )
+
+        let portrait = try #require(detected.mapped(
+            fromAspectFillImageSize: CGSize(width: 1080, height: 1920),
+            toImageSize: CGSize(width: 3024, height: 4032)
+        ))
+        #expect(abs(portrait.topLeft.x - 0.2) < 0.001)
+        #expect(abs(portrait.topRight.x - 0.8) < 0.001)
+        #expect(abs(portrait.topLeft.y - 0.1) < 0.001)
+
+        let landscape = try #require(detected.mapped(
+            fromAspectFillImageSize: CGSize(width: 1920, height: 1080),
+            toImageSize: CGSize(width: 4032, height: 3024)
+        ))
+        #expect(abs(landscape.topLeft.x - 0.1) < 0.001)
+        #expect(abs(landscape.topLeft.y - 0.2) < 0.001)
+        #expect(abs(landscape.bottomLeft.y - 0.8) < 0.001)
+    }
+
+    @Test func documentCropValidationRejectsUnsafeGeometry() {
+        let valid = DocumentCrop(
+            topLeft: CGPoint(x: 0.12, y: 0.08),
+            topRight: CGPoint(x: 0.88, y: 0.1),
+            bottomRight: CGPoint(x: 0.84, y: 0.92),
+            bottomLeft: CGPoint(x: 0.16, y: 0.9)
+        )
+        let tiny = DocumentCrop(
+            topLeft: CGPoint(x: 0.45, y: 0.45),
+            topRight: CGPoint(x: 0.55, y: 0.45),
+            bottomRight: CGPoint(x: 0.55, y: 0.55),
+            bottomLeft: CGPoint(x: 0.45, y: 0.55)
+        )
+        let crossing = DocumentCrop(
+            topLeft: CGPoint(x: 0.1, y: 0.1),
+            topRight: CGPoint(x: 0.9, y: 0.9),
+            bottomRight: CGPoint(x: 0.9, y: 0.1),
+            bottomLeft: CGPoint(x: 0.1, y: 0.9)
+        )
+        let outside = DocumentCrop(
+            topLeft: CGPoint(x: -0.2, y: 0.1),
+            topRight: CGPoint(x: 0.9, y: 0.1),
+            bottomRight: CGPoint(x: 0.9, y: 0.9),
+            bottomLeft: CGPoint(x: 0.1, y: 0.9)
+        )
+        let flat = DocumentCrop(
+            topLeft: CGPoint(x: 0.1, y: 0.48),
+            topRight: CGPoint(x: 0.9, y: 0.48),
+            bottomRight: CGPoint(x: 0.9, y: 0.52),
+            bottomLeft: CGPoint(x: 0.1, y: 0.52)
+        )
+
+        #expect(valid.isValidForPerspectiveCorrection())
+        #expect(!tiny.isValidForPerspectiveCorrection())
+        #expect(!crossing.isValidForPerspectiveCorrection())
+        #expect(!outside.isValidForPerspectiveCorrection())
+        #expect(!flat.isValidForPerspectiveCorrection())
+    }
+
+    @Test func fullFrameCropMapsToCoreImageExtent() {
+        let extent = CGRect(x: 20, y: 40, width: 1200, height: 1600)
+        let points = DocumentCrop.fullFrame.coreImagePoints(in: extent)
+
+        #expect(points.topLeft == CGPoint(x: 20, y: 1640))
+        #expect(points.topRight == CGPoint(x: 1220, y: 1640))
+        #expect(points.bottomRight == CGPoint(x: 1220, y: 40))
+        #expect(points.bottomLeft == CGPoint(x: 20, y: 40))
+    }
+
+    @Test func visionOrientationMatchesCaptureRotationAngle() {
+        #expect(DocumentCaptureOrientation.visionOrientation(forVideoRotationAngle: 0) == .up)
+        #expect(DocumentCaptureOrientation.visionOrientation(forVideoRotationAngle: 90) == .right)
+        #expect(DocumentCaptureOrientation.visionOrientation(forVideoRotationAngle: 180) == .down)
+        #expect(DocumentCaptureOrientation.visionOrientation(forVideoRotationAngle: 270) == .left)
+        #expect(DocumentCaptureOrientation.orientedSize(
+            CGSize(width: 1920, height: 1080),
+            orientation: .right
+        ) == CGSize(width: 1080, height: 1920))
     }
 
     @Test func onboardingCoversTheApprovedFourChapterFlow() {

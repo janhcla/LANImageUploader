@@ -18,6 +18,32 @@ enum ScannerCapturePolicy {
     static let includesAudioInput = false
 }
 
+enum DocumentCaptureOrientation {
+    static func visionOrientation(forVideoRotationAngle angle: CGFloat) -> CGImagePropertyOrientation {
+        switch normalizedAngle(angle) {
+        case 0: return .up
+        case 90: return .right
+        case 180: return .down
+        case 270: return .left
+        default: return .up
+        }
+    }
+
+    static func orientedSize(_ size: CGSize, orientation: CGImagePropertyOrientation) -> CGSize {
+        switch orientation {
+        case .left, .leftMirrored, .right, .rightMirrored:
+            return CGSize(width: size.height, height: size.width)
+        default:
+            return size
+        }
+    }
+
+    private static func normalizedAngle(_ angle: CGFloat) -> Int {
+        let rounded = Int(angle.rounded()) % 360
+        return rounded >= 0 ? rounded : rounded + 360
+    }
+}
+
 struct CameraPicker: UIViewControllerRepresentable {
     @Binding var image: UIImage?
     @Environment(\.dismiss) var dismiss
@@ -128,7 +154,7 @@ struct PhotoCaptureFraming {
         return UIImage(cgImage: framed, scale: upright.scale, orientation: .up)
     }
 
-    private static func normalizedOrientationImage(_ image: UIImage) -> UIImage {
+    static func normalizedOrientationImage(_ image: UIImage) -> UIImage {
         guard image.imageOrientation != .up else { return image }
         let format = UIGraphicsImageRendererFormat()
         format.scale = image.scale
@@ -702,6 +728,12 @@ struct DocumentCameraPreview: UIViewControllerRepresentable {
 }
 
 final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptureDelegate, AVCaptureVideoDataOutputSampleBufferDelegate {
+    private struct DetectedCrop {
+        let crop: DocumentCrop
+        let orientedBufferSize: CGSize
+        let orientationGeneration: Int
+    }
+
 #if DEBUG
     private static let audioLogger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "ImageDrop",
@@ -754,13 +786,13 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     private let boundaryLayer = CAShapeLayer()
     private let focusLayer = CAShapeLayer()
     private var activeDevice: AVCaptureDevice?
-    private var latestCrop: DocumentCrop?
+    private var latestDetection: DetectedCrop?
     private var displayedCrop: DocumentCrop?
     private var previousCrop: DocumentCrop?
     private var stableSince: Date?
     private var lastAutoCaptureAt = Date.distantPast
     private var lastDetectionAt = Date.distantPast
-    private var pendingCaptureCrop: DocumentCrop = .fullFrame
+    private var pendingCaptureDetection: DetectedCrop?
     private var pendingCaptureMode: CameraCaptureMode = .scan
     private var captureInProgress = false
     private var waitingForNextAutoPage = false
@@ -768,6 +800,10 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     private var visibleCountdown: Int?
     private var pendingPhotoPreviewSize: CGSize = .zero
     private var previewImageSize: CGSize = .zero
+    private let orientationLock = NSLock()
+    private var visionOrientation: CGImagePropertyOrientation = .right
+    private var orientationGeneration = 0
+    private var appliedVideoRotationAngle: CGFloat = -1
     private let autoCaptureHoldDuration: TimeInterval = 2.4
 
     override func viewDidLoad() {
@@ -896,10 +932,21 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
 
     private func updateCaptureOrientation() {
         let angle = currentVideoRotationAngle()
+        if angle != appliedVideoRotationAngle {
+            appliedVideoRotationAngle = angle
+            orientationLock.withLock {
+                visionOrientation = DocumentCaptureOrientation.visionOrientation(forVideoRotationAngle: angle)
+                orientationGeneration += 1
+            }
+            latestDetection = nil
+            displayedCrop = nil
+            previewImageSize = .zero
+            boundaryLayer.path = nil
+            resetAutoCaptureState()
+        }
         setVideoRotationAngle(angle, on: previewLayer.connection)
         sessionQueue.async { [weak self] in
             guard let self else { return }
-            self.setVideoRotationAngle(angle, on: self.videoOutput.connection(with: .video))
             self.setVideoRotationAngle(angle, on: self.photoOutput.connection(with: .video))
         }
     }
@@ -928,11 +975,14 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         guard session.isRunning, !captureInProgress else { return }
         captureInProgress = true
         pendingCaptureMode = mode
-        pendingCaptureCrop = mode == .scan ? (latestCrop ?? .fullFrame) : .fullFrame
+        let currentGeneration = orientationLock.withLock { orientationGeneration }
+        pendingCaptureDetection = mode == .scan
+            ? latestDetection.flatMap { $0.orientationGeneration == currentGeneration ? $0 : nil }
+            : nil
         pendingPhotoPreviewSize = previewLayer.bounds.size
         if autoTriggered, mode == .scan {
             waitingForNextAutoPage = true
-            lastAutoCapturedCrop = pendingCaptureCrop
+            lastAutoCapturedCrop = pendingCaptureDetection?.crop
         }
         let settings = AVCapturePhotoSettings()
         settings.flashMode = photoOutput.supportedFlashModes.contains(.auto) ? .auto : .off
@@ -952,7 +1002,18 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
             self.captureInProgress = false
             if let image {
                 if self.pendingCaptureMode == .scan {
-                    self.onScanCapture?(image, self.pendingCaptureCrop)
+                    let upright = PhotoCaptureFraming.normalizedOrientationImage(image)
+                    let photoSize = upright.cgImage.map {
+                        CGSize(width: $0.width, height: $0.height)
+                    } ?? upright.size
+                    let crop = self.pendingCaptureDetection?
+                        .crop
+                        .mapped(
+                            fromAspectFillImageSize: self.pendingCaptureDetection?.orientedBufferSize ?? .zero,
+                            toImageSize: photoSize
+                        )
+                        .flatMap { $0.isValidForPerspectiveCorrection() ? $0.clamped() : nil }
+                    self.onScanCapture?(upright, crop ?? .fullFrame)
                 } else {
                     self.onPhotoCapture?(PhotoCaptureFraming.image(
                         image,
@@ -969,11 +1030,18 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         from connection: AVCaptureConnection
     ) {
         guard mode == .scan else { return }
+        let orientationState = orientationLock.withLock {
+            (visionOrientation, orientationGeneration)
+        }
         let currentPreviewImageSize: CGSize?
         if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
-            currentPreviewImageSize = CGSize(
+            let rawSize = CGSize(
                 width: CVPixelBufferGetWidth(pixelBuffer),
                 height: CVPixelBufferGetHeight(pixelBuffer)
+            )
+            currentPreviewImageSize = DocumentCaptureOrientation.orientedSize(
+                rawSize,
+                orientation: orientationState.0
             )
         } else {
             currentPreviewImageSize = nil
@@ -984,31 +1052,44 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
             guard let self else { return }
             let observation = (request.results as? [VNRectangleObservation])?.first
             let crop = observation.map {
-                DocumentCrop(
-                    topLeft: CGPoint(x: $0.topLeft.x, y: 1 - $0.topLeft.y),
-                    topRight: CGPoint(x: $0.topRight.x, y: 1 - $0.topRight.y),
-                    bottomRight: CGPoint(x: $0.bottomRight.x, y: 1 - $0.bottomRight.y),
-                    bottomLeft: CGPoint(x: $0.bottomLeft.x, y: 1 - $0.bottomLeft.y)
-                ).clamped()
+                DocumentCrop.visionNormalized(
+                    topLeft: $0.topLeft,
+                    topRight: $0.topRight,
+                    bottomRight: $0.bottomRight,
+                    bottomLeft: $0.bottomLeft
+                )
             }
             DispatchQueue.main.async { [weak self, currentPreviewImageSize] in
-                if let currentPreviewImageSize {
-                    self?.previewImageSize = currentPreviewImageSize
+                guard let self else { return }
+                let currentGeneration = self.orientationLock.withLock { self.orientationGeneration }
+                guard currentGeneration == orientationState.1 else { return }
+                if let crop, let currentPreviewImageSize {
+                    self.latestDetection = DetectedCrop(
+                        crop: crop,
+                        orientedBufferSize: currentPreviewImageSize,
+                        orientationGeneration: orientationState.1
+                    )
+                    self.previewImageSize = currentPreviewImageSize
+                } else {
+                    self.latestDetection = nil
                 }
-                self?.handleDetectedCrop(crop)
+                self.handleDetectedCrop(crop)
             }
         }
         request.maximumObservations = 1
         request.minimumConfidence = 0.6
         request.minimumSize = 0.18
         request.quadratureTolerance = 35
-        try? VNImageRequestHandler(cmSampleBuffer: sampleBuffer, orientation: .up).perform([request])
+        try? VNImageRequestHandler(
+            cmSampleBuffer: sampleBuffer,
+            orientation: orientationState.0
+        ).perform([request])
     }
 
     private func handleDetectedCrop(_ detectedCrop: DocumentCrop?) {
         guard mode == .scan else { return }
         guard let crop = detectedCrop else {
-            latestCrop = nil
+            latestDetection = nil
             displayedCrop = nil
             boundaryLayer.removeAllAnimations()
             boundaryLayer.path = nil
@@ -1029,7 +1110,6 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
            DocumentCaptureQuality.averageMovement(from: capturedCrop, to: crop) > 0.08 {
             waitingForNextAutoPage = false
         }
-        latestCrop = crop
         let displayCrop = DocumentCaptureQuality.smoothedDisplayCrop(from: displayedCrop, toward: crop)
         displayedCrop = displayCrop
         drawBoundary(displayCrop, aligned: acceptable)
@@ -1094,7 +1174,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         stableSince = nil
         previousCrop = nil
         waitingForNextAutoPage = false
-        latestCrop = nil
+        latestDetection = nil
         displayedCrop = nil
         updateCountdown(nil)
     }

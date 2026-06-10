@@ -99,6 +99,13 @@ enum ImageRotation: Int, Codable, CaseIterable {
 }
 
 struct DocumentCrop: Codable, Equatable {
+    struct PixelPoints: Equatable {
+        let topLeft: CGPoint
+        let topRight: CGPoint
+        let bottomRight: CGPoint
+        let bottomLeft: CGPoint
+    }
+
     var topLeft: CGPoint
     var topRight: CGPoint
     var bottomRight: CGPoint
@@ -113,6 +120,125 @@ struct DocumentCrop: Codable, Equatable {
 
     var points: [CGPoint] {
         [topLeft, topRight, bottomRight, bottomLeft]
+    }
+
+    static func visionNormalized(
+        topLeft: CGPoint,
+        topRight: CGPoint,
+        bottomRight: CGPoint,
+        bottomLeft: CGPoint
+    ) -> DocumentCrop {
+        func topLeftOrigin(_ point: CGPoint) -> CGPoint {
+            CGPoint(x: point.x, y: 1 - point.y)
+        }
+        return DocumentCrop(
+            topLeft: topLeftOrigin(topLeft),
+            topRight: topLeftOrigin(topRight),
+            bottomRight: topLeftOrigin(bottomRight),
+            bottomLeft: topLeftOrigin(bottomLeft)
+        )
+    }
+
+    func mapped(fromAspectFillImageSize sourceSize: CGSize, toImageSize targetSize: CGSize) -> DocumentCrop? {
+        guard sourceSize.width > 0, sourceSize.height > 0,
+              targetSize.width > 0, targetSize.height > 0 else {
+            return nil
+        }
+        let sourceAspect = sourceSize.width / sourceSize.height
+        let targetAspect = targetSize.width / targetSize.height
+        let visibleRect: CGRect
+        if sourceAspect < targetAspect {
+            let width = sourceAspect / targetAspect
+            visibleRect = CGRect(x: (1 - width) / 2, y: 0, width: width, height: 1)
+        } else {
+            let height = targetAspect / sourceAspect
+            visibleRect = CGRect(x: 0, y: (1 - height) / 2, width: 1, height: height)
+        }
+        func map(_ point: CGPoint) -> CGPoint {
+            CGPoint(
+                x: visibleRect.minX + point.x * visibleRect.width,
+                y: visibleRect.minY + point.y * visibleRect.height
+            )
+        }
+        return DocumentCrop(
+            topLeft: map(topLeft),
+            topRight: map(topRight),
+            bottomRight: map(bottomRight),
+            bottomLeft: map(bottomLeft)
+        )
+    }
+
+    func isValidForPerspectiveCorrection(
+        minArea: CGFloat = 0.08,
+        minimumEdgeLength: CGFloat = 0.08,
+        boundsEpsilon: CGFloat = 0.002
+    ) -> Bool {
+        guard points.allSatisfy({
+            $0.x.isFinite && $0.y.isFinite
+                && $0.x >= -boundsEpsilon && $0.x <= 1 + boundsEpsilon
+                && $0.y >= -boundsEpsilon && $0.y <= 1 + boundsEpsilon
+        }) else {
+            return false
+        }
+
+        let ordered = points
+        let crossProducts = ordered.indices.map { index -> CGFloat in
+            let first = ordered[index]
+            let second = ordered[(index + 1) % ordered.count]
+            let third = ordered[(index + 2) % ordered.count]
+            return (second.x - first.x) * (third.y - second.y)
+                - (second.y - first.y) * (third.x - second.x)
+        }
+        guard crossProducts.allSatisfy({ $0 > 0.0001 }) else { return false }
+
+        let area = zip(ordered, ordered.dropFirst() + [ordered[0]])
+            .reduce(CGFloat.zero) { result, pair in
+                result + pair.0.x * pair.1.y - pair.1.x * pair.0.y
+            } / 2
+        guard area >= minArea else { return false }
+
+        func length(_ first: CGPoint, _ second: CGPoint) -> CGFloat {
+            hypot(first.x - second.x, first.y - second.y)
+        }
+        let top = length(topLeft, topRight)
+        let right = length(topRight, bottomRight)
+        let bottom = length(bottomRight, bottomLeft)
+        let left = length(bottomLeft, topLeft)
+        guard min(top, right, bottom, left) >= minimumEdgeLength else { return false }
+        guard max(top, bottom) / min(top, bottom) < 3,
+              max(left, right) / min(left, right) < 3 else {
+            return false
+        }
+
+        let bounds = boundingRect
+        let aspect = bounds.width / bounds.height
+        return aspect.isFinite && aspect >= 0.2 && aspect <= 5
+    }
+
+    func coreImagePoints(in extent: CGRect) -> PixelPoints {
+        func map(_ point: CGPoint) -> CGPoint {
+            CGPoint(
+                x: extent.minX + point.x * extent.width,
+                y: extent.minY + (1 - point.y) * extent.height
+            )
+        }
+        return PixelPoints(
+            topLeft: map(topLeft),
+            topRight: map(topRight),
+            bottomRight: map(bottomRight),
+            bottomLeft: map(bottomLeft)
+        )
+    }
+
+    private var boundingRect: CGRect {
+        let xs = points.map(\.x)
+        let ys = points.map(\.y)
+        return CGRect(
+            x: xs.min() ?? 0,
+            y: ys.min() ?? 0,
+            width: (xs.max() ?? 0) - (xs.min() ?? 0),
+            height: (ys.max() ?? 0) - (ys.min() ?? 0)
+        )
     }
 
     func clamped() -> DocumentCrop {
