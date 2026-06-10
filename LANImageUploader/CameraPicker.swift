@@ -780,6 +780,10 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     private let session = AVCaptureSession()
     private let sessionQueue = DispatchQueue(label: "ImageDrop.scanner.session")
     private let detectionQueue = DispatchQueue(label: "ImageDrop.scanner.detection")
+    private let photoProcessingQueue = DispatchQueue(
+        label: "ImageDrop.scanner.photo-processing",
+        qos: .userInitiated
+    )
     private let photoOutput = AVCapturePhotoOutput()
     private let videoOutput = AVCaptureVideoDataOutput()
     private let previewLayer = AVCaptureVideoPreviewLayer()
@@ -1000,25 +1004,35 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.captureInProgress = false
-            if let image {
-                if self.pendingCaptureMode == .scan {
+            guard let image else { return }
+            let captureMode = self.pendingCaptureMode
+            let detection = self.pendingCaptureDetection
+            let previewSize = self.pendingPhotoPreviewSize
+            self.photoProcessingQueue.async { [weak self] in
+                guard let self else { return }
+                if captureMode == .scan {
                     let upright = PhotoCaptureFraming.normalizedOrientationImage(image)
                     let photoSize = upright.cgImage.map {
                         CGSize(width: $0.width, height: $0.height)
                     } ?? upright.size
-                    let crop = self.pendingCaptureDetection?
+                    let crop = detection?
                         .crop
                         .mapped(
-                            fromAspectFillImageSize: self.pendingCaptureDetection?.orientedBufferSize ?? .zero,
+                            fromAspectFillImageSize: detection?.orientedBufferSize ?? .zero,
                             toImageSize: photoSize
                         )
                         .flatMap { $0.isValidForPerspectiveCorrection() ? $0.clamped() : nil }
-                    self.onScanCapture?(upright, crop)
+                    DispatchQueue.main.async {
+                        self.onScanCapture?(upright, crop)
+                    }
                 } else {
-                    self.onPhotoCapture?(PhotoCaptureFraming.image(
+                    let framed = PhotoCaptureFraming.image(
                         image,
-                        matchingAspectFillPreview: self.pendingPhotoPreviewSize
-                    ))
+                        matchingAspectFillPreview: previewSize
+                    )
+                    DispatchQueue.main.async {
+                        self.onPhotoCapture?(framed)
+                    }
                 }
             }
         }

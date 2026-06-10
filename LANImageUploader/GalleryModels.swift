@@ -191,10 +191,12 @@ struct DocumentCrop: Codable, Equatable {
         }
         guard crossProducts.allSatisfy({ $0 > 0.0001 }) else { return false }
 
-        let area = zip(ordered, ordered.dropFirst() + [ordered[0]])
-            .reduce(CGFloat.zero) { result, pair in
-                result + pair.0.x * pair.1.y - pair.1.x * pair.0.y
-            } / 2
+        let area = (
+            ordered[0].x * ordered[1].y - ordered[1].x * ordered[0].y
+                + ordered[1].x * ordered[2].y - ordered[2].x * ordered[1].y
+                + ordered[2].x * ordered[3].y - ordered[3].x * ordered[2].y
+                + ordered[3].x * ordered[0].y - ordered[0].x * ordered[3].y
+        ) / 2
         guard area >= minArea else { return false }
 
         func length(_ first: CGPoint, _ second: CGPoint) -> CGFloat {
@@ -406,9 +408,10 @@ enum DocumentImageProcessor {
             colorSpace: CGColorSpaceCreateDeviceRGB()
         )
         let blackPixels = stride(from: 0, to: pixels.count, by: 4).reduce(into: 0) { count, index in
-            let luminance = 0.2126 * Double(pixels[index])
-                + 0.7152 * Double(pixels[index + 1])
-                + 0.0722 * Double(pixels[index + 2])
+            let red = Int(pixels[index])
+            let green = Int(pixels[index + 1])
+            let blue = Int(pixels[index + 2])
+            let luminance = (54 * red + 183 * green + 19 * blue) >> 8
             if luminance < 8 {
                 count += 1
             }
