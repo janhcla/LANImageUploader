@@ -856,6 +856,28 @@ struct LANImageUploaderTests {
         #expect(xrefSection.contains(" 00000 n "))
     }
 
+    @Test func generatedPDFAnchorsPageNumbersToFooter() async throws {
+        let source = Self.makeCompressionTestImage(size: CGSize(width: 1200, height: 700))
+        let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).jpg")
+        try #require(source.jpegData(compressionQuality: 1)).write(to: sourceURL)
+        let item = GalleryItem(
+            id: UUID(),
+            capturedImage: CapturedImage(name: "landscape", fileURL: sourceURL, crop: .fullFrame, isDocumentScan: true),
+            rotation: .degrees0
+        )
+        defer { try? FileManager.default.removeItem(at: sourceURL) }
+
+        let pdf = try await PDFGenerationService.shared.generatePDF(
+            from: [item],
+            outputName: "footer",
+            settings: PDFSettings(includePageNumbers: true)
+        )
+        defer { try? FileManager.default.removeItem(at: pdf) }
+
+        let text = try #require(String(data: Data(contentsOf: pdf), encoding: .isoLatin1))
+        #expect(text.contains("12.000 Td (1 / 1) Tj ET"))
+    }
+
     @Test @MainActor func deleteAllRetainedImagesClearsGalleryAndRemovesFiles() async {
         let mockFile = MockFileService()
         let appData = AppData(
