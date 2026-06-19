@@ -822,6 +822,62 @@ struct LANImageUploaderTests {
         #expect(try Data(contentsOf: lowQuality).count < Data(contentsOf: highQuality).count)
     }
 
+    @Test func generatedPDFUsesLegacyCompatibleJPEGColorSpace() async throws {
+        let source = Self.makeCompressionTestImage(size: CGSize(width: 800, height: 1100))
+        let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).jpg")
+        try #require(source.jpegData(compressionQuality: 1)).write(to: sourceURL)
+        let item = GalleryItem(
+            id: UUID(),
+            capturedImage: CapturedImage(name: "scan", fileURL: sourceURL, crop: .fullFrame, isDocumentScan: true),
+            rotation: .degrees0
+        )
+        defer { try? FileManager.default.removeItem(at: sourceURL) }
+
+        let pdf = try await PDFGenerationService.shared.generatePDF(
+            from: [item],
+            outputName: "compatible",
+            settings: PDFSettings(includePageNumbers: false)
+        )
+        defer { try? FileManager.default.removeItem(at: pdf) }
+
+        let contents = try Data(contentsOf: pdf)
+        #expect(contents.starts(with: Data([0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x33, 0x0A, 0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A])))
+        #expect(contents.range(of: Data("/Filter /DCTDecode".utf8)) != nil)
+        #expect(contents.range(of: Data("/ColorSpace /DeviceRGB".utf8)) != nil)
+        #expect(contents.range(of: Data("/ICCBased".utf8)) == nil)
+        #expect(contents.range(of: Data("\nendstream".utf8)) != nil)
+
+        let text = try #require(String(data: contents, encoding: .isoLatin1))
+        let xrefStart = try #require(text.range(of: "\nxref\n")?.upperBound)
+        let xrefRemainder = text[xrefStart...]
+        let xrefEnd = try #require(xrefRemainder.range(of: "\ntrailer\n")?.lowerBound)
+        let xrefSection = xrefRemainder[..<xrefEnd]
+        #expect(xrefSection.utf8.allSatisfy { $0 < 128 })
+        #expect(xrefSection.contains(" 00000 n "))
+    }
+
+    @Test func generatedPDFAnchorsPageNumbersToFooter() async throws {
+        let source = Self.makeCompressionTestImage(size: CGSize(width: 1200, height: 700))
+        let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).jpg")
+        try #require(source.jpegData(compressionQuality: 1)).write(to: sourceURL)
+        let item = GalleryItem(
+            id: UUID(),
+            capturedImage: CapturedImage(name: "landscape", fileURL: sourceURL, crop: .fullFrame, isDocumentScan: true),
+            rotation: .degrees0
+        )
+        defer { try? FileManager.default.removeItem(at: sourceURL) }
+
+        let pdf = try await PDFGenerationService.shared.generatePDF(
+            from: [item],
+            outputName: "footer",
+            settings: PDFSettings(includePageNumbers: true)
+        )
+        defer { try? FileManager.default.removeItem(at: pdf) }
+
+        let text = try #require(String(data: Data(contentsOf: pdf), encoding: .isoLatin1))
+        #expect(text.contains("12.000 Td (1 / 1) Tj ET"))
+    }
+
     @Test @MainActor func deleteAllRetainedImagesClearsGalleryAndRemovesFiles() async {
         let mockFile = MockFileService()
         let appData = AppData(

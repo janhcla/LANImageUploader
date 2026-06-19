@@ -9,6 +9,14 @@ import UIKit
 @testable import LANImageUploader
 
 struct GalleryModelsTests {
+    @Test func scanCameraGalleryRouteUsesSinglePDFOutput() {
+        #expect(CameraGalleryRoute(captureMode: .scan).outputMode == .singlePDF)
+    }
+
+    @Test func photoCameraGalleryRouteUsesSeparateImagesOutput() {
+        #expect(CameraGalleryRoute(captureMode: .photo).outputMode == .separateImages)
+    }
+
 
     @Test func testImageRotationNextClockwise() {
         #expect(ImageRotation.degrees0.nextClockwise == .degrees90)
