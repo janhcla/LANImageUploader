@@ -7,14 +7,22 @@
 
 import SwiftUI
 
+struct CameraGalleryRoute: Identifiable {
+    let id = UUID()
+    let outputMode: GalleryOutputMode
+
+    init(captureMode: CameraCaptureMode) {
+        outputMode = captureMode == .scan ? .singlePDF : .separateImages
+    }
+}
+
 struct CameraView: View {
     let initialMode: CameraCaptureMode
     @State private var showError = false
     @State private var errorMessage = ""
     @EnvironmentObject var appData: AppData
     @Environment(\.dismiss) var dismiss
-    @State private var navigateToGallery = false
-    @State private var galleryOutputMode: GalleryOutputMode?
+    @State private var galleryRoute: CameraGalleryRoute?
 
     var body: some View {
         let scannedCount = appData.images.filter(\.isDocumentScan).count
@@ -37,8 +45,7 @@ struct CameraView: View {
                 appData.hapticService.playImpact(style: .medium)
             },
             onOpenGallery: { mode in
-                galleryOutputMode = mode == .scan ? .singlePDF : .separateImages
-                navigateToGallery = true
+                galleryRoute = CameraGalleryRoute(captureMode: mode)
             },
             onCancel: { dismiss() }
         )
@@ -47,14 +54,14 @@ struct CameraView: View {
         } message: {
             Text(errorMessage)
         }
-        .fullScreenCover(isPresented: $navigateToGallery) {
+        .fullScreenCover(item: $galleryRoute) { route in
             NavigationStack {
-                GalleryView(initialOutputMode: galleryOutputMode)
+                GalleryView(initialOutputMode: route.outputMode)
                     .environmentObject(appData)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
                             Button("Close") {
-                                navigateToGallery = false
+                                galleryRoute = nil
                             }
                         }
                     }
