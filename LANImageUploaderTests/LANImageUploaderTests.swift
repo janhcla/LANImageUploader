@@ -841,9 +841,22 @@ struct LANImageUploaderTests {
         defer { try? FileManager.default.removeItem(at: pdf) }
 
         let contents = try Data(contentsOf: pdf)
+        #expect(contents.starts(with: Data([0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x33, 0x0A, 0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A])))
         #expect(contents.range(of: Data("/Filter /DCTDecode".utf8)) != nil)
         #expect(contents.range(of: Data("/ColorSpace /DeviceRGB".utf8)) != nil)
         #expect(contents.range(of: Data("/ICCBased".utf8)) == nil)
+        #expect(contents.range(of: Data("\nendstream".utf8)) != nil)
+
+        let text = try #require(String(data: contents, encoding: .isoLatin1))
+        let xrefStart = try #require(text.range(of: "\nxref\n")?.upperBound)
+        let xrefRemainder = text[xrefStart...]
+        let xrefEnd = try #require(xrefRemainder.range(of: "\ntrailer\n")?.lowerBound)
+        let xrefSection = xrefRemainder[..<xrefEnd]
+        let xrefLines = xrefSection.components(separatedBy: "\n").filter { $0.hasSuffix(" 00000 n ") }
+        #expect(!xrefLines.isEmpty)
+        #expect(xrefLines.allSatisfy { line in
+            line.count == 20 && line.prefix(10).allSatisfy(\.isASCII) && line.prefix(10).allSatisfy(\.isNumber)
+        })
     }
 
     @Test @MainActor func deleteAllRetainedImagesClearsGalleryAndRemovesFiles() async {

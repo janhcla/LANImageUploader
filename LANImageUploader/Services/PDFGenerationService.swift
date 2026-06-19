@@ -114,16 +114,23 @@ private enum LegacyPDFWriter {
                 commands += "BT /F1 10 Tf \(x) \(max(8, pageRect.height - r.maxY - 18)) Td (\(number)) Tj ET\n"
             }
             let content = ascii(commands)
-            var stream = ascii("<< /Length \(content.count) >>\nstream\n"); stream.append(content); stream.append(ascii("endstream")); objects.append(stream)
+            var stream = ascii("<< /Length \(content.count) >>\nstream\n")
+            stream.append(content)
+            stream.append(ascii("\nendstream"))
+            objects.append(stream)
         }
-        var result = ascii("%PDF-1.3\n%\u{00E2}\u{00E3}\u{00CF}\u{00D3}\n")
+        var result = ascii("%PDF-1.3\n%")
+        result.append(contentsOf: [0xE2, 0xE3, 0xCF, 0xD3])
+        result.append(ascii("\n"))
         var offsets = [0]
         for (index, object) in objects.enumerated() {
             offsets.append(result.count); result.append(ascii("\(index + 1) 0 obj\n")); result.append(object); result.append(ascii("\nendobj\n"))
         }
         let xref = result.count
         result.append(ascii("xref\n0 \(objects.count + 1)\n0000000000 65535 f \n"))
-        for offset in offsets.dropFirst() { result.append(ascii(String(format: "%010d 00000 n \n", offset))) }
+        for offset in offsets.dropFirst() {
+            result.append(ascii(String(format: "%010d 00000 n \n", locale: Locale(identifier: "en_US_POSIX"), offset)))
+        }
         result.append(ascii("trailer\n<< /Size \(objects.count + 1) /Root 1 0 R >>\nstartxref\n\(xref)\n%%EOF\n"))
         try result.write(to: url, options: .atomic)
     }
