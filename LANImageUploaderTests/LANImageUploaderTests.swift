@@ -822,6 +822,30 @@ struct LANImageUploaderTests {
         #expect(try Data(contentsOf: lowQuality).count < Data(contentsOf: highQuality).count)
     }
 
+    @Test func generatedPDFUsesLegacyCompatibleJPEGColorSpace() async throws {
+        let source = Self.makeCompressionTestImage(size: CGSize(width: 800, height: 1100))
+        let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).jpg")
+        try #require(source.jpegData(compressionQuality: 1)).write(to: sourceURL)
+        let item = GalleryItem(
+            id: UUID(),
+            capturedImage: CapturedImage(name: "scan", fileURL: sourceURL, crop: .fullFrame, isDocumentScan: true),
+            rotation: .degrees0
+        )
+        defer { try? FileManager.default.removeItem(at: sourceURL) }
+
+        let pdf = try await PDFGenerationService.shared.generatePDF(
+            from: [item],
+            outputName: "compatible",
+            settings: PDFSettings(includePageNumbers: false)
+        )
+        defer { try? FileManager.default.removeItem(at: pdf) }
+
+        let contents = try Data(contentsOf: pdf)
+        #expect(contents.range(of: Data("/Filter /DCTDecode".utf8)) != nil)
+        #expect(contents.range(of: Data("/ColorSpace /DeviceRGB".utf8)) != nil)
+        #expect(contents.range(of: Data("/ICCBased".utf8)) == nil)
+    }
+
     @Test @MainActor func deleteAllRetainedImagesClearsGalleryAndRemovesFiles() async {
         let mockFile = MockFileService()
         let appData = AppData(
