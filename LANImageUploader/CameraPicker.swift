@@ -119,6 +119,7 @@ struct CameraZoomOption: Identifiable, Equatable {
     }
 
     static let standard = CameraZoomOption(factor: 1, displayFactor: 1)
+    static let preferredDisplayFactors: [CGFloat] = [0.5, 1, 2, 3, 4]
 }
 
 struct PhotoCaptureFraming {
@@ -152,6 +153,21 @@ struct PhotoCaptureFraming {
         ).integral.intersection(CGRect(origin: .zero, size: size))
         guard !crop.isEmpty, let framed = cgImage.cropping(to: crop) else { return upright }
         return UIImage(cgImage: framed, scale: upright.scale, orientation: .up)
+    }
+
+    static func visibleCrop(imageSize: CGSize, previewSize: CGSize) -> DocumentCrop {
+        let rect = normalizedVisibleRect(imageSize: imageSize, previewSize: previewSize)
+        return DocumentCrop(
+            topLeft: CGPoint(x: rect.minX, y: rect.minY),
+            topRight: CGPoint(x: rect.maxX, y: rect.minY),
+            bottomRight: CGPoint(x: rect.maxX, y: rect.maxY),
+            bottomLeft: CGPoint(x: rect.minX, y: rect.maxY)
+        )
+    }
+
+    static func crop(_ crop: DocumentCrop, isVisibleIn visibleRect: CGRect, epsilon: CGFloat = 0.002) -> Bool {
+        let expanded = visibleRect.insetBy(dx: -epsilon, dy: -epsilon)
+        return crop.points.allSatisfy(expanded.contains)
     }
 
     static func normalizedOrientationImage(_ image: UIImage) -> UIImage {
@@ -252,7 +268,7 @@ struct DocumentPreviewGeometry {
 struct ScannerCaptureView: View {
     let keptPhotoCount: Int
     let scannedPageCount: Int
-    let onScanCapture: (UIImage, DocumentCrop?) -> Void
+    let onScanCapture: (Data, DocumentCrop?, @escaping () -> Void) -> Void
     let onKeepPhoto: (UIImage) -> Void
     let onCountdownTick: () -> Void
     let onOpenGallery: (CameraCaptureMode) -> Void
@@ -272,7 +288,7 @@ struct ScannerCaptureView: View {
         initialMode: CameraCaptureMode,
         keptPhotoCount: Int,
         scannedPageCount: Int,
-        onScanCapture: @escaping (UIImage, DocumentCrop?) -> Void,
+        onScanCapture: @escaping (Data, DocumentCrop?, @escaping () -> Void) -> Void,
         onKeepPhoto: @escaping (UIImage) -> Void,
         onCountdownTick: @escaping () -> Void,
         onOpenGallery: @escaping (CameraCaptureMode) -> Void,
@@ -686,7 +702,7 @@ struct DocumentCameraPreview: UIViewControllerRepresentable {
     @Binding var autoCapture: Bool
     let captureRequest: UUID
     let selectedZoomFactor: CGFloat
-    let onScanCapture: (UIImage, DocumentCrop?) -> Void
+    let onScanCapture: (Data, DocumentCrop?, @escaping () -> Void) -> Void
     let onPhotoCapture: (UIImage) -> Void
     let onDetectionChanged: (String, Bool) -> Void
     let onCountdownChanged: (Int?) -> Void
@@ -761,7 +777,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
             onDetectionChanged?(newValue == .scan ? "Point the camera at a document" : "", false)
         }
     }
-    var onScanCapture: ((UIImage, DocumentCrop?) -> Void)?
+    var onScanCapture: ((Data, DocumentCrop?, @escaping () -> Void) -> Void)?
     var onPhotoCapture: ((UIImage) -> Void)?
     var onDetectionChanged: ((String, Bool) -> Void)?
     var onCountdownChanged: ((Int?) -> Void)?
@@ -976,12 +992,19 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     }
 
     func capturePage(autoTriggered: Bool = false) {
-        guard session.isRunning, !captureInProgress else { return }
+        guard !captureInProgress else { return }
         captureInProgress = true
         pendingCaptureMode = mode
         let currentGeneration = orientationLock.withLock { orientationGeneration }
         pendingCaptureDetection = mode == .scan
-            ? latestDetection.flatMap { $0.orientationGeneration == currentGeneration ? $0 : nil }
+            ? latestDetection.flatMap { detection in
+                guard detection.orientationGeneration == currentGeneration else { return nil }
+                return DetectedCrop(
+                    crop: displayedCrop ?? detection.crop,
+                    orientedBufferSize: detection.orientedBufferSize,
+                    orientationGeneration: detection.orientationGeneration
+                )
+            }
             : nil
         pendingPhotoPreviewSize = previewLayer.bounds.size
         if autoTriggered, mode == .scan {
@@ -990,7 +1013,15 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         }
         let settings = AVCapturePhotoSettings()
         settings.flashMode = photoOutput.supportedFlashModes.contains(.auto) ? .auto : .off
-        photoOutput.capturePhoto(with: settings, delegate: self)
+        sessionQueue.async { [weak self] in
+            guard let self, self.session.isRunning else {
+                DispatchQueue.main.async { self?.captureInProgress = false }
+                return
+            }
+            // The session queue also applies zoom changes, so queuing capture here
+            // guarantees that the saved photo uses the zoom shown as selected.
+            self.photoOutput.capturePhoto(with: settings, delegate: self)
+        }
     }
 
     func photoOutput(
@@ -998,40 +1029,64 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         didFinishProcessingPhoto photo: AVCapturePhoto,
         error: Error?
     ) {
-        let image = error == nil
-            ? photo.fileDataRepresentation().flatMap(UIImage.init(data:))
-            : nil
+        let data = error == nil ? photo.fileDataRepresentation() : nil
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.captureInProgress = false
-            guard let image else { return }
+            guard let data else {
+                self.captureInProgress = false
+                return
+            }
             let captureMode = self.pendingCaptureMode
             let detection = self.pendingCaptureDetection
             let previewSize = self.pendingPhotoPreviewSize
             self.photoProcessingQueue.async { [weak self] in
                 guard let self else { return }
                 if captureMode == .scan {
-                    let upright = PhotoCaptureFraming.normalizedOrientationImage(image)
-                    let photoSize = upright.cgImage.map {
-                        CGSize(width: $0.width, height: $0.height)
-                    } ?? upright.size
-                    let crop = detection?
+                    guard let photoSize = CIImage(
+                        data: data,
+                        options: [.applyOrientationProperty: true]
+                    )?.extent.size else {
+                        DispatchQueue.main.async { self.captureInProgress = false }
+                        return
+                    }
+                    let visibleRect = PhotoCaptureFraming.normalizedVisibleRect(
+                        imageSize: photoSize,
+                        previewSize: previewSize
+                    )
+                    let detectedCrop = detection?
                         .crop
                         .mapped(
                             fromAspectFillImageSize: detection?.orientedBufferSize ?? .zero,
                             toImageSize: photoSize
                         )
                         .flatMap { $0.isValidForPerspectiveCorrection() ? $0.clamped() : nil }
+                    let crop = detectedCrop.flatMap {
+                        PhotoCaptureFraming.crop($0, isVisibleIn: visibleRect) ? $0 : nil
+                    } ?? PhotoCaptureFraming.visibleCrop(
+                        imageSize: photoSize,
+                        previewSize: previewSize
+                    )
                     DispatchQueue.main.async {
-                        self.onScanCapture?(upright, crop)
+                        guard let onScanCapture = self.onScanCapture else {
+                            self.captureInProgress = false
+                            return
+                        }
+                        onScanCapture(data, crop) { [weak self] in
+                            self?.captureInProgress = false
+                        }
                     }
                 } else {
+                    guard let image = UIImage(data: data) else {
+                        DispatchQueue.main.async { self.captureInProgress = false }
+                        return
+                    }
                     let framed = PhotoCaptureFraming.image(
                         image,
                         matchingAspectFillPreview: previewSize
                     )
                     DispatchQueue.main.async {
                         self.onPhotoCapture?(framed)
+                        self.captureInProgress = false
                     }
                 }
             }
@@ -1291,10 +1346,9 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
 
     private func zoomOptions(for device: AVCaptureDevice) -> [CameraZoomOption] {
         let multiplier = device.displayVideoZoomFactorMultiplier
-        let desiredDisplayFactors: [CGFloat] = [0.5, 1, 2, 3]
         var factors = [device.minAvailableVideoZoomFactor, 1]
         factors.append(contentsOf: device.virtualDeviceSwitchOverVideoZoomFactors.map { CGFloat($0.doubleValue) })
-        factors.append(contentsOf: desiredDisplayFactors.map { $0 / multiplier })
+        factors.append(contentsOf: CameraZoomOption.preferredDisplayFactors.map { $0 / multiplier })
         let available = factors.filter {
             $0 >= device.minAvailableVideoZoomFactor && $0 <= device.maxAvailableVideoZoomFactor
         }.sorted()

@@ -70,6 +70,9 @@ struct GalleryItemView: View {
             .task(id: imageReloadID) {
                 await loadImage()
             }
+            .onDisappear {
+                uiImage = nil
+            }
 
             // Index badge
             Text("\(index + 1)")
@@ -133,18 +136,12 @@ struct GalleryItemView: View {
 
     @ViewBuilder
     private func thumbnailImage(_ image: UIImage, isDocumentScan: Bool) -> some View {
-        if isDocumentScan {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.black.opacity(0.16))
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-            }
-        } else {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.black.opacity(isDocumentScan ? 0.16 : 0.08))
             Image(uiImage: image)
                 .resizable()
-                .scaledToFill()
+                .scaledToFit()
         }
     }
 
@@ -162,7 +159,13 @@ struct GalleryItemView: View {
         }
 
         let image: UIImage? = await Task.detached(priority: .userInitiated) { () -> UIImage? in
-            DocumentImageProcessor.renderedImage(for: capturedImage, rotation: item.rotation)
+            autoreleasepool {
+                DocumentImageProcessor.renderedImage(
+                    for: capturedImage,
+                    rotation: item.rotation,
+                    maxPixelDimension: 640
+                )
+            }
         }.value
 
         await MainActor.run {

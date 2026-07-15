@@ -17,6 +17,24 @@ struct GalleryModelsTests {
         #expect(CameraGalleryRoute(captureMode: .photo).outputMode == .separateImages)
     }
 
+    @Test func cameraOffersAllSupportedUserFacingZoomTargets() {
+        #expect(CameraZoomOption.preferredDisplayFactors == [0.5, 1, 2, 3, 4])
+    }
+
+    @Test func visibleCropMatchesAspectFillPreviewFraming() {
+        let crop = PhotoCaptureFraming.visibleCrop(
+            imageSize: CGSize(width: 400, height: 300),
+            previewSize: CGSize(width: 300, height: 300)
+        )
+
+        #expect(abs(crop.topLeft.x - 0.125) < 0.001)
+        #expect(abs(crop.topRight.x - 0.875) < 0.001)
+        #expect(crop.topLeft.y == 0)
+        #expect(crop.bottomRight.y == 1)
+        #expect(PhotoCaptureFraming.crop(.fullFrame, isVisibleIn: CGRect(x: 0, y: 0, width: 1, height: 1)))
+        #expect(!PhotoCaptureFraming.crop(.fullFrame, isVisibleIn: CGRect(x: 0.125, y: 0, width: 0.75, height: 1)))
+    }
+
 
     @Test func testImageRotationNextClockwise() {
         #expect(ImageRotation.degrees0.nextClockwise == .degrees90)

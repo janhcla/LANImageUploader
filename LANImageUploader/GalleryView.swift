@@ -23,7 +23,7 @@ private enum GalleryNamingIntent {
     case batchRenameAndUpload
 }
 
-private struct GalleryExportRequest {
+private struct GalleryExportRequest: Sendable {
     let order: Int
     let image: CapturedImage
     let name: String
@@ -591,35 +591,31 @@ struct GalleryView: View {
         maxPixelDimension: CGFloat,
         jpegQuality: CGFloat
     ) async throws -> [UploadableFile] {
-        try await withThrowingTaskGroup(of: (Int, UploadableFile).self) { group in
-            for request in requests {
-                group.addTask {
-                    let file = try autoreleasepool {
-                        let exportURL = try DocumentImageProcessor.exportJPEG(
-                            for: request.image,
-                            rotation: request.image.rotation,
-                            name: request.name,
-                            maxPixelDimension: maxPixelDimension,
-                            jpegQuality: jpegQuality
-                        )
-                        return UploadableFile(
-                            id: request.image.id,
-                            name: request.name,
-                            fileURL: exportURL,
-                            kind: .jpeg,
-                            sourceImageIDs: [request.image.id]
-                        )
-                    }
-                    return (request.order, file)
+        var files: [(Int, UploadableFile)] = []
+        files.reserveCapacity(requests.count)
+        for request in requests {
+            try Task.checkCancellation()
+            let file = try await Task.detached(priority: .userInitiated) {
+                try autoreleasepool {
+                    let exportURL = try DocumentImageProcessor.exportJPEG(
+                        for: request.image,
+                        rotation: request.image.rotation,
+                        name: request.name,
+                        maxPixelDimension: maxPixelDimension,
+                        jpegQuality: jpegQuality
+                    )
+                    return UploadableFile(
+                        id: request.image.id,
+                        name: request.name,
+                        fileURL: exportURL,
+                        kind: .jpeg,
+                        sourceImageIDs: [request.image.id]
+                    )
                 }
-            }
-
-            var files: [(Int, UploadableFile)] = []
-            for try await file in group {
-                files.append(file)
-            }
-            return files.sorted { $0.0 < $1.0 }.map(\.1)
+            }.value
+            files.append((request.order, file))
         }
+        return files.sorted { $0.0 < $1.0 }.map(\.1)
     }
 
     @MainActor
