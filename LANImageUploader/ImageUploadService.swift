@@ -7,7 +7,6 @@
 
 import Foundation
 import AMSMB2
-import UIKit
 
 /// Service responsible for uploading images to an SMB share.
 final class ImageUploadService: ImageUploadServiceProtocol {
@@ -93,15 +92,7 @@ final class ImageUploadService: ImageUploadServiceProtocol {
         let fileData: Data
 
         switch file.kind {
-        case .jpeg:
-            guard let originalImage = UIImage(contentsOfFile: file.fileURL.path) else {
-                throw UploadError.fileUnreadable
-            }
-            guard let data = originalImage.jpegData(compressionQuality: 1.0) else {
-                throw UploadError.dataPreparationFailed
-            }
-            fileData = data
-        case .pdf:
+        case .jpeg, .pdf:
             do {
                 fileData = try Data(contentsOf: file.fileURL)
             } catch {

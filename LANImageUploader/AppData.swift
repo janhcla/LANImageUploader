@@ -135,6 +135,10 @@ struct UploadFailureDetail: Equatable {
 }
 
 class AppData: ObservableObject {
+    private struct SendableImage: @unchecked Sendable {
+        let value: UIImage
+    }
+
     @Published var images: [CapturedImage] = [] {
         didSet { saveImageQueue() }
     }
@@ -214,17 +218,43 @@ class AppData: ObservableObject {
         _ image: UIImage,
         crop: DocumentCrop? = nil,
         isDocumentScan: Bool? = nil,
-        capturedAt date: Date = Date()
+        capturedAt date: Date = Date(),
+        id: UUID = UUID()
+    ) async throws -> CapturedImage {
+        let sendableImage = SendableImage(value: image)
+        let data = try await Task.detached(priority: .userInitiated) {
+            try autoreleasepool {
+                guard let data = sendableImage.value.jpegData(compressionQuality: 0.8) else {
+                    throw CocoaError(.fileWriteUnknown)
+                }
+                return data
+            }
+        }.value
+
+        return try await saveCapturedImageData(
+            data,
+            crop: crop,
+            isDocumentScan: isDocumentScan,
+            capturedAt: date,
+            id: id
+        )
+    }
+
+    @discardableResult
+    func saveCapturedImageData(
+        _ data: Data,
+        crop: DocumentCrop? = nil,
+        isDocumentScan: Bool? = nil,
+        capturedAt date: Date = Date(),
+        id: UUID = UUID()
     ) async throws -> CapturedImage {
         let timestamp = CapturedImageTimestampFormatter.shared.string(from: date)
-        let fileName = "IMG_\(timestamp).jpg"
-
-        guard let data = image.jpegData(compressionQuality: 0.8) else {
-            throw CocoaError(.fileWriteUnknown)
-        }
+        let uniqueSuffix = id.uuidString.prefix(8).lowercased()
+        let fileName = "IMG_\(timestamp)_\(uniqueSuffix).jpg"
 
         let fileURL = try await fileService.saveImage(data, fileName: fileName)
         let captured = CapturedImage(
+            id: id,
             name: fileName.removingSuffix(".jpg"),
             fileURL: fileURL,
             crop: crop,

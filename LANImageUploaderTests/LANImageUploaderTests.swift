@@ -308,12 +308,47 @@ struct LANImageUploaderTests {
         components.second = 12
         let date = try #require(components.date)
 
-        let captured = try await appData.saveCapturedImage(image, capturedAt: date)
+        let captureID = UUID(uuidString: "12345678-1234-1234-1234-123456789abc")!
+        let captured = try await appData.saveCapturedImage(image, capturedAt: date, id: captureID)
 
         #expect(mockFile.savedImages.count == 1)
-        #expect(mockFile.savedImages.first?.fileName == "IMG_20260515_101112.jpg")
-        #expect(captured.name == "IMG_20260515_101112")
-        #expect(appData.images.map { $0.name } == ["IMG_20260515_101112"])
+        #expect(mockFile.savedImages.first?.fileName == "IMG_20260515_101112_12345678.jpg")
+        #expect(captured.name == "IMG_20260515_101112_12345678")
+        #expect(appData.images.map { $0.name } == ["IMG_20260515_101112_12345678"])
+    }
+
+    @Test @MainActor func scannerDataSavePreservesCompressedBytesAndUsesUniqueNames() async throws {
+        let mockFile = MockFileService()
+        let appData = AppData(
+            fileService: mockFile,
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService()
+        )
+        let data = Data([0xff, 0xd8, 0xff, 0xd9])
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        let firstID = UUID(uuidString: "aaaaaaaa-1234-1234-1234-123456789abc")!
+        let secondID = UUID(uuidString: "bbbbbbbb-1234-1234-1234-123456789abc")!
+
+        _ = try await appData.saveCapturedImageData(
+            data,
+            crop: .fullFrame,
+            isDocumentScan: true,
+            capturedAt: date,
+            id: firstID
+        )
+        _ = try await appData.saveCapturedImageData(
+            data,
+            crop: .fullFrame,
+            isDocumentScan: true,
+            capturedAt: date,
+            id: secondID
+        )
+
+        #expect(mockFile.savedImages.map(\.data) == [data, data])
+        #expect(mockFile.savedImages[0].fileName != mockFile.savedImages[1].fileName)
+        #expect(mockFile.savedImages[0].fileName.hasSuffix("_aaaaaaaa.jpg"))
+        #expect(mockFile.savedImages[1].fileName.hasSuffix("_bbbbbbbb.jpg"))
     }
 
     @Test func capturedImageTimestampFormatterIsDeterministicAndThreadSafe() async throws {
