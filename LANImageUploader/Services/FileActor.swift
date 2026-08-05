@@ -13,7 +13,8 @@ actor FileActor {
     
     /// The app's Documents directory.
     var documentsDirectory: URL {
-        fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
+            ?? fileManager.temporaryDirectory.appendingPathComponent("Documents", isDirectory: true)
     }
     
     func createDirectory(at url: URL) throws {

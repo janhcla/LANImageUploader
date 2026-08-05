@@ -5,6 +5,7 @@
 
 import OSLog
 import SwiftUI
+import UIKit
 
 private let logger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "LANImageUploader",
@@ -324,14 +325,16 @@ struct ArchiveView: View {
             for image in imagesToRestore {
                 group.addTask {
                     do {
-                        try? await self.appData.fileService.removeItem(at: image.destination)
+                        if await self.appData.fileService.fileExists(at: image.destination) {
+                            try await self.appData.fileService.removeItem(at: image.destination)
+                        }
                         try await self.appData.fileService.copyItem(at: image.source, to: image.destination)
                         let capturedImage = CapturedImage(
                             name: image.source.deletingPathExtension().lastPathComponent,
                             fileURL: image.destination)
                         return RestorationResult(successCount: 1, failureCount: 0, restoredImages: [capturedImage])
                     } catch {
-                        logger.error("Failed to restore archived image: \(error, privacy: .public)")
+                        logger.error("Failed to restore archived image: \(error, privacy: .private)")
                         return RestorationResult(successCount: 0, failureCount: 1, restoredImages: [])
                     }
                 }
@@ -371,7 +374,7 @@ struct ArchiveView: View {
                         try await appData.fileService.removeItem(at: archiveURL)
                         return date
                     } catch {
-                        print("Failed to delete archive \(date): \(error)")
+                        logger.error("Failed to delete archive: \(error, privacy: .private)")
                         return nil
                     }
                 }
@@ -417,7 +420,7 @@ struct ArchiveView: View {
                         try await appData.fileService.removeItem(at: archiveURL)
                         return archive
                     } catch {
-                        print("Failed to delete archive \(archive): \(error)")
+                        logger.error("Failed to delete archive: \(error, privacy: .private)")
                         return nil
                     }
                 }
@@ -539,20 +542,17 @@ struct ArchivedImagesView: View {
                     Text("Delete the selected images from the archive?")
                 }
                 .fullScreenCover(item: $selectedImageURL) { identifiableURL in
-                    if let imageData = try? Data(contentsOf: identifiableURL.url), let uiImage = UIImage(data: imageData) {
-                        FullscreenImageView(
-                            image: CapturedImage(name: identifiableURL.url.deletingPathExtension().lastPathComponent, fileURL: identifiableURL.url),
-                            uiImage: uiImage,
-                            onDelete: {
-                                selectedImages = [identifiableURL.url]
-                                Task { await deleteSelectedImages() }
-                                selectedImageURL = nil
-                            },
-                            onSave: {
-                                Task { await restoreImages([identifiableURL.url]) }
-                            }
-                        )
-                    }
+                    ArchivedImageViewer(
+                        imageURL: identifiableURL.url,
+                        onDelete: {
+                            selectedImages = [identifiableURL.url]
+                            Task { await deleteSelectedImages() }
+                            selectedImageURL = nil
+                        },
+                        onSave: {
+                            Task { await restoreImages([identifiableURL.url]) }
+                        }
+                    )
                 }
                 .onAppear {
                     Task { await refreshImages() }
@@ -565,53 +565,24 @@ struct ArchivedImagesView: View {
 
     @ViewBuilder
     func imageThumbnail(for imageURL: URL) -> some View {
-        let isSelected = selectedImages.contains(imageURL)
-        AsyncImage(url: imageURL) { phase in
-            if let image = phase.image {
-                image
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 100, height: 100)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(alignment: .topTrailing) {
-                        if isMultiSelectMode {
-                            ZStack {
-                                Color.black.opacity(isSelected ? 0.2 : 0)
-                                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(isSelected ? .blue : .white)
-                                    .padding(6)
-                                    .shadow(radius: 2)
-                            }
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                        }
+        ArchiveThumbnailView(
+            imageURL: imageURL,
+            isSelected: selectedImages.contains(imageURL),
+            isMultiSelectMode: isMultiSelectMode,
+            onTap: {
+                if !isMultiSelectMode {
+                    appData.hapticService.playSelection()
+                    selectedImageURL = IdentifiableURL(url: imageURL)
+                } else {
+                    appData.hapticService.playImpact(style: .light)
+                    if selectedImages.contains(imageURL) {
+                        selectedImages.remove(imageURL)
+                    } else {
+                        selectedImages.insert(imageURL)
                     }
-                    .onTapGesture {
-                        if !isMultiSelectMode {
-                            appData.hapticService.playSelection()
-                            selectedImageURL = IdentifiableURL(url: imageURL)
-                        } else {
-                            appData.hapticService.playImpact(style: .light)
-                            if selectedImages.contains(imageURL) {
-                                selectedImages.remove(imageURL)
-                            } else {
-                                selectedImages.insert(imageURL)
-                            }
-                        }
-                    }
-            } else if phase.error != nil {
-                Rectangle().fill(.secondary.opacity(0.2))
-                    .frame(width: 100, height: 100)
-                    .cornerRadius(12)
-                    .overlay(
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
-                    )
-            } else {
-                Rectangle().fill(.secondary.opacity(0.2))
-                    .frame(width: 100, height: 100)
-                    .cornerRadius(12)
+                }
             }
-        }
+        )
     }
 
     func restoreAllImages() async {
@@ -651,13 +622,15 @@ struct ArchivedImagesView: View {
                 for image in imagesToRestore {
                     group.addTask {
                         do {
-                            try? await appData.fileService.removeItem(at: image.destination)
+                            if await appData.fileService.fileExists(at: image.destination) {
+                                try await appData.fileService.removeItem(at: image.destination)
+                            }
                             try await appData.fileService.copyItem(at: image.source, to: image.destination)
                             return CapturedImage(
                                 name: image.source.deletingPathExtension().lastPathComponent,
                                 fileURL: image.destination)
                         } catch {
-                            logger.error("Failed to restore archived image: \(error, privacy: .public)")
+                            logger.error("Failed to restore archived image: \(error, privacy: .private)")
                             return nil
                         }
                     }
@@ -691,36 +664,53 @@ struct ArchivedImagesView: View {
         let dateFolder = docs.appendingPathComponent(date)
         let imagesToDelete = Array(selectedImages)
 
-        await withTaskGroup(of: Void.self) { group in
+        let deletedImages = await withTaskGroup(of: URL?.self) { group in
             for imageURL in imagesToDelete {
                 group.addTask {
                     do {
                         try await appData.fileService.removeItem(at: imageURL)
+                        return imageURL
                     } catch {
-                        print("Failed to delete image: \(error)")
+                        logger.error("Failed to delete archived image: \(error, privacy: .private)")
+                        return nil
                     }
                 }
             }
+
+            var deleted = Set<URL>()
+            for await imageURL in group {
+                if let imageURL { deleted.insert(imageURL) }
+            }
+            return deleted
         }
 
+        let failedCount = imagesToDelete.count - deletedImages.count
+
         // Check if the archive folder is now empty and delete it
-        do {
-            let remainingFiles = try await appData.fileService.contentsOfDirectory(at: dateFolder)
-            if remainingFiles.filter({ ["jpg", "png"].contains($0.pathExtension.lowercased()) }).isEmpty {
-                try await appData.fileService.removeItem(at: dateFolder)
-                await MainActor.run {
-                    dismiss()
+        if failedCount == 0 {
+            do {
+                let remainingFiles = try await appData.fileService.contentsOfDirectory(at: dateFolder)
+                if remainingFiles.filter({ ["jpg", "png"].contains($0.pathExtension.lowercased()) }).isEmpty {
+                    try await appData.fileService.removeItem(at: dateFolder)
+                    await MainActor.run {
+                        dismiss()
+                    }
+                    return
                 }
-                return
+            } catch {
+                logger.error("Failed to check or delete empty archive folder: \(error, privacy: .private)")
             }
-        } catch {
-            print("Error checking/deleting empty archive folder: \(error)")
         }
 
         await MainActor.run {
-            selectedImages.removeAll()
-            isMultiSelectMode = false
-            appData.hapticService.playNotification(type: .success)
+            selectedImages.subtract(deletedImages)
+            if failedCount == 0 {
+                isMultiSelectMode = false
+                appData.hapticService.playNotification(type: .success)
+            } else {
+                restoreMessage = "Deleted \(deletedImages.count) images. \(failedCount) could not be deleted and remain selected."
+                showRestoreConfirmation = true
+            }
         }
         await refreshImages()
     }
@@ -729,6 +719,126 @@ struct ArchivedImagesView: View {
         let urls = await appData.getImagesForDate(date)
         await MainActor.run {
             self.images = urls
+        }
+    }
+}
+
+private struct ArchiveThumbnailView: View {
+    let imageURL: URL
+    let isSelected: Bool
+    let isMultiSelectMode: Bool
+    let onTap: () -> Void
+
+    @State private var uiImage: UIImage?
+    @State private var loadFailed = false
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            if let uiImage {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .scaledToFill()
+            } else if loadFailed {
+                Rectangle()
+                    .fill(.secondary.opacity(0.2))
+                    .overlay {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.red)
+                    }
+            } else {
+                Rectangle()
+                    .fill(.secondary.opacity(0.2))
+                    .overlay { ProgressView() }
+            }
+
+            if isMultiSelectMode {
+                ZStack {
+                    Color.black.opacity(isSelected ? 0.2 : 0)
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(isSelected ? .blue : .white)
+                        .padding(6)
+                        .shadow(radius: 2)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+        }
+        .frame(width: 100, height: 100)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .onTapGesture(perform: onTap)
+        .task(id: imageURL) {
+            let url = imageURL
+            let image = await Task.detached(priority: .userInitiated) {
+                autoreleasepool {
+                    DocumentImageProcessor.renderedImage(
+                        for: CapturedImage(
+                            name: url.deletingPathExtension().lastPathComponent,
+                            fileURL: url
+                        ),
+                        maxPixelDimension: 320
+                    )
+                }
+            }.value
+            guard !Task.isCancelled else { return }
+            uiImage = image
+            loadFailed = image == nil
+        }
+    }
+}
+
+private struct ArchivedImageViewer: View {
+    let imageURL: URL
+    let onDelete: () -> Void
+    let onSave: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var uiImage: UIImage?
+    @State private var loadFailed = false
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            if let uiImage {
+                FullscreenImageView(
+                    image: CapturedImage(
+                        name: imageURL.deletingPathExtension().lastPathComponent,
+                        fileURL: imageURL
+                    ),
+                    uiImage: uiImage,
+                    onDelete: onDelete,
+                    onSave: onSave
+                )
+            } else if loadFailed {
+                VStack(spacing: 16) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.largeTitle)
+                    Text("Could not load this archived image.")
+                    Button("Close") { dismiss() }
+                        .buttonStyle(.borderedProminent)
+                }
+                .foregroundStyle(.white)
+            } else {
+                ProgressView("Loading image...")
+                    .tint(.white)
+                    .foregroundStyle(.white)
+            }
+        }
+        .task(id: imageURL) {
+            let url = imageURL
+            let image = await Task.detached(priority: .userInitiated) {
+                autoreleasepool {
+                    DocumentImageProcessor.renderedImage(
+                        for: CapturedImage(
+                            name: url.deletingPathExtension().lastPathComponent,
+                            fileURL: url
+                        ),
+                        maxPixelDimension: 2400
+                    )
+                }
+            }.value
+            guard !Task.isCancelled else { return }
+            uiImage = image
+            loadFailed = image == nil
         }
     }
 }

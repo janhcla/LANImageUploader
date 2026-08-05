@@ -89,6 +89,7 @@ final class ImageUploadService: ImageUploadServiceProtocol {
         overwrite: Bool = false,
         onProgress: @escaping @Sendable (Double) -> Void
     ) async throws {
+        try Task.checkCancellation()
         let fileData: Data
 
         switch file.kind {
@@ -104,6 +105,8 @@ final class ImageUploadService: ImageUploadServiceProtocol {
             throw UploadError.invalidServerURL
         }
 
+        try Task.checkCancellation()
+
         guard let client = SMB2Manager(
             url: serverURL,
             credential: URLCredential(
@@ -117,6 +120,7 @@ final class ImageUploadService: ImageUploadServiceProtocol {
 
         do {
             try await client.connectShare(name: settings.shareName)
+            try Task.checkCancellation()
             
             let targetDir = settings.targetDirectory?.trimmingCharacters(in: .init(charactersIn: "/\\")) ?? ""
 
@@ -125,6 +129,7 @@ final class ImageUploadService: ImageUploadServiceProtocol {
 
             // Check for duplicates if not overwriting
             if !overwrite {
+                try Task.checkCancellation()
                 let parentPath = targetDir.isEmpty ? "" : targetDir
                 do {
                     let contents = try await client.contentsOfDirectory(atPath: parentPath)
@@ -140,6 +145,7 @@ final class ImageUploadService: ImageUploadServiceProtocol {
 
             // Ensure target directory exists
             if !targetDir.isEmpty {
+                try Task.checkCancellation()
                 do {
                     _ = try await client.contentsOfDirectory(atPath: targetDir)
                 } catch {
@@ -152,12 +158,17 @@ final class ImageUploadService: ImageUploadServiceProtocol {
             // reporting failure.
             do {
                 try await client.write(data: fileData, toPath: destinationPath) { progressBytes in
+                    guard !Task.isCancelled else { return false }
                     let totalSize = Double(fileData.count)
                     let progressFraction = totalSize > 0 ? Double(progressBytes) / totalSize : 0.0
                     onProgress(progressFraction)
-                    return true
+                    return !Task.isCancelled
                 }
+                try Task.checkCancellation()
             } catch {
+                if Task.isCancelled {
+                    throw CancellationError()
+                }
                 let writeError = error
                 if (try? await remoteFileMatchesExpectedContents(
                     client: client,
@@ -171,6 +182,9 @@ final class ImageUploadService: ImageUploadServiceProtocol {
             }
 
             try? await client.disconnectShare()
+        } catch is CancellationError {
+            try? await client.disconnectShare()
+            throw CancellationError()
         } catch {
             try? await client.disconnectShare()
             throw mapUnderlyingError(error, fileName: destinationFileName(for: file))

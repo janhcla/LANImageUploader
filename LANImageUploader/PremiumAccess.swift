@@ -7,6 +7,7 @@
 
 import Foundation
 import Security
+import StoreKit
 
 struct PremiumAccessState: Equatable {
     let isFullAppUnlocked: Bool
@@ -43,7 +44,7 @@ protocol PremiumAccessPersisting {
 final class PremiumAccessController: ObservableObject {
     private var store: PremiumAccessPersisting
     private let trialUploadLimit: Int
-    private let canUsePremiumOverride: () -> Bool
+    private var premiumOverrideAllowed: Bool
 
     @Published private(set) var state: PremiumAccessState
 
@@ -54,8 +55,8 @@ final class PremiumAccessController: ObservableObject {
     ) {
         self.store = store
         self.trialUploadLimit = trialUploadLimit
-        self.canUsePremiumOverride = canUsePremiumOverride
-        let overrideAllowed = canUsePremiumOverride()
+        self.premiumOverrideAllowed = canUsePremiumOverride()
+        let overrideAllowed = premiumOverrideAllowed
         let overrideEnabled = overrideAllowed && store.isPremiumOverrideEnabled
         self.state = PremiumAccessState(
             isFullAppUnlocked: store.hasPurchasedFullUnlock || overrideEnabled,
@@ -73,7 +74,7 @@ final class PremiumAccessController: ObservableObject {
     }
 
     func setPremiumOverrideEnabled(_ isEnabled: Bool) {
-        guard canUsePremiumOverride() else {
+        guard premiumOverrideAllowed else {
             store.isPremiumOverrideEnabled = false
             reload()
             return
@@ -88,7 +89,7 @@ final class PremiumAccessController: ObservableObject {
     }
 
     func reload() {
-        let overrideAllowed = canUsePremiumOverride()
+        let overrideAllowed = premiumOverrideAllowed
         if !overrideAllowed, store.isPremiumOverrideEnabled {
             store.isPremiumOverrideEnabled = false
         }
@@ -101,20 +102,34 @@ final class PremiumAccessController: ObservableObject {
             trialUploadLimit: trialUploadLimit
         )
     }
+
+    func refreshPremiumOverrideEligibility() async {
+        let isAllowed = await AppDistribution.resolvePremiumOverrideEligibility()
+        await MainActor.run {
+            self.premiumOverrideAllowed = isAllowed
+            self.reload()
+        }
+    }
 }
 
 enum AppDistribution {
+    // TESTFLIGHT_BUILD is supplied explicitly when creating a TestFlight
+    // candidate. App Store archives omit it, so the validation control and its
+    // implementation are not compiled into the submitted production binary.
     static func allowsPremiumOverride() -> Bool {
-        #if DEBUG
+        #if DEBUG || TESTFLIGHT_BUILD
         return true
         #else
-        return isRunningFromTestFlightReceipt
+        return false
         #endif
     }
 
-    private static var isRunningFromTestFlightReceipt: Bool {
-        guard let receiptURL = Bundle.main.appStoreReceiptURL else { return false }
-        return receiptURL.lastPathComponent == "sandboxReceipt"
+    static func resolvePremiumOverrideEligibility() async -> Bool {
+        #if DEBUG || TESTFLIGHT_BUILD
+        return true
+        #else
+        return false
+        #endif
     }
 }
 
@@ -155,7 +170,7 @@ final class KeychainPremiumAccessStore: PremiumAccessPersisting {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
-            kSecReturnData as String: kCFBooleanTrue!,
+            kSecReturnData as String: NSNumber(value: true),
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
         var dataTypeRef: AnyObject?

@@ -40,14 +40,38 @@ struct FullAppUnlockView: View {
                             Text("Unlock for \(displayedPrice)")
                         }
                     }
-                    .disabled(purchaseManager.isLoading || purchaseManager.isPurchasing)
+                    .disabled(purchaseManager.isLoading || purchaseManager.isPurchasing || purchaseManager.isRestoring)
                 }
+
+                Button {
+                    Task {
+                        await purchaseManager.restorePurchases(accessController: appData.premiumAccess)
+                    }
+                } label: {
+                    if purchaseManager.isRestoring {
+                        ProgressView("Restoring Purchases…")
+                    } else {
+                        Text("Restore Purchases")
+                    }
+                }
+                .accessibilityIdentifier("restore-purchases-button")
+                .disabled(purchaseManager.isPurchasing || purchaseManager.isRestoring)
             }
 
             if let error = purchaseManager.purchaseErrorMessage {
                 Section("Purchase Status") {
                     Text(error)
                         .foregroundStyle(.red)
+                }
+            }
+
+            if let restorationStatus = purchaseManager.restorationStatus {
+                Section("Restore Status") {
+                    Label(
+                        restorationStatus.message,
+                        systemImage: restorationStatus.isError ? "exclamationmark.triangle.fill" : "checkmark.seal.fill"
+                    )
+                    .foregroundStyle(restorationStatus.isError ? .red : .green)
                 }
             }
         }

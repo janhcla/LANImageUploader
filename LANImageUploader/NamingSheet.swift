@@ -174,7 +174,7 @@ struct OCRCameraView: UIViewControllerRepresentable {
                 uiViewController.stopScanning()
             }
         } catch {
-            print("Scanning error: \(error.localizedDescription)")
+            // OCR is optional; the naming workflow remains available if scanning fails.
         }
     }
 

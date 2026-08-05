@@ -35,7 +35,9 @@ final class MockFileService: FileServiceProtocol, @unchecked Sendable {
     
     var removeItemCalled = false
     var removedItems: [URL] = []
+    var removeItemError: Error?
     func removeItem(at url: URL) async throws {
+        if let removeItemError { throw removeItemError }
         removeItemCalled = true
         removedItems.append(url)
     }

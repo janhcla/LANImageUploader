@@ -34,7 +34,7 @@ struct HomeView: View {
                     .padding(20)
                 }
             }
-            .navigationTitle("ImageDropX")
+            .navigationTitle("LensBridge")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .fullScreenCover(item: $activeCameraMode) { mode in
@@ -193,6 +193,7 @@ private struct HomeLibraryActions: View {
                             tint: .gray
                         )
                     }
+                    .accessibilityIdentifier("home-settings")
                 }
                 .buttonStyle(.plain)
             }
@@ -217,6 +218,7 @@ private struct HomeActionButton: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(title == "Scan Documents" ? "home-scan-documents" : "home-capture-image")
     }
 }
 

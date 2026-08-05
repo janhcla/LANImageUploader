@@ -29,6 +29,32 @@ private struct GalleryExportRequest: Sendable {
     let name: String
 }
 
+@MainActor
+final class GalleryOperationGate: ObservableObject {
+    private var activeOperationID: UUID?
+
+    func begin() -> UUID {
+        let operationID = UUID()
+        activeOperationID = operationID
+        return operationID
+    }
+
+    func cancel() {
+        activeOperationID = nil
+    }
+
+    func isCurrent(_ operationID: UUID) -> Bool {
+        activeOperationID == operationID
+    }
+
+    @discardableResult
+    func finish(_ operationID: UUID) -> Bool {
+        guard activeOperationID == operationID else { return false }
+        activeOperationID = nil
+        return true
+    }
+}
+
 struct GalleryView: View {
     let initialOutputMode: GalleryOutputMode?
     @EnvironmentObject var appData: AppData
@@ -39,6 +65,7 @@ struct GalleryView: View {
     @State private var selectedImage: CapturedImage?
     @State private var navigateToUpload = false
     @State private var fullscreenData: FullscreenImageData?
+    @State private var isLoadingFullscreen = false
     @State private var cropEditingItem: GalleryItem?
 
     // Deletion states
@@ -51,6 +78,11 @@ struct GalleryView: View {
     // PDF Naming
     @State private var isShowingPDFNamingSheet = false
     @State private var isGeneratingPDF = false
+    @State private var pdfGenerationTask: Task<Void, Never>?
+    @State private var isPreparingUpload = false
+    @State private var preparationTask: Task<Void, Never>?
+    @StateObject private var pdfOperationGate = GalleryOperationGate()
+    @StateObject private var preparationOperationGate = GalleryOperationGate()
     @State private var pdfGenerationError: String? = nil
 
     // Retake logic
@@ -58,6 +90,7 @@ struct GalleryView: View {
     @State private var isShowingRetakeCamera = false
     @State private var retakeImage: UIImage? = nil
     @State private var retakeReviewData: RetakeReviewData?
+    @State private var retakeError: String?
 
     // Grid presentation
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 16)]
@@ -210,6 +243,14 @@ struct GalleryView: View {
                     }
                 )
             }
+            .alert("Retake failed", isPresented: Binding(
+                get: { retakeError != nil },
+                set: { if !$0 { retakeError = nil } }
+            )) {
+                Button("OK") { retakeError = nil }
+            } message: {
+                Text(retakeError ?? "The original image was kept. Please try again.")
+            }
             .navigationDestination(isPresented: $navigateToUpload) {
                 UploadView(fallbackToGalleryImages: false).environmentObject(appData)
             }
@@ -270,7 +311,7 @@ struct GalleryView: View {
                                     .buttonStyle(OrangeButtonStyle())
                                 }
                             }
-                            .disabled(isGeneratingPDF)
+                            .disabled(isGeneratingPDF || isPreparingUpload)
                         }
                         .padding()
                     }
@@ -283,17 +324,33 @@ struct GalleryView: View {
                 Text(pdfGenerationError ?? "Unknown error occurred.")
             }
             .overlay {
-                if isGeneratingPDF {
+                if isGeneratingPDF || isPreparingUpload {
                     ZStack {
                         Color.black.opacity(0.4).ignoresSafeArea()
-                        ProgressView("Generating PDF...")
+                        VStack(spacing: 12) {
+                            ProgressView(isGeneratingPDF ? "Generating PDF..." : "Preparing upload...")
+                            Button("Cancel", role: .cancel) {
+                                cancelProcessing()
+                            }
+                        }
+                        .padding()
+                        .background(Color(.systemBackground))
+                        .cornerRadius(12)
+                        }
+                    }
+                }
+            }
+            .overlay {
+                if isLoadingFullscreen {
+                    ZStack {
+                        Color.black.opacity(0.24).ignoresSafeArea()
+                        ProgressView("Loading image...")
                             .padding()
                             .background(Color(.systemBackground))
                             .cornerRadius(12)
                     }
                 }
             }
-        }
         .onAppear {
             syncItemsFromAppData()
             outputMode = initialOutputMode ?? appData.defaultGalleryOutputMode
@@ -366,8 +423,29 @@ struct GalleryView: View {
     func handleItemTap(_ item: GalleryItem) {
         if !isMultiSelectMode {
             guard let image = item.capturedImage else { return }
+            guard !isLoadingFullscreen else { return }
             appData.hapticService.playSelection()
-            if let uiImage = DocumentImageProcessor.renderedImage(for: image, rotation: item.rotation) {
+            isLoadingFullscreen = true
+            let itemID = item.id
+            let rotation = item.rotation
+            Task {
+                let uiImage = await Task.detached(priority: .userInitiated) {
+                    autoreleasepool {
+                        DocumentImageProcessor.renderedImage(
+                            for: image,
+                            rotation: rotation,
+                            maxPixelDimension: 2400
+                        )
+                    }
+                }.value
+
+                guard !Task.isCancelled else {
+                    isLoadingFullscreen = false
+                    return
+                }
+                isLoadingFullscreen = false
+                guard let uiImage,
+                      galleryItems.contains(where: { $0.id == itemID }) else { return }
                 fullscreenData = FullscreenImageData(
                     id: image.id, capturedImage: image, uiImage: uiImage)
             }
@@ -407,26 +485,43 @@ struct GalleryView: View {
     }
 
     func uploadItems(_ items: [GalleryItem]) {
+        guard preparationTask == nil else { return }
         let requests = exportRequests(for: items)
         guard !requests.isEmpty else { return }
         let maxPixelDimension = CGFloat(appData.imageMaxPixelDimension)
         let jpegQuality = CGFloat(appData.pdfJPEGQuality)
+        isPreparingUpload = true
+        let operationID = preparationOperationGate.begin()
 
-        Task {
+        preparationTask = Task { @MainActor in
+            var preparedFiles: [UploadableFile] = []
+            defer {
+                if preparationOperationGate.finish(operationID) {
+                    preparationTask = nil
+                    isPreparingUpload = false
+                }
+            }
             do {
-                let files = try await exportUploads(
+                preparedFiles = try await exportUploads(
                     requests,
                     maxPixelDimension: maxPixelDimension,
                     jpegQuality: jpegQuality
                 )
-                await MainActor.run {
-                    appData.pendingUploadFiles = files
-                    appData.selectedImageIDs.removeAll()
-                    isMultiSelectMode = false
-                    navigateToUpload = true
+                try Task.checkCancellation()
+                guard preparationOperationGate.isCurrent(operationID) else {
+                    removeTemporaryFiles(preparedFiles)
+                    return
                 }
+                appData.setPendingUploadFiles(preparedFiles)
+                appData.selectedImageIDs.removeAll()
+                isMultiSelectMode = false
+                navigateToUpload = true
+            } catch is CancellationError {
+                removeTemporaryFiles(preparedFiles)
+                return
             } catch {
-                await MainActor.run {
+                removeTemporaryFiles(preparedFiles)
+                if preparationOperationGate.isCurrent(operationID) {
                     pdfGenerationError = "Could not prepare cropped pages for upload: \(error.localizedDescription)"
                 }
             }
@@ -434,26 +529,45 @@ struct GalleryView: View {
     }
 
     func leaveEmptySpace(_ item: GalleryItem) {
-        guard let idx = galleryItems.firstIndex(where: { $0.id == item.id }) else { return }
-        deleteLocalImage(item.capturedImage)
-        galleryItems[idx].capturedImage = nil
-        galleryItems[idx].rotation = .degrees0
+        guard let capturedImage = item.capturedImage else { return }
         itemToDelete = nil
+        Task {
+            do {
+                try await appData.fileService.removeItem(at: capturedImage.fileURL)
+                await MainActor.run {
+                    guard let index = galleryItems.firstIndex(where: { $0.id == item.id }) else { return }
+                    galleryItems[index].capturedImage = nil
+                    galleryItems[index].rotation = .degrees0
+                    appData.images.removeAll { $0.id == capturedImage.id }
+                }
+            } catch {
+                await MainActor.run {
+                    pdfGenerationError = "Could not delete the local file. The image was kept in Gallery."
+                }
+            }
+        }
     }
 
     func deleteSpace(_ item: GalleryItem) {
-        guard let idx = galleryItems.firstIndex(where: { $0.id == item.id }) else { return }
-        deleteLocalImage(item.capturedImage)
-        galleryItems.remove(at: idx)
+        guard let capturedImage = item.capturedImage else {
+            galleryItems.removeAll { $0.id == item.id }
+            appData.selectedImageIDs.remove(item.id)
+            itemToDelete = nil
+            return
+        }
         itemToDelete = nil
-    }
-
-    private func deleteLocalImage(_ capturedImage: CapturedImage?) {
-        guard let img = capturedImage else { return }
         Task {
-            try? await appData.fileService.removeItem(at: img.fileURL)
-            await MainActor.run {
-                appData.images.removeAll(where: { $0.id == img.id })
+            do {
+                try await appData.fileService.removeItem(at: capturedImage.fileURL)
+                await MainActor.run {
+                    galleryItems.removeAll { $0.id == item.id }
+                    appData.images.removeAll { $0.id == capturedImage.id }
+                    appData.selectedImageIDs.remove(item.id)
+                }
+            } catch {
+                await MainActor.run {
+                    pdfGenerationError = "Could not delete the local file. The image was kept in Gallery."
+                }
             }
         }
     }
@@ -467,19 +581,34 @@ struct GalleryView: View {
             return item.capturedImage
         }
 
-        galleryItems.removeAll { selectedIDs.contains($0.id) }
-        appData.selectedImageIDs.removeAll()
-        isMultiSelectMode = false
+        let emptySpaceIDs = Set(
+            galleryItems.compactMap { item in
+                selectedIDs.contains(item.id) && item.capturedImage == nil ? item.id : nil
+            }
+        )
 
         Task {
+            var deletedImageIDs = Set<UUID>()
+            var failedDeletions = 0
             for image in imagesToDelete {
-                try? await appData.fileService.removeItem(at: image.fileURL)
+                do {
+                    try await appData.fileService.removeItem(at: image.fileURL)
+                    deletedImageIDs.insert(image.id)
+                } catch {
+                    failedDeletions += 1
+                }
             }
             await MainActor.run {
-                appData.images.removeAll { image in
-                    imagesToDelete.contains { $0.id == image.id }
+                let removedGalleryIDs = emptySpaceIDs.union(deletedImageIDs)
+                galleryItems.removeAll { removedGalleryIDs.contains($0.id) }
+                appData.images.removeAll { deletedImageIDs.contains($0.id) }
+                appData.selectedImageIDs.subtract(removedGalleryIDs)
+                if failedDeletions == 0 {
+                    isMultiSelectMode = false
+                    appData.hapticService.playNotification(type: .success)
+                } else {
+                    pdfGenerationError = "Could not delete \(failedDeletions) local file(s). They remain in Gallery for retry."
                 }
-                appData.hapticService.playNotification(type: .success)
             }
         }
     }
@@ -535,10 +664,24 @@ struct GalleryView: View {
 
         do {
             let captured = try await appData.saveCapturedUIImage(image, suggestedPrefix: "RETAKE")
+            let previousImage = galleryItems[idx].capturedImage
+            if let previousImage {
+                do {
+                    try await appData.fileService.removeItem(at: previousImage.fileURL)
+                } catch {
+                    // Keep the old queue entry authoritative when its file cannot be
+                    // removed. Best-effort cleanup prevents an untracked retake file.
+                    try? await appData.fileService.removeItem(at: captured.fileURL)
+                    throw error
+                }
+            }
             await MainActor.run {
-                deleteLocalImage(galleryItems[idx].capturedImage)
                 galleryItems[idx] = GalleryItem(id: captured.id, capturedImage: captured, rotation: .degrees0)
-                appData.images.append(captured)
+                if let previousImage {
+                    appData.replaceImage(withID: previousImage.id, with: captured)
+                } else {
+                    appData.images.append(captured)
+                }
                 retakeImage = nil
                 retakeTargetId = nil
                 retakeReviewData = nil
@@ -548,6 +691,7 @@ struct GalleryView: View {
                 retakeImage = nil
                 retakeTargetId = nil
                 retakeReviewData = nil
+                retakeError = "Could not replace the original image: \(error.localizedDescription)"
             }
         }
     }
@@ -593,27 +737,34 @@ struct GalleryView: View {
     ) async throws -> [UploadableFile] {
         var files: [(Int, UploadableFile)] = []
         files.reserveCapacity(requests.count)
-        for request in requests {
-            try Task.checkCancellation()
-            let file = try await Task.detached(priority: .userInitiated) {
-                try autoreleasepool {
-                    let exportURL = try DocumentImageProcessor.exportJPEG(
-                        for: request.image,
-                        rotation: request.image.rotation,
-                        name: request.name,
-                        maxPixelDimension: maxPixelDimension,
-                        jpegQuality: jpegQuality
-                    )
-                    return UploadableFile(
-                        id: request.image.id,
-                        name: request.name,
-                        fileURL: exportURL,
-                        kind: .jpeg,
-                        sourceImageIDs: [request.image.id]
-                    )
-                }
-            }.value
-            files.append((request.order, file))
+        do {
+            for request in requests {
+                try Task.checkCancellation()
+                let file = try await Task.detached(priority: .userInitiated) {
+                    try autoreleasepool {
+                        let exportURL = try DocumentImageProcessor.exportJPEG(
+                            for: request.image,
+                            rotation: request.image.rotation,
+                            name: request.name,
+                            maxPixelDimension: maxPixelDimension,
+                            jpegQuality: jpegQuality
+                        )
+                        return UploadableFile(
+                            id: request.image.id,
+                            name: request.name,
+                            fileURL: exportURL,
+                            kind: .jpeg,
+                            sourceImageIDs: [request.image.id]
+                        )
+                    }
+                }.value
+                files.append((request.order, file))
+            }
+        } catch {
+            for (_, file) in files {
+                try? FileManager.default.removeItem(at: file.fileURL)
+            }
+            throw error
         }
         return files.sorted { $0.0 < $1.0 }.map(\.1)
     }
@@ -634,26 +785,44 @@ struct GalleryView: View {
 
     func batchRenameAndUpload() {
         guard !imageName.isEmpty else { return }
+        guard preparationTask == nil else { return }
         let requests = renameSelectedImages(baseName: imageName)
         let maxPixelDimension = CGFloat(appData.imageMaxPixelDimension)
         let jpegQuality = CGFloat(appData.pdfJPEGQuality)
+        isShowingNamingSheet = false
+        isPreparingUpload = true
+        let operationID = preparationOperationGate.begin()
 
-        Task {
+        preparationTask = Task { @MainActor in
+            var preparedFiles: [UploadableFile] = []
+            defer {
+                if preparationOperationGate.finish(operationID) {
+                    preparationTask = nil
+                    isPreparingUpload = false
+                }
+            }
             do {
-                let files = try await exportUploads(
+                preparedFiles = try await exportUploads(
                     requests,
                     maxPixelDimension: maxPixelDimension,
                     jpegQuality: jpegQuality
                 )
-                await MainActor.run {
-                    appData.pendingUploadFiles = files
-                    appData.selectedImageIDs.removeAll()
-                    isMultiSelectMode = false
-                    imageName = ""
-                    navigateToUpload = true
+                try Task.checkCancellation()
+                guard preparationOperationGate.isCurrent(operationID) else {
+                    removeTemporaryFiles(preparedFiles)
+                    return
                 }
+                appData.setPendingUploadFiles(preparedFiles)
+                appData.selectedImageIDs.removeAll()
+                isMultiSelectMode = false
+                imageName = ""
+                navigateToUpload = true
+            } catch is CancellationError {
+                removeTemporaryFiles(preparedFiles)
+                return
             } catch {
-                await MainActor.run {
+                removeTemporaryFiles(preparedFiles)
+                if preparationOperationGate.isCurrent(operationID) {
                     pdfGenerationError = "Could not prepare cropped pages for upload: \(error.localizedDescription)"
                 }
             }
@@ -673,7 +842,10 @@ struct GalleryView: View {
 
     func generateAndUploadPDF() {
         guard !imageName.isEmpty else { return }
+        guard !isGeneratingPDF else { return }
         isGeneratingPDF = true
+        let operationID = pdfOperationGate.begin()
+        isShowingPDFNamingSheet = false
 
         let settings = PDFSettings(
             pageSize: appData.pdfPageSize,
@@ -689,38 +861,84 @@ struct GalleryView: View {
             ? galleryItems
             : galleryItems.filter { selectedIDs.contains($0.id) }
         let finalName = imageName
+        let sourceImageIDs = Set(itemsToProcess.compactMap { $0.capturedImage?.id })
 
-        Task {
+        let generationTask = Task.detached(priority: .userInitiated) {
+            try await PDFGenerationService.shared.generatePDF(
+                from: itemsToProcess,
+                outputName: finalName,
+                settings: settings
+            )
+        }
+
+        pdfGenerationTask = Task { @MainActor in
+            var generatedPDFURL: URL?
+            var handedOffToUpload = false
+            defer {
+                if !handedOffToUpload, let generatedPDFURL {
+                    try? FileManager.default.removeItem(at: generatedPDFURL)
+                }
+                if pdfOperationGate.finish(operationID) {
+                    pdfGenerationTask = nil
+                    isGeneratingPDF = false
+                }
+            }
             do {
-                let pdfURL = try await PDFGenerationService.shared.generatePDF(
-                    from: itemsToProcess,
-                    outputName: finalName,
-                    settings: settings
-                )
+                let pdfURL = try await withTaskCancellationHandler(operation: {
+                    try await generationTask.value
+                }, onCancel: {
+                    generationTask.cancel()
+                })
+                generatedPDFURL = pdfURL
+                try Task.checkCancellation()
+                guard pdfOperationGate.isCurrent(operationID) else { return }
 
                 let uploadFile = UploadableFile(
                     id: UUID(),
                     name: finalName,
                     fileURL: pdfURL,
                     kind: .pdf,
-                    sourceImageIDs: Set(itemsToProcess.compactMap { $0.capturedImage?.id })
+                    sourceImageIDs: sourceImageIDs
                 )
 
-                await MainActor.run {
-                    appData.pendingUploadFiles = [uploadFile]
-                    appData.selectedImageIDs.removeAll()
-                    isMultiSelectMode = false
-                    isGeneratingPDF = false
-                    isShowingPDFNamingSheet = false
-                    imageName = ""
-                    navigateToUpload = true
-                }
+                appData.setPendingUploadFiles([uploadFile])
+                appData.selectedImageIDs.removeAll()
+                isMultiSelectMode = false
+                imageName = ""
+                navigateToUpload = true
+                handedOffToUpload = true
             } catch {
-                await MainActor.run {
-                    isGeneratingPDF = false
+                if pdfOperationGate.isCurrent(operationID) {
                     pdfGenerationError = error.localizedDescription
                 }
             }
+        }
+    }
+
+    private func cancelPDFGeneration() {
+        let task = pdfGenerationTask
+        pdfOperationGate.cancel()
+        task?.cancel()
+        pdfGenerationTask = nil
+        isGeneratingPDF = false
+        imageName = ""
+    }
+
+    private func cancelProcessing() {
+        if isGeneratingPDF {
+            cancelPDFGeneration()
+        } else {
+            let task = preparationTask
+            preparationOperationGate.cancel()
+            task?.cancel()
+            preparationTask = nil
+            isPreparingUpload = false
+        }
+    }
+
+    private func removeTemporaryFiles(_ files: [UploadableFile]) {
+        for file in files {
+            try? FileManager.default.removeItem(at: file.fileURL)
         }
     }
 

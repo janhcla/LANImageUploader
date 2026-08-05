@@ -31,19 +31,48 @@ struct LANImageUploaderApp: App {
         let uploadService = ImageUploadService.shared
         let discoveryService = NetworkDiscovery.shared
         let hapticService = HapticFeedbackService.shared
-        
-        _appData = StateObject(wrappedValue: AppData(
+        let launchArguments = ProcessInfo.processInfo.arguments
+
+        #if DEBUG
+        let passwordStore: ServerPasswordPersisting = launchArguments.contains("-uiTestingConfiguredServer")
+            ? InMemoryServerPasswordStore()
+            : KeychainServerPasswordStore()
+        #else
+        let passwordStore: ServerPasswordPersisting = KeychainServerPasswordStore()
+        #endif
+
+        let configuredAppData = AppData(
             fileService: fileService,
             uploadService: uploadService,
             discoveryService: discoveryService,
-            hapticService: hapticService
-        ))
+            hapticService: hapticService,
+            passwordStore: passwordStore
+        )
+
+        #if DEBUG
+        if launchArguments.contains("-uiTestingConfiguredServer") {
+            configuredAppData.settings = ServerSettings(
+                serverIP: "192.0.2.1",
+                shareName: "TestShare",
+                targetDirectory: "TestFolder",
+                username: "test-user",
+                port: nil
+            )
+            try? configuredAppData.savePassword("test-password")
+        }
+        #endif
+
+        _appData = StateObject(wrappedValue: configuredAppData)
 
         _ = NetworkMonitor.shared
 
         // Register the background task without 'weak' for struct (value type)
         BGTaskScheduler.shared.register(forTaskWithIdentifier: Constants.BackgroundTasks.dailyImageSave, using: nil) { [self] task in
-            handleAppRefreshTask(task: task as! BGAppRefreshTask)
+            guard let refreshTask = task as? BGAppRefreshTask else {
+                task.setTaskCompleted(success: false)
+                return
+            }
+            handleAppRefreshTask(task: refreshTask)
         }
         // Set up UIKit appearance to ensure transparent backgrounds
         UITableView.appearance().backgroundColor = .clear
@@ -63,7 +92,7 @@ struct LANImageUploaderApp: App {
 
                 // Main Content
                 Group {
-                    if onboardingCompleted {
+                    if effectiveOnboardingCompleted {
                         HomeView()
                             .environmentObject(appData)
                             .opacity(isShowingLaunchScreen ? 0.0 : 1.0) // Fade in smoothly
@@ -93,6 +122,9 @@ struct LANImageUploaderApp: App {
                         }
                 }
             }
+            .task {
+                await appData.premiumAccess.refreshPremiumOverrideEligibility()
+            }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
                     scheduleDailyImageSave()
@@ -101,10 +133,16 @@ struct LANImageUploaderApp: App {
         }
     }
 
+    private var effectiveOnboardingCompleted: Bool {
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("-uiTestingOnboarding") { return false }
+        if arguments.contains("-uiTestingHome") { return true }
+        return onboardingCompleted
+    }
+
     private func handleAppRefreshTask(task: BGAppRefreshTask) {
         scheduleDailyImageSave()
         task.expirationHandler = {
-            print("Task expired before completion")
         }
         Task {
             await appData.saveImagesToDatedFolder()
@@ -119,22 +157,17 @@ struct LANImageUploaderApp: App {
         components.hour = 0
         components.minute = 0
         components.second = 0
-        if let midnight = calendar.date(from: components) {
-            let nextMidnight = calendar.date(byAdding: .day, value: 1, to: midnight)!
+        if let midnight = calendar.date(from: components),
+           let nextMidnight = calendar.date(byAdding: .day, value: 1, to: midnight) {
             request.earliestBeginDate = nextMidnight
         }
         do {
             try BGTaskScheduler.shared.submit(request)
-            print("Scheduled daily image save for \(request.earliestBeginDate?.description ?? "unknown")")
         } catch {
             if let bgError = error as? BGTaskScheduler.Error, bgError.code == .unavailable {
-                #if targetEnvironment(simulator)
-                print("Background task scheduling is unavailable on Simulator. This is expected.")
-                #else
-                print("Failed to schedule daily image save: Background tasks unavailable.")
-                #endif
+                _ = bgError
             } else {
-                print("Failed to schedule daily image save: \(error)")
+                _ = error
             }
         }
     }

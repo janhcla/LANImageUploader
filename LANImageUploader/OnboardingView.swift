@@ -82,13 +82,13 @@ enum OnboardingPage: String, CaseIterable {
     var message: String {
         switch self {
         case .privacy:
-            "Photos and documents stay on your device until you choose to upload them to your local server."
+            "Photos and documents stay on your device until you choose to upload them to a local server. This app does not provide cloud backup or a patient journal."
         case .capture:
             "Take a photo, or scan multi-page documents with edge detection, auto-capture, crop, and rotation."
         case .organize:
             "Rename, reorder, archive, or combine selected images into one optimized PDF."
         case .ready:
-            "Start capturing now. To upload, connect your SMB server from Settings."
+            "Start capturing now. To upload, connect your SMB server from Settings. Your journal system must already support importing files from a watched folder."
         }
     }
 
@@ -115,7 +115,8 @@ enum OnboardingPage: String, CaseIterable {
         case .privacy:
             [
                 OnboardingDetailItem(icon: "iphone", title: "On-device by default", detail: "Your gallery and archives remain local."),
-                OnboardingDetailItem(icon: "network", title: "Your network, your server", detail: "Uploads go only to the SMB share you configure.")
+                OnboardingDetailItem(icon: "network", title: "Your network, your server", detail: "Uploads go only to the SMB share you configure."),
+                OnboardingDetailItem(icon: "exclamationmark.triangle.fill", title: "Not a journal system", detail: "Your existing journal system must import files from its own watched folder.")
             ]
         case .capture:
             [
@@ -130,6 +131,7 @@ enum OnboardingPage: String, CaseIterable {
         case .ready:
             [
                 OnboardingDetailItem(icon: "gearshape.fill", title: "Settings > Server Connection", detail: "Add your server, share, username, and password."),
+                OnboardingDetailItem(icon: "checkmark.shield.fill", title: "Verify the journal workflow", detail: "Confirm the server folder and filename rules with your journal vendor."),
                 OnboardingDetailItem(icon: "house.fill", title: "Follow the Home setup card", detail: "It remains visible until upload is ready.")
             ]
         }
@@ -268,7 +270,7 @@ private struct OnboardingFooter: View {
 
             Button(action: onContinue) {
                 FullWidthGlassButtonLabel(
-                    isLastPage ? "Start Using ImageDropX" : "Continue",
+                    isLastPage ? "Start using the app" : "Continue",
                     systemImage: isLastPage ? "checkmark" : "arrow.right"
                 )
             }

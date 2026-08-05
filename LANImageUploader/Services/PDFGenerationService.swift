@@ -35,6 +35,8 @@ final class PDFGenerationService: PDFGenerationServiceProtocol {
             throw PDFError.noImages
         }
 
+        try Task.checkCancellation()
+
         let tempDir = FileManager.default.temporaryDirectory
         var safeName = outputName.trimmingCharacters(in: .whitespacesAndNewlines)
         if safeName.isEmpty { safeName = "PDF" }
@@ -51,6 +53,7 @@ final class PDFGenerationService: PDFGenerationServiceProtocol {
         }
 
         for (index, item) in validItems.enumerated() {
+            try Task.checkCancellation()
             try autoreleasepool {
                 guard let correctedImage = DocumentImageProcessor.renderedImage(
                         for: item.0,
@@ -130,25 +133,25 @@ private struct LegacyPDFWriter {
         self.pageRect = pageRect
         self.handle = try FileHandle(forWritingTo: url)
 
-        writeASCII("%PDF-1.3\n%")
-        writeData(Data([0xE2, 0xE3, 0xCF, 0xD3]))
-        writeASCII("\n")
+        try writeASCII("%PDF-1.3\n%")
+        try writeData(Data([0xE2, 0xE3, 0xCF, 0xD3]))
+        try writeASCII("\n")
 
         let pageIDs = (0..<pageCount).map { Self.pageObjectID(for: $0) }
-        writeObject(id: 1, data: ascii("<< /Type /Catalog /Pages 2 0 R >>"))
-        writeObject(id: 2, data: ascii("<< /Type /Pages /Count \(pageCount) /Kids [\(pageIDs.map { "\($0) 0 R" }.joined(separator: " "))] /MediaBox [0 0 \(pdfNumber(pageRect.width)) \(pdfNumber(pageRect.height))] >>"))
+        try writeObject(id: 1, data: ascii("<< /Type /Catalog /Pages 2 0 R >>"))
+        try writeObject(id: 2, data: ascii("<< /Type /Pages /Count \(pageCount) /Kids [\(pageIDs.map { "\($0) 0 R" }.joined(separator: " "))] /MediaBox [0 0 \(pdfNumber(pageRect.width)) \(pdfNumber(pageRect.height))] >>"))
     }
 
     mutating func writePage(_ page: Page, index: Int) throws {
         let pageID = Self.pageObjectID(for: index)
         let imageID = pageID + 1
         let contentID = pageID + 2
-        writeObject(id: pageID, data: ascii("<< /Type /Page /Parent 2 0 R /Resources << /XObject << /Im0 \(imageID) 0 R >> /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> /Contents \(contentID) 0 R >>"))
+        try writeObject(id: pageID, data: ascii("<< /Type /Page /Parent 2 0 R /Resources << /XObject << /Im0 \(imageID) 0 R >> /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> /Contents \(contentID) 0 R >>"))
 
-        writeObjectHeader(id: imageID)
-        writeASCII("<< /Type /XObject /Subtype /Image /Width \(page.pixelWidth) /Height \(page.pixelHeight) /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length \(page.jpeg.count) >>\nstream\n")
-        writeData(page.jpeg)
-        writeASCII("\nendstream\nendobj\n")
+        try writeObjectHeader(id: imageID)
+        try writeASCII("<< /Type /XObject /Subtype /Image /Width \(page.pixelWidth) /Height \(page.pixelHeight) /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length \(page.jpeg.count) >>\nstream\n")
+        try writeData(page.jpeg)
+        try writeASCII("\nendstream\nendobj\n")
 
         let r = page.drawRect
         var commands = "q \(pdfNumber(r.width)) 0 0 \(pdfNumber(r.height)) \(pdfNumber(r.minX)) \(pdfNumber(pageRect.height - r.maxY)) cm /Im0 Do Q\n"
@@ -160,16 +163,16 @@ private struct LegacyPDFWriter {
         var stream = ascii("<< /Length \(content.count) >>\nstream\n")
         stream.append(content)
         stream.append(ascii("\nendstream"))
-        writeObject(id: contentID, data: stream)
+        try writeObject(id: contentID, data: stream)
     }
 
     mutating func finish() throws {
         let xref = byteOffset
-        writeASCII("xref\n0 \(offsets.count + 1)\n0000000000 65535 f \n")
+        try writeASCII("xref\n0 \(offsets.count + 1)\n0000000000 65535 f \n")
         for offset in offsets {
-            writeASCII(String(format: "%010d 00000 n \n", locale: Locale(identifier: "en_US_POSIX"), offset))
+            try writeASCII(String(format: "%010d 00000 n \n", locale: Locale(identifier: "en_US_POSIX"), offset))
         }
-        writeASCII("trailer\n<< /Size \(offsets.count + 1) /Root 1 0 R >>\nstartxref\n\(xref)\n%%EOF\n")
+        try writeASCII("trailer\n<< /Size \(offsets.count + 1) /Root 1 0 R >>\nstartxref\n\(xref)\n%%EOF\n")
         try handle.close()
     }
 
@@ -181,23 +184,23 @@ private struct LegacyPDFWriter {
         3 + index * 3
     }
 
-    private mutating func writeObject(id: Int, data: Data) {
-        writeObjectHeader(id: id)
-        writeData(data)
-        writeASCII("\nendobj\n")
+    private mutating func writeObject(id: Int, data: Data) throws {
+        try writeObjectHeader(id: id)
+        try writeData(data)
+        try writeASCII("\nendobj\n")
     }
 
-    private mutating func writeObjectHeader(id: Int) {
+    private mutating func writeObjectHeader(id: Int) throws {
         offsets.append(byteOffset)
-        writeASCII("\(id) 0 obj\n")
+        try writeASCII("\(id) 0 obj\n")
     }
 
-    private mutating func writeASCII(_ value: String) {
-        writeData(ascii(value))
+    private mutating func writeASCII(_ value: String) throws {
+        try writeData(ascii(value))
     }
 
-    private mutating func writeData(_ data: Data) {
-        handle.write(data)
+    private mutating func writeData(_ data: Data) throws {
+        try handle.write(contentsOf: data)
         byteOffset += data.count
     }
 

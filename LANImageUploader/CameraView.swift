@@ -33,9 +33,9 @@ struct CameraView: View {
             scannedPageCount: scannedCount,
             onScanCapture: { data, crop, captureFinished in
                 Task {
-                    await saveImageData(data, crop: crop, isDocumentScan: true)
+                    let saved = await saveImageData(data, crop: crop, isDocumentScan: true)
                     await MainActor.run {
-                        captureFinished()
+                        captureFinished(saved)
                     }
                 }
             },
@@ -94,11 +94,12 @@ struct CameraView: View {
         }
     }
 
+    @discardableResult
     func saveImageData(
         _ data: Data,
         crop: DocumentCrop? = nil,
         isDocumentScan: Bool = false
-    ) async {
+    ) async -> Bool {
         do {
             try await appData.saveCapturedImageData(
                 data,
@@ -108,11 +109,13 @@ struct CameraView: View {
             await MainActor.run {
                 appData.hapticService.playNotification(type: .success)
             }
+            return true
         } catch {
             await MainActor.run {
                 showError = true
                 errorMessage = "Failed to save image: \(error.localizedDescription)"
             }
+            return false
         }
     }
 }

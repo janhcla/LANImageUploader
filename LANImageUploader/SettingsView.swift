@@ -9,6 +9,29 @@ import SwiftUI
 import Combine
 import UIKit
 
+struct SMBConnectionTarget: Equatable {
+    let shareName: String
+    let targetDirectory: String?
+
+    init?(shareName: String, targetDirectory: String) {
+        let normalizedShare = shareName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedShare.isEmpty else { return nil }
+
+        var normalizedDirectory = targetDirectory
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/\\\\"))
+        let lowerShare = normalizedShare.lowercased()
+        if normalizedDirectory.lowercased() == lowerShare {
+            normalizedDirectory = ""
+        } else if normalizedDirectory.lowercased().hasPrefix(lowerShare + "/") {
+            normalizedDirectory = String(normalizedDirectory.dropFirst(normalizedShare.count + 1))
+        }
+
+        self.shareName = normalizedShare
+        self.targetDirectory = normalizedDirectory.isEmpty ? nil : normalizedDirectory
+    }
+}
+
 struct SettingsView: View {
     @EnvironmentObject var appData: AppData
     @AppStorage(Constants.UserDefaults.ocrMode) private var ocrModeRawValue: String = OCRMode.full.rawValue
@@ -20,6 +43,7 @@ struct SettingsView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showSuccess = false
+    @State private var successMessage = ""
     @State private var showWarning = false
     @State private var isFirstSetup = true
     @State private var showAutoFillOption = false
@@ -99,7 +123,7 @@ struct SettingsView: View {
         .alert("Settings Saved", isPresented: $showSuccess) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Your settings have been saved successfully.")
+            Text(successMessage.isEmpty ? "Your settings have been saved successfully." : successMessage)
         }
         .alert("Empty Settings", isPresented: $showWarning) {
             Button("Stay", role: .cancel) {}
@@ -143,7 +167,7 @@ struct SettingsView: View {
                             .font(.caption2)
                             .foregroundStyle(.gray)
                     }
-                    Text("(c) Jan H. Clausen, Midtbylægerne")
+                    Text("(c) Jan Hagen Clausen")
                         .font(.caption2)
                         .foregroundStyle(.gray)
                 }
@@ -260,6 +284,7 @@ struct SettingsView: View {
                     isFirstSetup = false
                 }
                 .foregroundStyle(.blue)
+                .accessibilityIdentifier("settings-manual-setup")
             }
         }
         .alert("Confirm Auto-Fill", isPresented: $showAutoFillConfirmation) {
@@ -278,7 +303,7 @@ struct SettingsView: View {
             }
         } message: {
             if let info = tempNetworkInfo {
-                Text("Network information found:\nServer: \(info.serverIP)\nShare: \(info.shareName)\(info.targetDirectory != nil ? "\nDirectory: \(info.targetDirectory!)" : "")\n\nDo you want to use this configuration?")
+                Text("Network information found:\nServer: \(info.serverIP)\nShare: \(info.shareName)\(info.targetDirectory.map { "\nDirectory: \($0)" } ?? "")\n\nDo you want to use this configuration?")
             }
         }
     }
@@ -286,6 +311,9 @@ struct SettingsView: View {
     var completeSetupView: some View {
         Group {
             Section("Server Connection") {
+                Text("Use Test Connection after entering the server details. It verifies that this iPhone can reach the SMB share and target directory; it does not test the journal system's import/watch folder.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 if isDiscovering {
                     HStack(spacing: 15) {
                         ProgressView()
@@ -307,8 +335,10 @@ struct SettingsView: View {
                     .textContentType(.URL)
                     .keyboardType(.numbersAndPunctuation)
                     .autocapitalization(.none)
+                    .accessibilityIdentifier("settings-server-ip")
                 TextField("Share Name (e.g., MediaCaptureShare)", text: $shareName)
                     .autocapitalization(.none)
+                    .accessibilityIdentifier("settings-share-name")
                 TextField("", text: $targetDirectory)
                     .autocapitalization(.none)
                     .placeholder(when: targetDirectory.isEmpty) {
@@ -323,8 +353,17 @@ struct SettingsView: View {
                     }
                 TextField("Username (e.g., WORKGROUP\\user)", text: $username)
                     .textContentType(.username)
+                    .accessibilityIdentifier("settings-username")
                 SecureField("Password", text: $password)
                     .textContentType(.password)
+                    .accessibilityIdentifier("settings-password")
+
+                Button("Test Connection") {
+                    Task { await testConnection() }
+                }
+                .disabled(!canSave || isDiscovering)
+                .foregroundStyle(canSave && !isDiscovering ? .blue : .gray)
+                .accessibilityIdentifier("settings-test-connection")
             }
             Section("Gallery") {
                 Picker("Default Handling", selection: $appData.defaultGalleryOutputMode) {
@@ -395,6 +434,7 @@ struct SettingsView: View {
 
     var premiumSection: some View {
         Section("Premium") {
+            #if DEBUG || TESTFLIGHT_BUILD
             if appData.premiumAccess.state.canUsePremiumOverride {
                 Toggle("Premium override", isOn: Binding(
                     get: { appData.premiumAccess.state.isPremiumOverrideEnabled },
@@ -404,6 +444,7 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            #endif
 
             if appData.premiumAccess.state.isFullAppUnlocked {
                 Label("Full App Unlock active", systemImage: "checkmark.seal.fill")
@@ -502,6 +543,85 @@ struct SettingsView: View {
         }
     }
 
+    private func testConnection() async {
+        guard canSave else {
+            showError = true
+            errorMessage = "Enter the server IP, share name, username, and password before testing the connection."
+            return
+        }
+
+        guard let target = SMBConnectionTarget(shareName: shareName, targetDirectory: targetDirectory) else {
+            showError = true
+            errorMessage = "Enter a valid SMB share name before testing the connection."
+            return
+        }
+
+        isDiscovering = true
+        searchProgress = "Testing SMB connection..."
+        defer {
+            Task { @MainActor in
+                isDiscovering = false
+                searchProgress = "Ready"
+            }
+        }
+
+        do {
+            let trimmedIP = serverIP.trimmingCharacters(in: .whitespacesAndNewlines)
+            let info = try await appData.discoveryService.validateConnection(
+                serverIP: trimmedIP,
+                shareName: target.shareName,
+                targetDirectory: target.targetDirectory,
+                username: username,
+                password: password,
+                port: Int(port),
+                onStatus: { status in
+                    Task { @MainActor in
+                        guard !Task.isCancelled else { return }
+                        appData.connectionStatus = status
+                        switch status {
+                        case .discovery(let state):
+                            switch state {
+                            case .subnetScan(let progress):
+                                searchProgress = "Scanning subnet (\(Int(progress * 100))%)..."
+                            case .bonjourSearch:
+                                searchProgress = "Searching via Bonjour..."
+                            case .resolving(let name):
+                                searchProgress = "Resolving \(name)..."
+                            }
+                        case .connecting(let host):
+                            searchProgress = "Connecting to \(host)..."
+                        case .authenticating:
+                            searchProgress = "Authenticating..."
+                        case .connected:
+                            searchProgress = "Connected!"
+                        case .failure(let error):
+                            searchProgress = "Error: \(error.localizedDescription)"
+                        case .disconnected:
+                            searchProgress = "Ready"
+                        }
+                    }
+                }
+            )
+
+            await MainActor.run {
+                serverIP = info.serverIP
+                shareName = info.shareName
+                targetDirectory = info.targetDirectory ?? ""
+                successMessage = "Connection succeeded. The SMB share and target directory are reachable. The journal system still needs to import the uploaded file separately."
+                showSuccess = true
+            }
+        } catch is CancellationError {
+            // Cancelled by the user.
+        } catch {
+            if !Task.isCancelled {
+                await MainActor.run {
+                    showError = true
+                    errorMessage = "Connection test failed: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
     func loadSettings() {
         serverIP = appData.settings.serverIP
         shareName = appData.settings.shareName
@@ -509,9 +629,7 @@ struct SettingsView: View {
         username = appData.settings.username
         port = appData.settings.port.map(String.init) ?? ""
         password = appData.getPassword() ?? ""
-        if !isSetupComplete && (serverIP.isEmpty && shareName.isEmpty && username.isEmpty && password.isEmpty) {
-            isFirstSetup = true
-        }
+        isFirstSetup = !isSetupComplete
     }
 
     // MARK: - Improved Validation and Error Mapping
@@ -554,6 +672,7 @@ struct SettingsView: View {
             try appData.savePassword(password)
             await MainActor.run {
                 showSuccess = true
+                successMessage = "Your settings have been saved successfully."
                 isFirstSetup = false
                 showAutoFillOption = false
             }

@@ -7,6 +7,56 @@
 
 import SwiftUI
 
+@MainActor
+private final class UploadTaskCoordinator: ObservableObject {
+    private var task: Task<Void, Never>?
+    private var generation = UUID()
+
+    func start(operation: @escaping @MainActor () async -> Void) {
+        task?.cancel()
+        let currentGeneration = UUID()
+        generation = currentGeneration
+        task = Task { [weak self] in
+            await operation()
+            guard let self, self.generation == currentGeneration else { return }
+            self.task = nil
+        }
+    }
+
+    func cancel() {
+        generation = UUID()
+        task?.cancel()
+        task = nil
+    }
+}
+
+@MainActor
+struct PendingUploadFileDeletionOutcome {
+    let remainingFiles: [UploadableFile]
+    let error: Error?
+}
+
+@MainActor
+enum PendingUploadFileDeletion {
+    static func removeSequentially(
+        _ files: [UploadableFile],
+        remove: (URL) async throws -> Void
+    ) async -> PendingUploadFileDeletionOutcome {
+        var remainingFiles = files
+
+        for file in files {
+            do {
+                try await remove(file.fileURL)
+                remainingFiles.removeAll { $0.id == file.id }
+            } catch {
+                return PendingUploadFileDeletionOutcome(remainingFiles: remainingFiles, error: error)
+            }
+        }
+
+        return PendingUploadFileDeletionOutcome(remainingFiles: [], error: nil)
+    }
+}
+
 struct UploadView: View {
     let fallbackToGalleryImages: Bool
     @EnvironmentObject var appData: AppData
@@ -15,6 +65,7 @@ struct UploadView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var uploadTasks: [UUID: Bool] = [:]
+    @StateObject private var uploadCoordinator = UploadTaskCoordinator()
     var uploadFiles: [UploadableFile] {
         if let pending = appData.pendingUploadFiles {
             return pending
@@ -116,7 +167,7 @@ struct UploadView: View {
                         }
                         Button("Overwrite", role: .destructive) {
                             overwriteConfirmed = true
-                            if let file = duplicateFile { Task { await uploadFile(file, overwrite: true) } }
+                            if let file = duplicateFile { runSingleUpload(file, overwrite: true) }
                         }
                         Button("Cancel", role: .cancel) { duplicateFile = nil }
                     } message: {
@@ -262,22 +313,7 @@ struct UploadView: View {
             return
         }
 
-        if appData.premiumAccess.state.isFullAppUnlocked {
-            for file in uploadFiles {
-                Task { await uploadFile(file) }
-            }
-            return
-        }
-
-        Task {
-            for file in uploadFiles {
-                guard appData.premiumAccess.state.canUpload else {
-                    await MainActor.run { navigateToFullUnlock = true }
-                    return
-                }
-                await uploadFile(file)
-            }
-        }
+        runUploadBatch(uploadFiles)
     }
 
     func retryFailedUploads() {
@@ -286,25 +322,11 @@ struct UploadView: View {
             return false
         }
 
-        if appData.premiumAccess.state.isFullAppUnlocked {
-            for file in failedFiles {
-                Task { await uploadFile(file) }
-            }
-            return
-        }
-
-        Task {
-            for file in failedFiles {
-                guard appData.premiumAccess.state.canUpload else {
-                    await MainActor.run { navigateToFullUnlock = true }
-                    return
-                }
-                await uploadFile(file)
-            }
-        }
+        runUploadBatch(failedFiles)
     }
 
     func abortUploads() {
+        uploadCoordinator.cancel()
         for (imageID, _) in uploadTasks {
             uploadStatuses[imageID] = .failure(
                 UploadFailureDetail(
@@ -332,28 +354,46 @@ struct UploadView: View {
     }
 
     func clearAndDeleteAllImages() async {
-        let sourceImageIDs = appData.pendingUploadFiles?
+        uploadCoordinator.cancel()
+        let sourceImageIDs = appData.pendingUploadSourceImageIDs ?? (appData.pendingUploadFiles?
             .reduce(into: Set<UUID>()) { ids, file in
                 ids.formUnion(file.sourceImageIDs)
-            } ?? []
+            } ?? [])
 
         if let pending = appData.pendingUploadFiles {
-            for file in pending {
-                try? await appData.fileService.removeItem(at: file.fileURL)
+            let deletion = await PendingUploadFileDeletion.removeSequentially(pending) { fileURL in
+                try await appData.fileService.removeItem(at: fileURL)
+            }
+            if deletion.error != nil {
+                await MainActor.run {
+                    appData.retainPendingUploadFilesForRetry(deletion.remainingFiles)
+                    let remainingIDs = Set(deletion.remainingFiles.map(\.id))
+                    uploadStatuses = uploadStatuses.filter { remainingIDs.contains($0.key) }
+                    uploadTasks = uploadTasks.filter { remainingIDs.contains($0.key) }
+                    showError = true
+                    errorMessage = "The upload succeeded, but a local upload file could not be removed. Your originals were kept. Try clearing the queue again."
+                }
+                return
             }
         }
+        let sourceCleanupSucceeded: Bool
         if sourceImageIDs.isEmpty {
-            await appData.deleteAllRetainedImages()
+            sourceCleanupSucceeded = await appData.deleteAllRetainedImages()
         } else {
-            await appData.deleteRetainedImages(withIDs: sourceImageIDs)
+            sourceCleanupSucceeded = await appData.deleteRetainedImages(withIDs: sourceImageIDs)
         }
         await MainActor.run {
-            appData.pendingUploadFiles = nil
+            appData.clearPendingUploadFiles()
             uploadStatuses.removeAll()
             uploadTasks.removeAll()
             areAllUploadsSuccessful = false
             appData.clearNamingData()
-            showClearSuccess = true
+            if sourceCleanupSucceeded {
+                showClearSuccess = true
+            } else {
+                showError = true
+                errorMessage = "The upload succeeded, but one or more original local files could not be removed. They remain in Gallery."
+            }
         }
     }
 
@@ -398,14 +438,28 @@ struct UploadView: View {
                 overwrite: overwrite
             ) { progress in
                 DispatchQueue.main.async {
+                    guard uploadTasks[file.id] == true else { return }
                     uploadStatuses[file.id] = .uploading(progress)
                 }
             }
+            try Task.checkCancellation()
 
             await MainActor.run {
                 appData.premiumAccess.recordSuccessfulUpload()
                 uploadStatuses[file.id] = .success
                 uploadTasks.removeValue(forKey: file.id)
+            }
+        } catch is CancellationError {
+            await MainActor.run {
+                uploadTasks.removeValue(forKey: file.id)
+                uploadStatuses[file.id] = .failure(
+                    UploadFailureDetail(
+                        reason: "Upload aborted.",
+                        guidance: "Start the upload again when you're ready to continue.",
+                        action: nil
+                    )
+                )
+                showSuccessBanner = false
             }
         } catch {
             if let uploadError = error as? ImageUploadService.UploadError {
@@ -465,7 +519,7 @@ struct UploadView: View {
                 appData.pendingUploadFiles?[index].name = newName
             }
             if let updatedFile = appData.pendingUploadFiles?.first(where: { $0.name == newName }) {
-                Task { await uploadFile(updatedFile) }
+                runSingleUpload(updatedFile)
             }
         } else {
             if let index = appData.images.firstIndex(where: { $0.id == file.id }) {
@@ -473,7 +527,30 @@ struct UploadView: View {
             }
             if let updatedImage = appData.images.first(where: { $0.name == newName }) {
                 let updatedFile = UploadableFile(id: updatedImage.id, name: updatedImage.name, fileURL: updatedImage.fileURL, kind: .jpeg)
-                Task { await uploadFile(updatedFile) }
+                runSingleUpload(updatedFile)
+            }
+        }
+    }
+
+    private func runSingleUpload(_ file: UploadableFile, overwrite: Bool = false) {
+        uploadCoordinator.start { [self] in
+            await uploadFile(file, overwrite: overwrite)
+        }
+    }
+
+    private func runUploadBatch(_ files: [UploadableFile]) {
+        guard !files.isEmpty else { return }
+        uploadCoordinator.start { [self] in
+            // Keep the batch bounded to one in-flight file. ImageUploadService
+            // prepares each JPEG/PDF as Data, so unbounded parallel uploads can
+            // retain dozens of large buffers for a multi-page scan.
+            for file in files {
+                guard !Task.isCancelled else { return }
+                guard self.appData.premiumAccess.state.canUpload else {
+                    self.navigateToFullUnlock = true
+                    return
+                }
+                await self.uploadFile(file)
             }
         }
     }

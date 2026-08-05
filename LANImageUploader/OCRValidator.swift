@@ -82,7 +82,7 @@ enum OCRValidator {
                     return "\(date)-\(normalized[sequenceRange])"
                 }
             } catch {
-                logger.error("Regex matching failed: \(error.localizedDescription)")
+                logger.error("Regex matching failed: \(error.localizedDescription, privacy: .private)")
             }
             return nil
         }
