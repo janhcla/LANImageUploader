@@ -1,4 +1,4 @@
-# Product Guide - LANImageUploader (ImageDrop)
+# Product Guide - LANImageUploader (LensBridge)
 
 ## Initial Concept
 LANImageUploader is a privacy-focused SwiftUI iOS app featuring a state-of-the-art iOS 26 "Liquid Glass" design for capturing professional photos, managing a local gallery, and uploading images to an SMB share on the local network.

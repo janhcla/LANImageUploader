@@ -1,4 +1,4 @@
-# Product Guidelines - LANImageUploader (ImageDrop)
+# Product Guidelines - LANImageUploader (LensBridge)
 
 ## Brand Voice & Tone
 - **Professional and Trustworthy:** The brand speaks with authority on security and reliability. Communication is precise, calming, and focused on the integrity of the user's data and workflow.

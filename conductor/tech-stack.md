@@ -1,4 +1,4 @@
-# Technology Stack - LANImageUploader (ImageDrop)
+# Technology Stack - LensBridge (LANImageUploader)
 
 ## Core Language & Runtime
 - **Swift 6:** The primary programming language for all application logic and UI, utilizing modern concurrency features.
