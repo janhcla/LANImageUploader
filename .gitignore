@@ -6,6 +6,8 @@
 # Xcode
 build/
 DerivedData/
+*.xcarchive/
+*.xcresult/
 *.hmap
 *.ipa
 *.pkg
@@ -46,3 +48,16 @@ htmlcov/
 *.swp
 *~
 .superpowers/
+
+# Local App Store artifacts, signing material, and browser-test logs
+.asc/
+.playwright-mcp/
+
+# Local, account-specific release inputs and unreviewed simulator captures
+docs/ExportOptions-AppStore.plist
+docs/app-store-screenshots/raw-*.png
+docs/app-store-screenshots/asc-ipad-13/raw/
+docs/app-store-screenshots/*.jpg
+docs/app-store-screenshots/*.png
+docs/app-store-screenshots/asc-6.9/*.jpg
+docs/app-store-screenshots/asc-ipad-13/[0-9]*.png

@@ -1,4 +1,4 @@
-# Premium Feature Skeleton
+# Premium Feature
 
 ## App Store Connect
 
@@ -10,8 +10,11 @@
 - Display name: `Full App Unlock`
 - Price: `USD 1.99`
 - Review screenshot ID: `c365aac8-058d-469e-af1d-d723cf4b099c`
-- Availability: United States, with automatic availability in new territories enabled
-- Current ASC state after metadata repair: `READY_TO_SUBMIT`
+- IAP availability: configured for all 175 available territories, with automatic availability in new territories enabled
+- App availability: the app is free and enabled in all available territories.
+- Current submitted app version: `1.58 (65)`.
+- Current ASC state: the app and `Full App Unlock` are `WAITING_FOR_REVIEW` in
+  the same combined submission.
 
 Created and verified with:
 
@@ -23,8 +26,9 @@ Metadata repair performed after setup:
 
 ```bash
 asc iap review-screenshots create --iap-id 6769515889 --file docs/iap-review-screenshot.png --pretty
-asc iap pricing availability set --iap-id 6769515889 --territories "United States" --available-in-new-territories --pretty
-asc app-setup info set --app 6742799620 --primary-locale en-US --privacy-policy-url "https://github.com/janhcla/LANImageUploader#privacy" --pretty
+# The IAP availability record was subsequently set through the official ASC API
+# for all 175 available territories, with new-territory availability enabled.
+asc app-setup info set --app 6742799620 --primary-locale en-US --privacy-policy-url "https://github.com/janhcla/LANImageUploader/blob/main/PRIVACY.md" --pretty
 ```
 
 Apple blocks standalone submission for the first IAP with `STATE_ERROR.FIRST_IAP_MUST_BE_SUBMITTED_ON_VERSION`; this IAP must be submitted together with the first App Store version.
@@ -32,16 +36,22 @@ Apple blocks standalone submission for the first IAP with `STATE_ERROR.FIRST_IAP
 ## Trial Rules
 
 - The trial counter starts when the first file upload completes successfully.
-- The app allows 15 successful file uploads before requiring Full App Unlock.
+- LensBridge is free to try for 15 successful image/document uploads before requiring Full App Unlock.
 - Failed uploads and duplicate-file prompts do not consume trial uploads.
 - The successful upload count and purchased unlock state are stored in Keychain so uninstall/reinstall does not reset the trial.
-- Developer Mode is stored in UserDefaults and only simulates Full App Unlock for local testing.
+- The premium override is stored in UserDefaults only for local/TestFlight
+  validation. Debug builds enable it immediately. A TestFlight candidate is
+  built explicitly with the `TESTFLIGHT_BUILD` Swift compilation condition,
+  which includes the toggle in the Release Settings UI. App Store archives do
+  not set that condition, so the toggle and its implementation are absent from
+  the submitted production binary.
 
 ## Code Map
 
-- `PremiumAccess.swift`: trial state, Keychain persistence, developer unlock toggle, and product constants.
-- `StoreKitPurchaseManager.swift`: StoreKit 2 product lookup, purchase, and entitlement sync skeleton.
-- `FullAppUnlockView.swift`: paywall screen with price and one-time unlock button.
+- `PremiumAccess.swift`: trial state, Keychain persistence, and the
+  compile-time TestFlight-only premium override policy.
+- `StoreKitPurchaseManager.swift`: StoreKit 2 product lookup, purchase, automatic entitlement refresh, and user-initiated restore. Restore calls `AppStore.sync()` and then verifies the current Full App Unlock entitlement.
+- `FullAppUnlockView.swift`: paywall screen with price, one-time unlock, and an always-visible Restore Purchases action with result feedback.
 - `UploadView.swift`: blocks upload when trial is exhausted and records each successful upload.
-- `SettingsView.swift`: Developer Mode switch and Full App Unlock entry point.
+- `SettingsView.swift`: TestFlight-only override switch and Full App Unlock entry point.
 - `LANImageUploaderTests.swift`: unit coverage for trial counting, developer unlock, purchased unlock, and exhausted-trial blocking.
