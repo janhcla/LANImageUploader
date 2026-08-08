@@ -24,7 +24,6 @@ final class NetworkMonitor: @unchecked Sendable {
         self.monitor = NWPathMonitor()
         
         monitor.pathUpdateHandler = { [weak self] path in
-            print("Path update received - Status: \(path.status)")
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 self.updateConnectionStatus(isConnected: path.status == .satisfied)
@@ -36,7 +35,6 @@ final class NetworkMonitor: @unchecked Sendable {
             guard let self = self else { return }
             let initialConnected = self.monitor.currentPath.status == .satisfied
             self.updateConnectionStatus(isConnected: initialConnected)
-            print("NetworkMonitor initialized - Initial connected: \(initialConnected)")
         }
     }
 
@@ -118,7 +116,6 @@ final class NetworkMonitor: @unchecked Sendable {
     @MainActor
     func checkCurrentStatus() {
         let path = monitor.currentPath
-        print("Current path status: \(path.status)")
         updateConnectionStatus(isConnected: path.status == .satisfied)
     }
 }

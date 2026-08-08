@@ -206,6 +206,15 @@ struct DocumentCaptureQuality {
             && abs(left - right) / max(left, right) < 0.18
     }
 
+    static func hasMovedToNextPage(
+        from capturedCrop: DocumentCrop?,
+        to currentCrop: DocumentCrop,
+        threshold: CGFloat = 0.08
+    ) -> Bool {
+        guard let capturedCrop else { return false }
+        return averageMovement(from: capturedCrop, to: currentCrop) > threshold
+    }
+
     static func smoothedDisplayCrop(
         from displayed: DocumentCrop?,
         toward latest: DocumentCrop,
@@ -268,12 +277,13 @@ struct DocumentPreviewGeometry {
 struct ScannerCaptureView: View {
     let keptPhotoCount: Int
     let scannedPageCount: Int
-    let onScanCapture: (Data, DocumentCrop?, @escaping () -> Void) -> Void
-    let onKeepPhoto: (UIImage) -> Void
+    let onScanCapture: (Data, DocumentCrop?, @escaping (Bool) -> Void) -> Void
+    let onKeepPhoto: (UIImage, @escaping (Bool) -> Void) -> Void
     let onCountdownTick: () -> Void
     let onOpenGallery: (CameraCaptureMode) -> Void
     let onCancel: () -> Void
 
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(Constants.UserDefaults.scannerAutoCaptureEnabled) private var autoCapture = true
     @State private var mode: CameraCaptureMode
     @State private var captureRequest = UUID()
@@ -281,15 +291,18 @@ struct ScannerCaptureView: View {
     @State private var documentFound = false
     @State private var countdown: Int?
     @State private var photoReviewImage: UIImage?
+    @State private var isSavingPhoto = false
     @State private var zoomOptions: [CameraZoomOption] = [.standard]
     @State private var selectedZoomFactor: CGFloat = 1
+    @State private var cameraPermissionDenied = false
+    @State private var permissionRefreshRequest = UUID()
 
     init(
         initialMode: CameraCaptureMode,
         keptPhotoCount: Int,
         scannedPageCount: Int,
-        onScanCapture: @escaping (Data, DocumentCrop?, @escaping () -> Void) -> Void,
-        onKeepPhoto: @escaping (UIImage) -> Void,
+        onScanCapture: @escaping (Data, DocumentCrop?, @escaping (Bool) -> Void) -> Void,
+        onKeepPhoto: @escaping (UIImage, @escaping (Bool) -> Void) -> Void,
         onCountdownTick: @escaping () -> Void,
         onOpenGallery: @escaping (CameraCaptureMode) -> Void,
         onCancel: @escaping () -> Void
@@ -313,6 +326,7 @@ struct ScannerCaptureView: View {
                     autoCapture: $autoCapture,
                     captureRequest: captureRequest,
                     selectedZoomFactor: selectedZoomFactor,
+                    permissionRefreshRequest: permissionRefreshRequest,
                     onScanCapture: onScanCapture,
                     onPhotoCapture: { image in
                         photoReviewImage = image
@@ -336,6 +350,11 @@ struct ScannerCaptureView: View {
                             zoomOptions = options.isEmpty ? [.standard] : options
                             selectedZoomFactor = currentFactor
                         }
+                    },
+                    onCameraPermissionDenied: {
+                        DispatchQueue.main.async {
+                            cameraPermissionDenied = true
+                        }
                     }
                 )
                 .ignoresSafeArea()
@@ -355,10 +374,17 @@ struct ScannerCaptureView: View {
             .background(.black)
             .accessibilityElement(children: .contain)
         }
+        .onAppear { refreshCameraPermissionState(retrySession: false) }
         .onChange(of: mode) { _, _ in
             countdown = nil
             documentFound = false
             guidance = "Point the camera at a document"
+            refreshCameraPermissionState(retrySession: true)
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                refreshCameraPermissionState(retrySession: true)
+            }
         }
     }
 
@@ -366,10 +392,12 @@ struct ScannerCaptureView: View {
         VStack {
             scannerTopBar
             Spacer()
-            if mode == .scan {
+            if cameraPermissionDenied || mode == .scan {
                 guidanceBanner
             }
-            captureBottomBar(isLandscape: false)
+            if !cameraPermissionDenied {
+                captureBottomBar(isLandscape: false)
+            }
         }
     }
 
@@ -381,12 +409,14 @@ struct ScannerCaptureView: View {
                 galleryButton
             }
             Spacer()
-            if mode == .scan {
+            if cameraPermissionDenied || mode == .scan {
                 guidanceBanner
                     .frame(maxWidth: 300)
             }
-            captureBottomBar(isLandscape: true)
-                .frame(width: 260)
+            if !cameraPermissionDenied {
+                captureBottomBar(isLandscape: true)
+                    .frame(width: 260)
+            }
         }
         .foregroundStyle(.white)
     }
@@ -449,6 +479,16 @@ struct ScannerCaptureView: View {
                 .padding(.vertical, 9)
                 .background(documentFound ? Color.blue.opacity(0.82) : Color.black.opacity(0.65), in: Capsule())
                 .accessibilityLabel(guidance)
+            if cameraPermissionDenied {
+                Button("Open Settings") {
+                    guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+                    UIApplication.shared.open(url)
+                }
+                .font(.subheadline.weight(.semibold))
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+                .accessibilityHint("Opens iPhone Settings so camera access can be enabled")
+            }
         }
         .padding(.bottom, 18)
     }
@@ -461,6 +501,7 @@ struct ScannerCaptureView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .accessibilityLabel("Capture mode")
             .accessibilityIdentifier("camera-mode-selector")
 
             zoomControls
@@ -489,6 +530,8 @@ struct ScannerCaptureView: View {
             }
             .accessibilityLabel(mode == .scan ? "Scan page" : "Take photo")
         }
+        .disabled(cameraPermissionDenied)
+        .opacity(cameraPermissionDenied ? 0.48 : 1)
         .foregroundStyle(.white)
         .padding(.horizontal, isLandscape ? 10 : 12)
         .padding(.vertical, isLandscape ? 12 : 14)
@@ -530,6 +573,7 @@ struct ScannerCaptureView: View {
                             reviewIconButton(label: "Discard photo", systemName: "xmark") {
                                 photoReviewImage = nil
                             }
+                            .disabled(isSavingPhoto)
                             Spacer()
                         }
 
@@ -547,6 +591,7 @@ struct ScannerCaptureView: View {
                             reviewIconButton(label: "Discard photo", systemName: "xmark") {
                                 photoReviewImage = nil
                             }
+                            .disabled(isSavingPhoto)
                             Spacer()
                         }
 
@@ -578,20 +623,36 @@ struct ScannerCaptureView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.white)
                 .accessibilityLabel("Retake photo")
+                .disabled(isSavingPhoto)
 
                 Button {
-                    onKeepPhoto(image)
-                    photoReviewImage = nil
+                    guard !isSavingPhoto else { return }
+                    isSavingPhoto = true
+                    onKeepPhoto(image) { saved in
+                        isSavingPhoto = false
+                        if saved {
+                            photoReviewImage = nil
+                        }
+                    }
                 } label: {
-                    Label("Keep Photo", systemImage: "checkmark")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(.blue.opacity(0.65), in: Capsule())
+                    HStack(spacing: 8) {
+                        if isSavingPhoto {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Image(systemName: "checkmark")
+                        }
+                        Text(isSavingPhoto ? "Saving…" : "Keep Photo")
+                    }
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(.blue.opacity(0.65), in: Capsule())
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white)
-                .accessibilityLabel("Keep photo")
+                .accessibilityLabel(isSavingPhoto ? "Saving photo" : "Keep photo")
+                .disabled(isSavingPhoto)
             }
             .padding(isLandscape ? 12 : 0)
         }
@@ -615,6 +676,18 @@ struct ScannerCaptureView: View {
         mode == .photo ? keptPhotoCount : scannedPageCount
     }
 
+    private func refreshCameraPermissionState(retrySession: Bool) {
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        cameraPermissionDenied = status == .denied || status == .restricted
+        if cameraPermissionDenied {
+            guidance = "Camera permission is required"
+            countdown = nil
+            documentFound = false
+        } else if retrySession {
+            permissionRefreshRequest = UUID()
+        }
+    }
+
     private var galleryAccessibilityLabel: String {
         if mode == .photo {
             return "Open gallery, \(keptPhotoCount) kept photos"
@@ -625,6 +698,7 @@ struct ScannerCaptureView: View {
 
 private struct ZoomablePhotoReviewImage: View {
     let image: UIImage
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var scale: CGFloat = 1
     @State private var offset: CGSize = .zero
     @GestureState private var activeScale: CGFloat = 1
@@ -652,19 +726,15 @@ private struct ZoomablePhotoReviewImage: View {
                 .gesture(magnifyGesture)
                 .simultaneousGesture(dragGesture)
                 .onTapGesture(count: 2) {
-                    withAnimation(.smooth(duration: 0.24)) {
-                        if scale > 1 {
-                            scale = 1
-                            offset = .zero
-                        } else {
-                            scale = 2
-                        }
-                    }
+                    toggleZoom()
                 }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityLabel("Captured photo preview")
-        .accessibilityHint("Pinch or double tap to zoom")
+        .accessibilityHint("Use the Zoom action to inspect the photo")
+        .accessibilityAction(named: scale > 1 ? "Reset Zoom" : "Zoom In") {
+            toggleZoom()
+        }
     }
 
     private var magnifyGesture: some Gesture {
@@ -678,6 +748,17 @@ private struct ZoomablePhotoReviewImage: View {
                     offset = .zero
                 }
             }
+    }
+
+    private func toggleZoom() {
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.24)) {
+            if scale > 1 {
+                scale = 1
+                offset = .zero
+            } else {
+                scale = 2
+            }
+        }
     }
 
     private var dragGesture: some Gesture {
@@ -702,11 +783,13 @@ struct DocumentCameraPreview: UIViewControllerRepresentable {
     @Binding var autoCapture: Bool
     let captureRequest: UUID
     let selectedZoomFactor: CGFloat
-    let onScanCapture: (Data, DocumentCrop?, @escaping () -> Void) -> Void
+    let permissionRefreshRequest: UUID
+    let onScanCapture: (Data, DocumentCrop?, @escaping (Bool) -> Void) -> Void
     let onPhotoCapture: (UIImage) -> Void
     let onDetectionChanged: (String, Bool) -> Void
     let onCountdownChanged: (Int?) -> Void
     let onZoomOptionsChanged: ([CameraZoomOption], CGFloat) -> Void
+    let onCameraPermissionDenied: () -> Void
 
     func makeUIViewController(context: Context) -> DocumentCameraViewController {
         let controller = DocumentCameraViewController()
@@ -716,6 +799,7 @@ struct DocumentCameraPreview: UIViewControllerRepresentable {
         controller.onDetectionChanged = onDetectionChanged
         controller.onCountdownChanged = onCountdownChanged
         controller.onZoomOptionsChanged = onZoomOptionsChanged
+        controller.onCameraPermissionDenied = onCameraPermissionDenied
         controller.autoCaptureEnabled = autoCapture
         controller.start()
         return controller
@@ -725,6 +809,10 @@ struct DocumentCameraPreview: UIViewControllerRepresentable {
         controller.mode = mode
         controller.autoCaptureEnabled = autoCapture
         controller.setZoomFactor(selectedZoomFactor)
+        if context.coordinator.lastPermissionRefreshRequest != permissionRefreshRequest {
+            context.coordinator.lastPermissionRefreshRequest = permissionRefreshRequest
+            controller.start()
+        }
         if context.coordinator.lastCaptureRequest != captureRequest {
             context.coordinator.lastCaptureRequest = captureRequest
             controller.capturePage()
@@ -732,13 +820,19 @@ struct DocumentCameraPreview: UIViewControllerRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(captureRequest: captureRequest)
+        Coordinator(
+            captureRequest: captureRequest,
+            permissionRefreshRequest: permissionRefreshRequest
+        )
     }
 
     final class Coordinator {
         var lastCaptureRequest: UUID
-        init(captureRequest: UUID) {
+        var lastPermissionRefreshRequest: UUID
+
+        init(captureRequest: UUID, permissionRefreshRequest: UUID) {
             self.lastCaptureRequest = captureRequest
+            self.lastPermissionRefreshRequest = permissionRefreshRequest
         }
     }
 }
@@ -752,7 +846,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
 
 #if DEBUG
     private static let audioLogger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "ImageDrop",
+        subsystem: Bundle.main.bundleIdentifier ?? "LensBridge",
         category: "CameraAudioSession"
     )
 #endif
@@ -772,16 +866,18 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
             modeLock.unlock()
             guard changed else { return }
             resetAutoCaptureState()
+            resetVisionSequence()
             boundaryLayer.removeAllAnimations()
             boundaryLayer.path = nil
             onDetectionChanged?(newValue == .scan ? "Point the camera at a document" : "", false)
         }
     }
-    var onScanCapture: ((Data, DocumentCrop?, @escaping () -> Void) -> Void)?
+    var onScanCapture: ((Data, DocumentCrop?, @escaping (Bool) -> Void) -> Void)?
     var onPhotoCapture: ((UIImage) -> Void)?
     var onDetectionChanged: ((String, Bool) -> Void)?
     var onCountdownChanged: ((Int?) -> Void)?
     var onZoomOptionsChanged: (([CameraZoomOption], CGFloat) -> Void)?
+    var onCameraPermissionDenied: (() -> Void)?
     var autoCaptureEnabled = true {
         didSet {
             if !autoCaptureEnabled, oldValue != autoCaptureEnabled {
@@ -794,10 +890,13 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     }
 
     private let session = AVCaptureSession()
-    private let sessionQueue = DispatchQueue(label: "ImageDrop.scanner.session")
-    private let detectionQueue = DispatchQueue(label: "ImageDrop.scanner.detection")
+    private let sessionQueue = DispatchQueue(label: "LensBridge.scanner.session")
+    private let detectionQueue = DispatchQueue(label: "LensBridge.scanner.detection")
+    // VNSequenceRequestHandler keeps temporal Vision context. It is accessed
+    // only from detectionQueue so frame order and handler state stay coherent.
+    private var visionSequenceHandler = VNSequenceRequestHandler()
     private let photoProcessingQueue = DispatchQueue(
-        label: "ImageDrop.scanner.photo-processing",
+        label: "LensBridge.scanner.photo-processing",
         qos: .userInitiated
     )
     private let photoOutput = AVCapturePhotoOutput()
@@ -814,6 +913,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     private var lastDetectionAt = Date.distantPast
     private var pendingCaptureDetection: DetectedCrop?
     private var pendingCaptureMode: CameraCaptureMode = .scan
+    private var pendingAutoCapture = false
     private var captureInProgress = false
     private var waitingForNextAutoPage = false
     private var lastAutoCapturedCrop: DocumentCrop?
@@ -824,6 +924,10 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     private var visionOrientation: CGImagePropertyOrientation = .right
     private var orientationGeneration = 0
     private var appliedVideoRotationAngle: CGFloat = -1
+    // Session state is only read and written on sessionQueue. Keeping this
+    // separate from view visibility prevents an interruption notification from
+    // restarting the camera after the scanner has already been dismissed.
+    private var wantsSessionRunning = false
     private let autoCaptureHoldDuration: TimeInterval = 2.4
 
     override func viewDidLoad() {
@@ -844,6 +948,24 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(focusAndExpose(at:)))
         tapGesture.cancelsTouchesInView = false
         view.addGestureRecognizer(tapGesture)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleSessionInterruption(_:)),
+            name: AVCaptureSession.wasInterruptedNotification,
+            object: session
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleSessionInterruptionEnded(_:)),
+            name: AVCaptureSession.interruptionEndedNotification,
+            object: session
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleSessionRuntimeError(_:)),
+            name: AVCaptureSession.runtimeErrorNotification,
+            object: session
+        )
 #if DEBUG
         NotificationCenter.default.addObserver(
             self,
@@ -861,9 +983,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     }
 
     deinit {
-#if DEBUG
         NotificationCenter.default.removeObserver(self)
-#endif
     }
 
     override func viewDidLayoutSubviews() {
@@ -880,10 +1000,29 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         sessionQueue.async { [weak self] in
-            if self?.session.isRunning == true {
-                self?.session.stopRunning()
+            guard let self else { return }
+            self.wantsSessionRunning = false
+            self.videoOutput.setSampleBufferDelegate(nil, queue: nil)
+            if self.session.isRunning {
+                self.session.stopRunning()
+            }
+            self.resetVisionSequence()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.captureInProgress = false
+                self.pendingCaptureDetection = nil
+                self.pendingAutoCapture = false
+                self.pendingPhotoPreviewSize = .zero
             }
         }
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        sessionQueue.sync { [weak self] in
+            self?.wantsSessionRunning = true
+        }
+        start()
     }
 
     func start() {
@@ -891,6 +1030,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
             guard granted else {
                 DispatchQueue.main.async {
                     self?.onDetectionChanged?("Camera permission is required", false)
+                    self?.onCameraPermissionDenied?()
                 }
                 return
             }
@@ -900,36 +1040,68 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
 
     private func configureAndStartSession() {
         sessionQueue.async { [weak self] in
-            guard let self, !self.session.isRunning else { return }
+            guard let self, self.wantsSessionRunning, !self.session.isRunning else { return }
             self.session.automaticallyConfiguresApplicationAudioSession =
                 ScannerCapturePolicy.automaticallyConfiguresApplicationAudioSession
-            self.session.beginConfiguration()
-            self.session.sessionPreset = .photo
-            guard let device = self.preferredBackCamera(),
-                  device.hasMediaType(.video),
-                  let input = try? AVCaptureDeviceInput(device: device),
-                  self.session.canAddInput(input) else {
+
+            let hasVideoInput = self.session.inputs.contains { input in
+                (input as? AVCaptureDeviceInput)?.device.hasMediaType(.video) == true
+            }
+            let hasPhotoOutput = self.session.outputs.contains { $0 === self.photoOutput }
+            let hasVideoOutput = self.session.outputs.contains { $0 === self.videoOutput }
+
+            if !hasVideoInput || !hasPhotoOutput || !hasVideoOutput {
+                self.session.beginConfiguration()
+                self.session.sessionPreset = .photo
+
+                if !hasVideoInput {
+                    guard let device = self.preferredBackCamera(),
+                          device.hasMediaType(.video),
+                          let input = try? AVCaptureDeviceInput(device: device),
+                          self.session.canAddInput(input) else {
+                        self.session.commitConfiguration()
+                        return
+                    }
+                    self.activeDevice = device
+                    self.session.addInput(input)
+                } else if let input = self.session.inputs
+                    .compactMap({ $0 as? AVCaptureDeviceInput })
+                    .first(where: { $0.device.hasMediaType(.video) }) {
+                    self.activeDevice = input.device
+                }
+
+                if !hasPhotoOutput, self.session.canAddOutput(self.photoOutput) {
+                    self.session.addOutput(self.photoOutput)
+                }
+                if !hasVideoOutput, self.session.canAddOutput(self.videoOutput) {
+                    self.session.addOutput(self.videoOutput)
+                }
                 self.session.commitConfiguration()
-                return
             }
-            self.activeDevice = device
-            self.session.addInput(input)
-            if self.session.canAddOutput(self.photoOutput) {
-                self.session.addOutput(self.photoOutput)
-            }
+
             self.videoOutput.alwaysDiscardsLateVideoFrames = true
             self.videoOutput.setSampleBufferDelegate(self, queue: self.detectionQueue)
-            if self.session.canAddOutput(self.videoOutput) {
-                self.session.addOutput(self.videoOutput)
-            }
-            self.session.commitConfiguration()
             DispatchQueue.main.async {
                 self.updateCaptureOrientation()
             }
+            // A dismissal can be queued while session configuration is in
+            // progress. Do not start a session after the view has opted out.
+            guard self.wantsSessionRunning else {
+                self.videoOutput.setSampleBufferDelegate(nil, queue: nil)
+                return
+            }
             self.session.startRunning()
+            guard self.wantsSessionRunning else {
+                self.videoOutput.setSampleBufferDelegate(nil, queue: nil)
+                if self.session.isRunning {
+                    self.session.stopRunning()
+                }
+                return
+            }
 #if DEBUG
             assert(!self.session.inputs.contains { $0.ports.contains { $0.mediaType == .audio } })
 #endif
+            guard let device = self.activeDevice else { return }
             let options = self.zoomOptions(for: device)
             let currentFactor = self.nearestZoomFactor(to: device.videoZoomFactor, options: options)
             DispatchQueue.main.async {
@@ -938,15 +1110,51 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         }
     }
 
+    @objc private func handleSessionInterruption(_ notification: Notification) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.updateCountdown(nil)
+            self.onDetectionChanged?("Camera temporarily unavailable", false)
+        }
+    }
+
+    @objc private func handleSessionInterruptionEnded(_ notification: Notification) {
+        configureAndStartSession()
+    }
+
+    @objc private func handleSessionRuntimeError(_ notification: Notification) {
+        let error = notification.userInfo?[AVCaptureSessionErrorKey] as? NSError
+        sessionQueue.async { [weak self] in
+            guard let self, self.wantsSessionRunning else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.updateCountdown(nil)
+                self.onDetectionChanged?("Camera error - trying to reconnect", false)
+            }
+            if error?.code == AVError.mediaServicesWereReset.rawValue || !self.session.isRunning {
+                self.videoOutput.setSampleBufferDelegate(nil, queue: nil)
+                self.resetVisionSequence()
+                self.configureAndStartSessionIfNeeded()
+            }
+        }
+    }
+
+    private func configureAndStartSessionIfNeeded() {
+        guard wantsSessionRunning, !session.isRunning else { return }
+        sessionQueue.async { [weak self] in
+            self?.configureAndStartSession()
+        }
+    }
+
 #if DEBUG
     @objc private func handleAudioSessionInterruption(_ notification: Notification) {
         let rawType = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
-        Self.audioLogger.debug("Observed audio interruption type: \(rawType.map(String.init) ?? "unknown", privacy: .public)")
+        Self.audioLogger.debug("Observed audio interruption type: \(rawType.map(String.init) ?? "unknown", privacy: .private)")
     }
 
     @objc private func handleAudioRouteChange(_ notification: Notification) {
         let rawReason = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt
-        Self.audioLogger.debug("Observed audio route change reason: \(rawReason.map(String.init) ?? "unknown", privacy: .public)")
+        Self.audioLogger.debug("Observed audio route change reason: \(rawReason.map(String.init) ?? "unknown", privacy: .private)")
     }
 #endif
 
@@ -958,6 +1166,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
                 visionOrientation = DocumentCaptureOrientation.visionOrientation(forVideoRotationAngle: angle)
                 orientationGeneration += 1
             }
+            resetVisionSequence()
             latestDetection = nil
             displayedCrop = nil
             previewImageSize = .zero
@@ -995,6 +1204,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         guard !captureInProgress else { return }
         captureInProgress = true
         pendingCaptureMode = mode
+        pendingAutoCapture = autoTriggered && mode == .scan
         let currentGeneration = orientationLock.withLock { orientationGeneration }
         pendingCaptureDetection = mode == .scan
             ? latestDetection.flatMap { detection in
@@ -1007,15 +1217,14 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
             }
             : nil
         pendingPhotoPreviewSize = previewLayer.bounds.size
-        if autoTriggered, mode == .scan {
-            waitingForNextAutoPage = true
-            lastAutoCapturedCrop = pendingCaptureDetection?.crop
-        }
         let settings = AVCapturePhotoSettings()
         settings.flashMode = photoOutput.supportedFlashModes.contains(.auto) ? .auto : .off
         sessionQueue.async { [weak self] in
             guard let self, self.session.isRunning else {
-                DispatchQueue.main.async { self?.captureInProgress = false }
+                DispatchQueue.main.async {
+                    self?.captureInProgress = false
+                    self?.pendingAutoCapture = false
+                }
                 return
             }
             // The session queue also applies zoom changes, so queuing capture here
@@ -1046,7 +1255,10 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
                         data: data,
                         options: [.applyOrientationProperty: true]
                     )?.extent.size else {
-                        DispatchQueue.main.async { self.captureInProgress = false }
+                        DispatchQueue.main.async {
+                            self.captureInProgress = false
+                            self.pendingAutoCapture = false
+                        }
                         return
                     }
                     let visibleRect = PhotoCaptureFraming.normalizedVisibleRect(
@@ -1069,15 +1281,30 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
                     DispatchQueue.main.async {
                         guard let onScanCapture = self.onScanCapture else {
                             self.captureInProgress = false
+                            self.pendingAutoCapture = false
                             return
                         }
-                        onScanCapture(data, crop) { [weak self] in
-                            self?.captureInProgress = false
+                        onScanCapture(data, crop) { [weak self] saved in
+                            guard let self else { return }
+                            self.captureInProgress = false
+                            if saved, self.pendingAutoCapture {
+                                self.waitingForNextAutoPage = true
+                                self.lastAutoCapturedCrop = self.pendingCaptureDetection?.crop
+                                self.stableSince = nil
+                                self.previousCrop = nil
+                                self.updateCountdown(nil)
+                            } else if !saved, self.pendingAutoCapture {
+                                self.onDetectionChanged?("Page could not be saved - try again", false)
+                            }
+                            self.pendingAutoCapture = false
                         }
                     }
                 } else {
                     guard let image = UIImage(data: data) else {
-                        DispatchQueue.main.async { self.captureInProgress = false }
+                        DispatchQueue.main.async {
+                            self.captureInProgress = false
+                            self.pendingAutoCapture = false
+                        }
                         return
                     }
                     let framed = PhotoCaptureFraming.image(
@@ -1102,19 +1329,15 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         let orientationState = orientationLock.withLock {
             (visionOrientation, orientationGeneration)
         }
-        let currentPreviewImageSize: CGSize?
-        if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
-            let rawSize = CGSize(
-                width: CVPixelBufferGetWidth(pixelBuffer),
-                height: CVPixelBufferGetHeight(pixelBuffer)
-            )
-            currentPreviewImageSize = DocumentCaptureOrientation.orientedSize(
-                rawSize,
-                orientation: orientationState.0
-            )
-        } else {
-            currentPreviewImageSize = nil
-        }
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        let rawSize = CGSize(
+            width: CVPixelBufferGetWidth(pixelBuffer),
+            height: CVPixelBufferGetHeight(pixelBuffer)
+        )
+        let currentPreviewImageSize = DocumentCaptureOrientation.orientedSize(
+            rawSize,
+            orientation: orientationState.0
+        )
         guard Date().timeIntervalSince(lastDetectionAt) > 0.08 else { return }
         lastDetectionAt = Date()
         let request = VNDetectRectanglesRequest { [weak self] request, _ in
@@ -1132,7 +1355,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
                 guard let self else { return }
                 let currentGeneration = self.orientationLock.withLock { self.orientationGeneration }
                 guard currentGeneration == orientationState.1 else { return }
-                if let crop, let currentPreviewImageSize {
+                if let crop {
                     self.latestDetection = DetectedCrop(
                         crop: crop,
                         orientedBufferSize: currentPreviewImageSize,
@@ -1149,10 +1372,25 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
         request.minimumConfidence = 0.6
         request.minimumSize = 0.18
         request.quadratureTolerance = 35
-        try? VNImageRequestHandler(
-            cmSampleBuffer: sampleBuffer,
-            orientation: orientationState.0
-        ).perform([request])
+        do {
+            try visionSequenceHandler.perform(
+                [request],
+                on: pixelBuffer,
+                orientation: orientationState.0
+            )
+        } catch {
+            // A failed frame must not poison the next frame's temporal state.
+            visionSequenceHandler = VNSequenceRequestHandler()
+        }
+    }
+
+    /// Reset temporal Vision state without touching it from the main actor or
+    /// the session queue. Stale frames must not influence auto-capture after an
+    /// orientation, mode, interruption, or presentation change.
+    private func resetVisionSequence() {
+        detectionQueue.async { [weak self] in
+            self?.visionSequenceHandler = VNSequenceRequestHandler()
+        }
     }
 
     private func handleDetectedCrop(_ detectedCrop: DocumentCrop?) {
@@ -1162,8 +1400,18 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
             displayedCrop = nil
             boundaryLayer.removeAllAnimations()
             boundaryLayer.path = nil
-            onDetectionChanged?("Point the camera at a document", false)
-            resetAutoCaptureState()
+            if waitingForNextAutoPage {
+                // A temporarily lost edge must not unlock the page gate. Without
+                // this, the same page could be auto-captured twice when Vision
+                // briefly loses the rectangle after the photo is taken.
+                stableSince = nil
+                previousCrop = nil
+                updateCountdown(nil)
+                onDetectionChanged?("Page saved - position the next page", false)
+            } else {
+                onDetectionChanged?("Point the camera at a document", false)
+                resetAutoCaptureState()
+            }
             return
         }
         let acceptable = DocumentCaptureQuality.isAcceptable(crop)
@@ -1175,8 +1423,7 @@ final class DocumentCameraViewController: UIViewController, AVCapturePhotoCaptur
             updateCountdown(nil)
         }
         if waitingForNextAutoPage,
-           let capturedCrop = lastAutoCapturedCrop,
-           DocumentCaptureQuality.averageMovement(from: capturedCrop, to: crop) > 0.08 {
+           DocumentCaptureQuality.hasMovedToNextPage(from: lastAutoCapturedCrop, to: crop) {
             waitingForNextAutoPage = false
         }
         let displayCrop = DocumentCaptureQuality.smoothedDisplayCrop(from: displayedCrop, toward: crop)

@@ -167,18 +167,19 @@ enum HelpContent {
         HelpArticle(
             id: "review-scan",
             topic: .capture,
-            title: "Review, crop, and rotate scans",
-            summary: "Correct page boundaries and orientation before creating a PDF.",
+            title: "Review, crop, and rotate scanned pages",
+            summary: "Accepted pages are saved to Gallery, where you can correct them before creating a PDF.",
             keywords: ["crop", "rotate", "review", "retake", "orientation"],
             steps: [
-                "Open the captured page in the scanner review flow.",
-                "Adjust the crop corners to match the document edges.",
+                "Let the scanner accept a page; it is saved to Gallery immediately.",
+                "Open Gallery and tap the page to inspect it.",
+                "Adjust the crop corners to match the document edges when editing is available.",
                 "Rotate the page until text is upright.",
                 "Retake a page if focus or lighting is poor.",
-                "Confirm the page to keep the corrected result."
+                "Check every page before combining scans into a PDF."
             ],
             tip: nil,
-            warning: "Check every page before combining scans into a PDF."
+            warning: "The original scan remains local until you delete it or export an upload derivative."
         ),
         HelpArticle(
             id: "manage-gallery",
@@ -187,7 +188,7 @@ enum HelpContent {
             summary: "Select, rename, reorder, delete, archive, or upload local items.",
             keywords: ["gallery", "rename", "select", "reorder", "delete", "batch"],
             steps: [
-                "Open View Gallery from Home.",
+                "Open Gallery from Home.",
                 "Select one or more items for batch actions.",
                 "Rename items individually or use the batch naming flow.",
                 "Reorder selected pages before creating a combined PDF.",
@@ -279,7 +280,7 @@ enum HelpContent {
         HelpArticle(
             id: "privacy-storage",
             topic: .privacy,
-            title: "How ImageDropX handles your data",
+            title: "How the app handles your data",
             summary: "Images, documents, settings, and credentials remain under your control.",
             keywords: ["privacy", "local", "storage", "metadata", "keychain", "cloud"],
             steps: [
@@ -289,8 +290,24 @@ enum HelpContent {
                 "Passwords are stored in the iOS Keychain.",
                 "Use Strip Image Metadata Before Upload in Settings when metadata should be removed."
             ],
-            tip: "ImageDropX includes no analytics, telemetry, or cloud synchronization.",
+            tip: "This app includes no analytics, telemetry, or cloud synchronization.",
             warning: nil
+        ),
+        HelpArticle(
+            id: "scope-and-limitations",
+            topic: .privacy,
+            title: "What this app does and does not do",
+            summary: "Understand the local capture/upload workflow and its limits before setup.",
+            keywords: ["limits", "limitations", "journal", "ehr", "diagnosis", "cloud", "backup", "patient"],
+            steps: [
+                "Use the app to capture clinical photos, scan paper documents, and create PDFs.",
+                "Keep the files on the device or upload them to the SMB share you configure.",
+                "Confirm that your existing journal system watches that server folder and accepts its filename rules.",
+                "This app does not identify patients, diagnose conditions, or write a patient record by itself.",
+                "Do not treat the app as cloud backup, remote access, or a replacement for your journal system."
+            ],
+            tip: "A successful upload only confirms that the file reached the configured share; it does not confirm journal ingestion.",
+            warning: "Never put real patient data, server credentials, or private network details in screenshots or support requests."
         ),
         HelpArticle(
             id: "connection-troubleshooting",
@@ -300,7 +317,7 @@ enum HelpContent {
             keywords: ["connection", "network", "bonjour", "direct ip", "not found", "permission"],
             steps: [
                 "Confirm the iPhone or iPad is connected to the same network as the server.",
-                "Allow Local Network access for ImageDropX in iOS Settings.",
+                "Allow Local Network access for this app in iOS Settings.",
                 "Try the server IP directly if discovery finds no results.",
                 "Verify the share name, username, password, and optional port.",
                 "Confirm the account can access the share from another device."
@@ -323,6 +340,22 @@ enum HelpContent {
             ],
             tip: nil,
             warning: "Repeated authentication failures usually mean the username, password, or share permissions are incorrect."
+        ),
+        HelpArticle(
+            id: "journal-import-troubleshooting",
+            topic: .troubleshooting,
+            title: "The journal did not import the file",
+            summary: "Separate a successful SMB upload from the journal system's own import rules.",
+            keywords: ["journal", "ehr", "import", "watch folder", "filename", "cpr", "ingest"],
+            steps: [
+                "Confirm the file is present in the target folder on the Windows server.",
+                "Confirm that the journal system watches that exact folder and is running its import service.",
+                "Check the journal vendor's required filename format, extension, and patient identifier rules.",
+                "Use a harmless test patient or vendor-approved test workflow; do not test with the wrong patient record.",
+                "Contact the journal vendor when the file is present but remains unprocessed."
+            ],
+            tip: "The app cannot see or control the journal system's import queue after the SMB upload finishes.",
+            warning: "Do not rename or move a real patient file blindly; follow your clinic's approved recovery procedure."
         )
     ]
 
@@ -348,30 +381,32 @@ private struct HelpQuickActions: View {
                 .font(.headline)
 
             AppGlassCard(tint: .blue) {
-                if let connectServerArticle = HelpContent.articles.first(where: { $0.id == "connect-server" }) {
-                    NavigationLink(value: connectServerArticle) {
+                VStack(spacing: 0) {
+                    if let connectServerArticle = HelpContent.articles.first(where: { $0.id == "connect-server" }) {
+                        NavigationLink(value: connectServerArticle) {
+                            HelpActionRow(
+                                systemImage: "network",
+                                tint: .blue,
+                                title: "Server setup guide",
+                                subtitle: "Configure local SMB upload"
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Divider()
+                        .padding(.vertical, 8)
+
+                    Button(action: onReplayOnboarding) {
                         HelpActionRow(
-                            systemImage: "network",
-                            tint: .blue,
-                            title: "Connect your server",
-                            subtitle: "Set up local SMB upload"
+                            systemImage: "play.fill",
+                            tint: .indigo,
+                            title: "Replay onboarding",
+                            subtitle: "Review the essentials"
                         )
                     }
                     .buttonStyle(.plain)
                 }
-
-                Divider()
-                    .padding(.vertical, 8)
-
-                Button(action: onReplayOnboarding) {
-                    HelpActionRow(
-                        systemImage: "play.fill",
-                        tint: .indigo,
-                        title: "Replay onboarding",
-                        subtitle: "Review the essentials"
-                    )
-                }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -618,6 +653,16 @@ private struct HelpArticleView: View {
 
                     if let warning = article.warning {
                         HelpCallout(title: "Important", systemImage: "exclamationmark.triangle.fill", text: warning, tint: .orange)
+                    }
+
+                    if article.id == "privacy-storage" {
+                        if let privacyPolicyURL = URL(string: "https://github.com/janhcla/LANImageUploader/blob/main/PRIVACY.md") {
+                            Link(destination: privacyPolicyURL) {
+                                Label("Read the full privacy policy", systemImage: "arrow.up.right.square")
+                                    .font(.headline)
+                            }
+                            .accessibilityIdentifier("privacy-policy-link")
+                        }
                     }
                 }
                 .padding(20)

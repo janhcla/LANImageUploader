@@ -32,6 +32,76 @@ final class CapturedImageTimestampFormatter: @unchecked Sendable {
     }
 }
 
+protocol ServerPasswordPersisting: AnyObject {
+    func save(_ password: String) throws
+    func password() -> String?
+}
+
+final class KeychainServerPasswordStore: ServerPasswordPersisting {
+    private let passwordKey: String
+
+    init(passwordKey: String = Constants.Keychain.serverPassword) {
+        self.passwordKey = passwordKey
+    }
+
+    func save(_ password: String) throws {
+        guard let passwordData = password.data(using: .utf8) else {
+            throw NSError(
+                domain: "KeychainError",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to encode password"]
+            )
+        }
+
+        let deleteQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: passwordKey,
+        ]
+        SecItemDelete(deleteQuery as CFDictionary)
+
+        let addQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: passwordKey,
+            kSecValueData as String: passwordData,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+        ]
+
+        let status = SecItemAdd(addQuery as CFDictionary, nil)
+        guard status == errSecSuccess else {
+            throw NSError(
+                domain: "KeychainError",
+                code: Int(status),
+                userInfo: [NSLocalizedDescriptionKey: "Failed to save password"]
+            )
+        }
+    }
+
+    func password() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: passwordKey,
+            kSecReturnData as String: NSNumber(value: true),
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var dataTypeRef: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
+        guard status == errSecSuccess, let data = dataTypeRef as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+}
+
+final class InMemoryServerPasswordStore: ServerPasswordPersisting {
+    private var storedPassword: String?
+
+    func save(_ password: String) throws {
+        storedPassword = password
+    }
+
+    func password() -> String? {
+        storedPassword
+    }
+}
+
 struct NetworkInfo: Equatable {
     let serverIP: String
     let shareName: String
@@ -151,6 +221,7 @@ class AppData: ObservableObject {
     @Published var connectionStatus: ConnectionStatus = .disconnected
     @Published var selectedImageIDs: Set<UUID> = []
     @Published var pendingUploadFiles: [UploadableFile]? = nil
+    @Published private(set) var pendingUploadSourceImageIDs: Set<UUID>? = nil
 
     // PDF Settings defaults
     @AppStorage(Constants.UserDefaults.defaultGalleryOutputMode) var defaultGalleryOutputMode: GalleryOutputMode = .separateImages
@@ -162,7 +233,7 @@ class AppData: ObservableObject {
     @AppStorage(Constants.UserDefaults.imageMaxPixelDimension) var imageMaxPixelDimension: Double = 2500
     @AppStorage(Constants.UserDefaults.stripImageMetadata) var stripImageMetadata: Bool = true
 
-    private let passwordKey = Constants.Keychain.serverPassword
+    private let passwordStore: ServerPasswordPersisting
     private let settingsKey = Constants.UserDefaults.serverSettings
     private let imageQueueKey = Constants.UserDefaults.capturedImageQueue
     private let persistsImageQueue: Bool
@@ -180,6 +251,7 @@ class AppData: ObservableObject {
         discoveryService: NetworkDiscoveryProtocol,
         hapticService: HapticFeedbackServiceProtocol,
         premiumAccess: PremiumAccessController = PremiumAccessController(store: KeychainPremiumAccessStore()),
+        passwordStore: ServerPasswordPersisting = KeychainServerPasswordStore(),
         persistsImageQueue: Bool = NSClassFromString("XCTestCase") == nil
     ) {
         self.fileService = fileService
@@ -187,6 +259,7 @@ class AppData: ObservableObject {
         self.discoveryService = discoveryService
         self.hapticService = hapticService
         self.premiumAccess = premiumAccess
+        self.passwordStore = passwordStore
         self.persistsImageQueue = persistsImageQueue
 
         self.settings = ServerSettings(serverIP: "", shareName: "", targetDirectory: nil, username: "", port: nil)
@@ -211,6 +284,22 @@ class AppData: ObservableObject {
     func clearNamingData() {
         imageName = ""
         ocrText = ""
+    }
+
+    func setPendingUploadFiles(_ files: [UploadableFile]) {
+        pendingUploadFiles = files
+        pendingUploadSourceImageIDs = files.reduce(into: Set<UUID>()) { ids, file in
+            ids.formUnion(file.sourceImageIDs)
+        }
+    }
+
+    func retainPendingUploadFilesForRetry(_ files: [UploadableFile]) {
+        pendingUploadFiles = files
+    }
+
+    func clearPendingUploadFiles() {
+        pendingUploadFiles = nil
+        pendingUploadSourceImageIDs = nil
     }
 
     @discardableResult
@@ -268,41 +357,74 @@ class AppData: ObservableObject {
         return captured
     }
 
-    func deleteSelectedImages() async {
+    @discardableResult
+    func deleteSelectedImages() async -> Bool {
         let idsToDelete = selectedImageIDs
         let imagesToDelete = images.filter { idsToDelete.contains($0.id) }
+        var deletedIDs = Set<UUID>()
+        var failedDeletions = 0
 
         for image in imagesToDelete {
-            try? await fileService.removeItem(at: image.fileURL)
+            do {
+                try await fileService.removeItem(at: image.fileURL)
+                deletedIDs.insert(image.id)
+            } catch {
+                failedDeletions += 1
+            }
         }
+        let deletedIDsForUI = deletedIDs
+        let failedDeletionsForUI = failedDeletions
         await MainActor.run {
-            images.removeAll { idsToDelete.contains($0.id) }
-            selectedImageIDs.removeAll()
-            hapticService.playNotification(type: .success)
+            images.removeAll { deletedIDsForUI.contains($0.id) }
+            selectedImageIDs.subtract(deletedIDsForUI)
+            if failedDeletionsForUI == 0 && !deletedIDsForUI.isEmpty {
+                hapticService.playNotification(type: .success)
+            }
         }
+        return failedDeletions == 0
     }
 
-    func deleteAllRetainedImages() async {
+    @discardableResult
+    func deleteAllRetainedImages() async -> Bool {
         let retainedImages = images
+        var deletedIDs = Set<UUID>()
+        var failedDeletions = 0
         for image in retainedImages {
-            try? await fileService.removeItem(at: image.fileURL)
+            do {
+                try await fileService.removeItem(at: image.fileURL)
+                deletedIDs.insert(image.id)
+            } catch {
+                failedDeletions += 1
+            }
         }
+        let deletedIDsForUI = deletedIDs
         await MainActor.run {
-            images.removeAll()
-            selectedImageIDs.removeAll()
+            images.removeAll { deletedIDsForUI.contains($0.id) }
+            selectedImageIDs.subtract(deletedIDsForUI)
         }
+        return failedDeletions == 0
     }
 
-    func deleteRetainedImages(withIDs idsToDelete: Set<UUID>) async {
-        guard !idsToDelete.isEmpty else { return }
+    @discardableResult
+    func deleteRetainedImages(withIDs idsToDelete: Set<UUID>) async -> Bool {
+        guard !idsToDelete.isEmpty else { return true }
         let imagesToDelete = images.filter { idsToDelete.contains($0.id) }
+        var deletedIDs = Set<UUID>()
+        var failedDeletions = 0
         for image in imagesToDelete {
-            try? await fileService.removeItem(at: image.fileURL)
+            do {
+                try await fileService.removeItem(at: image.fileURL)
+                deletedIDs.insert(image.id)
+            } catch {
+                failedDeletions += 1
+            }
         }
+        let deletedIDsForUI = deletedIDs
         await MainActor.run {
-            images.removeAll { idsToDelete.contains($0.id) }
-            selectedImageIDs.subtract(idsToDelete)
+            images.removeAll { deletedIDsForUI.contains($0.id) }
+            selectedImageIDs.subtract(deletedIDsForUI)
         }
+        return failedDeletions == 0
     }
 
     func updateCrop(for id: UUID, crop: DocumentCrop) {
@@ -316,22 +438,63 @@ class AppData: ObservableObject {
         images[index].rotation = images[index].rotation.nextClockwise
     }
 
+    /// Replaces one retained image without changing its position in the queue.
+    /// This is used by Retake so the old image cannot remain as a hidden duplicate.
+    @MainActor
+    func replaceImage(withID id: UUID, with replacement: CapturedImage) {
+        guard let index = images.firstIndex(where: { $0.id == id }) else {
+            images.append(replacement)
+            return
+        }
+        images[index] = replacement
+        selectedImageIDs.remove(id)
+    }
+
     // Save images to a dated folder
     // Save a new captured image, reusable for camera and retake
-    func saveCapturedUIImage(_ image: UIImage, suggestedPrefix: String = "IMG") async throws -> CapturedImage {
+    func saveCapturedUIImage(
+        _ image: UIImage,
+        suggestedPrefix: String = "IMG",
+        id: UUID = UUID()
+    ) async throws -> CapturedImage {
         let timestamp = CapturedImageTimestampFormatter.shared.string(from: Date())
-        let fileName = "\(suggestedPrefix)_\(timestamp).jpg"
+        let uniqueSuffix = id.uuidString.prefix(8).lowercased()
+        let fileName = "\(suggestedPrefix)_\(timestamp)_\(uniqueSuffix).jpg"
 
-        guard let data = image.jpegData(compressionQuality: 0.8) else {
-            throw NSError(domain: "ImageError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to create JPEG data"])
-        }
+        let sendableImage = SendableImage(value: image)
+        let data = try await Task.detached(priority: .userInitiated) {
+            try autoreleasepool {
+                guard let data = sendableImage.value.jpegData(compressionQuality: 0.8) else {
+                    throw NSError(
+                        domain: "ImageError",
+                        code: 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Failed to create JPEG data"]
+                    )
+                }
+                return data
+            }
+        }.value
 
         let fileURL = try await fileService.saveImage(data, fileName: fileName)
-        let captured = CapturedImage(name: fileName.replacingOccurrences(of: ".jpg", with: ""), fileURL: fileURL)
+        let captured = CapturedImage(
+            id: id,
+            name: fileName.replacingOccurrences(of: ".jpg", with: ""),
+            fileURL: fileURL
+        )
         return captured
     }
 
-    func saveImagesToDatedFolder(_ imagesToSave: [CapturedImage]? = nil, for date: Date = Date()) async {
+    enum ArchiveSaveOutcome: Equatable {
+        case saved(savedCount: Int, alreadySavedCount: Int)
+        case noImages
+        case failed(message: String)
+    }
+
+    @discardableResult
+    func saveImagesToDatedFolder(
+        _ imagesToSave: [CapturedImage]? = nil,
+        for date: Date = Date()
+    ) async -> ArchiveSaveOutcome {
         let targetImages = imagesToSave ?? images
         do {
             let (savedCount, alreadySavedCount) = try await fileService.archiveImages(targetImages, for: date)
@@ -346,10 +509,16 @@ class AppData: ObservableObject {
                     scanStatus = "No images to save."
                 }
             }
-        } catch {
-            await MainActor.run {
-                scanStatus = "Failed to save images: \(error.localizedDescription)"
+            if savedCount == 0 && alreadySavedCount == 0 {
+                return .noImages
             }
+            return .saved(savedCount: savedCount, alreadySavedCount: alreadySavedCount)
+        } catch {
+            let message = error.localizedDescription
+            await MainActor.run {
+                scanStatus = "Failed to save images: \(message)"
+            }
+            return .failed(message: message)
         }
     }
 
@@ -362,38 +531,11 @@ class AppData: ObservableObject {
     }
 
     func savePassword(_ password: String) throws {
-        let passwordData = password.data(using: .utf8)!
-
-        let deleteQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: passwordKey,
-        ]
-        SecItemDelete(deleteQuery as CFDictionary)
-
-        let addQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: passwordKey,
-            kSecValueData as String: passwordData,
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-        ]
-
-        let status = SecItemAdd(addQuery as CFDictionary, nil)
-        guard status == errSecSuccess else {
-            throw NSError(domain: "KeychainError", code: Int(status), userInfo: [NSLocalizedDescriptionKey: "Failed to save password"])
-        }
+        try passwordStore.save(password)
     }
 
     func getPassword() -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: passwordKey,
-            kSecReturnData as String: kCFBooleanTrue!,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]
-        var dataTypeRef: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
-        guard status == errSecSuccess, let data = dataTypeRef as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        passwordStore.password()
     }
 
     private func saveSettingsToUserDefaults() {

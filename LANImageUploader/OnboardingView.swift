@@ -18,6 +18,8 @@ public struct OnboardingView: View {
                 OnboardingHeader(
                     currentPage: selectedPage,
                     pageCount: pages.count,
+                    reduceMotion: reduceMotion,
+                    isLastPage: selectedPage == pages.count - 1,
                     onSkip: completeOnboarding
                 )
 
@@ -82,13 +84,13 @@ enum OnboardingPage: String, CaseIterable {
     var message: String {
         switch self {
         case .privacy:
-            "Photos and documents stay on your device until you choose to upload them to your local server."
+            "Photos and documents stay on your device until you choose to upload them to a local server. This app does not provide cloud backup or a patient journal."
         case .capture:
             "Take a photo, or scan multi-page documents with edge detection, auto-capture, crop, and rotation."
         case .organize:
             "Rename, reorder, archive, or combine selected images into one optimized PDF."
         case .ready:
-            "Start capturing now. To upload, connect your SMB server from Settings."
+            "Start capturing now. To upload, connect your SMB server from Settings. Your journal system must already support importing files from a watched folder."
         }
     }
 
@@ -115,7 +117,8 @@ enum OnboardingPage: String, CaseIterable {
         case .privacy:
             [
                 OnboardingDetailItem(icon: "iphone", title: "On-device by default", detail: "Your gallery and archives remain local."),
-                OnboardingDetailItem(icon: "network", title: "Your network, your server", detail: "Uploads go only to the SMB share you configure.")
+                OnboardingDetailItem(icon: "network", title: "Your network, your server", detail: "Uploads go only to the SMB share you configure."),
+                OnboardingDetailItem(icon: "exclamationmark.triangle.fill", title: "Not a journal system", detail: "Your existing journal system must import files from its own watched folder.")
             ]
         case .capture:
             [
@@ -130,6 +133,7 @@ enum OnboardingPage: String, CaseIterable {
         case .ready:
             [
                 OnboardingDetailItem(icon: "gearshape.fill", title: "Settings > Server Connection", detail: "Add your server, share, username, and password."),
+                OnboardingDetailItem(icon: "checkmark.shield.fill", title: "Verify the journal workflow", detail: "Confirm the server folder and filename rules with your journal vendor."),
                 OnboardingDetailItem(icon: "house.fill", title: "Follow the Home setup card", detail: "It remains visible until upload is ready.")
             ]
         }
@@ -147,15 +151,24 @@ struct OnboardingDetailItem: Identifiable {
 private struct OnboardingHeader: View {
     let currentPage: Int
     let pageCount: Int
+    let reduceMotion: Bool
+    let isLastPage: Bool
     let onSkip: () -> Void
 
     var body: some View {
         HStack(spacing: 16) {
-            OnboardingProgress(currentPage: currentPage, pageCount: pageCount)
+            OnboardingProgress(
+                currentPage: currentPage,
+                pageCount: pageCount,
+                reduceMotion: reduceMotion
+            )
             Spacer()
-            Button("Skip", action: onSkip)
-                .buttonStyle(.glass)
-                .accessibilityHint("Closes onboarding and opens the app")
+            if !isLastPage {
+                Button("Skip", action: onSkip)
+                    .buttonStyle(.glass)
+                    .accessibilityHint("Closes onboarding and opens the app")
+                    .transition(.opacity)
+            }
         }
         .frame(minHeight: 48)
     }
@@ -164,6 +177,7 @@ private struct OnboardingHeader: View {
 private struct OnboardingProgress: View {
     let currentPage: Int
     let pageCount: Int
+    let reduceMotion: Bool
 
     var body: some View {
         HStack(spacing: 7) {
@@ -173,7 +187,7 @@ private struct OnboardingProgress: View {
                     .frame(width: index == currentPage ? 28 : 8, height: 8)
             }
         }
-        .animation(.snappy, value: currentPage)
+        .animation(reduceMotion ? nil : .snappy, value: currentPage)
         .accessibilityElement()
         .accessibilityLabel("Onboarding progress")
         .accessibilityValue("Page \(currentPage + 1) of \(pageCount)")
@@ -185,10 +199,10 @@ private struct OnboardingPageView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 26) {
-                Spacer(minLength: 16)
+            VStack(spacing: 20) {
+                Spacer(minLength: 6)
 
-                AppSymbolTile(systemImage: page.systemImage, tint: page.tint, size: 104)
+                AppSymbolTile(systemImage: page.systemImage, tint: page.tint, size: 84)
 
                 VStack(spacing: 12) {
                     Text(page.title)
@@ -213,12 +227,11 @@ private struct OnboardingPageView: View {
                 }
                 .frame(maxWidth: 560)
 
-                Spacer(minLength: 20)
+                Spacer(minLength: 12)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
+            .padding(.vertical, 8)
         }
-        .scrollIndicators(.hidden)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding-\(page.rawValue)")
     }
@@ -268,7 +281,7 @@ private struct OnboardingFooter: View {
 
             Button(action: onContinue) {
                 FullWidthGlassButtonLabel(
-                    isLastPage ? "Start Using ImageDropX" : "Continue",
+                    isLastPage ? "Start using the app" : "Continue",
                     systemImage: isLastPage ? "checkmark" : "arrow.right"
                 )
             }

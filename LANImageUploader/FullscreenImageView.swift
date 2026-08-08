@@ -10,8 +10,9 @@ struct FullscreenImageView: View {
     let image: CapturedImage
     let uiImage: UIImage
     let onDelete: () -> Void
-    let onSave: () -> Void
-    @Environment(\.dismiss) var dismiss
+    let onSave: (() -> Void)?
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     
     // For Hero Transitions
     @State private var appearAnimation = false
@@ -46,9 +47,9 @@ struct FullscreenImageView: View {
                         }
                         .onEnded { value in
                             if abs(value.translation.height) > 100 {
-                                dismiss()
+                                close()
                             } else {
-                                withAnimation(.spring()) {
+                                withAnimation(reduceMotion ? nil : .spring()) {
                                     dragOffset = .zero
                                 }
                             }
@@ -58,11 +59,11 @@ struct FullscreenImageView: View {
                 .gesture(
                     MagnificationGesture()
                         .onChanged { value in
-                            scale = lastScale * value
+                            scale = min(max(lastScale * value, 1), 5)
                         }
                         .onEnded { _ in
                             if scale < 1.0 {
-                                withAnimation(.spring()) {
+                                withAnimation(reduceMotion ? nil : .spring()) {
                                     scale = 1.0
                                     offset = .zero
                                 }
@@ -70,6 +71,17 @@ struct FullscreenImageView: View {
                             lastScale = scale
                         }
                 )
+                .onTapGesture(count: 2) {
+                    toggleZoom()
+                }
+                .accessibilityLabel("Full-screen image, \(image.name)")
+                .accessibilityHint("Use the Zoom action to magnify, or the Close button to return.")
+                .accessibilityAction(named: scale > 1 ? "Reset Zoom" : "Zoom In") {
+                    toggleZoom()
+                }
+                .accessibilityAction(named: "Close") {
+                    close()
+                }
                 .simultaneousGesture(
                     DragGesture()
                         .onChanged { value in
@@ -89,7 +101,7 @@ struct FullscreenImageView: View {
             VStack {
                 HStack {
                     Spacer()
-                    Button(action: { dismiss() }) {
+                    Button(action: close) {
                         Image(systemName: "xmark")
                             .font(.title3.weight(.bold))
                             .foregroundStyle(.white)
@@ -97,6 +109,7 @@ struct FullscreenImageView: View {
                             .background(.ultraThinMaterial)
                             .clipShape(Circle())
                     }
+                    .accessibilityLabel("Close full-screen image")
                     .padding()
                 }
                 
@@ -104,14 +117,16 @@ struct FullscreenImageView: View {
                 
                 GlassContainer(cornerRadius: 30) {
                     HStack(spacing: 40) {
-                        Button(action: onSave) {
-                            VStack(spacing: 4) {
-                                Image(systemName: "square.and.arrow.down")
-                                    .font(.title2)
-                                Text("Save")
-                                    .font(.caption2)
+                        if let onSave {
+                            Button(action: onSave) {
+                                VStack(spacing: 4) {
+                                    Image(systemName: "arrow.uturn.backward")
+                                        .font(.title2)
+                                    Text("Restore")
+                                        .font(.caption2)
+                                }
+                                .foregroundStyle(.white)
                             }
-                            .foregroundStyle(.white)
                         }
                         
                         Button(action: onDelete) {
@@ -133,8 +148,33 @@ struct FullscreenImageView: View {
             }
         }
         .onAppear {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.8)) {
                 appearAnimation = true
+            }
+        }
+    }
+
+    private func close() {
+        guard !reduceMotion else {
+            dismiss()
+            return
+        }
+        withAnimation(.smooth(duration: 0.18)) {
+            appearAnimation = false
+            dragOffset = .zero
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            dismiss()
+        }
+    }
+
+    private func toggleZoom() {
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.25)) {
+            scale = scale > 1 ? 1 : 2
+            lastScale = scale
+            if scale == 1 {
+                offset = .zero
+                lastOffset = .zero
             }
         }
     }

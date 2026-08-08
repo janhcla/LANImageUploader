@@ -2,7 +2,7 @@
 
 ## Goal
 
-Modernize ImageDropX onboarding and help for iOS 26 while accurately covering
+Modernize LensBridge onboarding and help for iOS 26 while accurately covering
 photo capture, document scanning, PDF creation, local gallery management,
 archives, and SMB upload.
 

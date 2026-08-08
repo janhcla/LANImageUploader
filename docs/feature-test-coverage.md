@@ -1,4 +1,4 @@
-# ImageDrop Feature Test Coverage
+# LensBridge Feature Test Coverage
 
 This note records the app features, the expected behavior, and the tests that cover them.
 
@@ -33,13 +33,19 @@ This note records the app features, the expected behavior, and the tests that co
 - Select mode toggles image selection.
 - Single delete removes the local file and gallery item.
 - Multi-select delete removes selected files and clears selection.
+- A local file-delete failure keeps the image and selection visible instead of
+  silently dropping the metadata.
 - Single rename updates the display name, defaulting to `Image` when the new name is empty.
 - Batch rename applies the user prefix plus a two-digit sequence in gallery order.
 - Archive All saves gallery images into today's archive without removing them from the queue.
 - Batch Upload renames selected images and navigates to Upload.
 - Scanned pages render with perspective correction from stored crop metadata without rewriting the source JPEG.
+- Create PDF & Upload processes pages sequentially, supports explicit cancellation,
+  and does not offer a cancelled/partial PDF as an upload.
 - Long press offers Edit Crop; four corners and four edge handles can be moved with a live magnifier.
 - The queue and crop metadata persist across backgrounding, locking, and app relaunch until explicit deletion.
+- A retake keeps the original queue entry authoritative if the old source file
+  cannot be removed; a newly written replacement is cleaned up best-effort.
 - Covered by AppData delete/archive tests and direct gallery behavior tests.
 
 ## Naming And OCR
@@ -74,11 +80,12 @@ This note records the app features, the expected behavior, and the tests that co
 - Trial exhaustion blocks new uploads.
 - Developer Mode temporarily unlocks the full app but does not mark a purchase.
 - Purchased Full App Unlock persists independently of Developer Mode.
-- Covered by `premiumTrialStartsWithFifteenUploads`, successful-upload counting, exhaustion, developer mode, and purchased unlock tests.
+- Restore Purchases is always visible, explicitly synchronizes with the App Store, then enables Full App Unlock only when a verified entitlement is present.
+- Covered by `premiumTrialStartsWithFifteenUploads`, successful-upload counting, exhaustion, developer mode, purchased unlock, and restore-purchase unit/UI tests.
 
 ## Settings And Discovery
 
-- First setup collects target directory, username, password, optional port, OCR mode, premium controls, and discovery/manual setup entry points.
+- First setup collects target directory, username, password, optional port, OCR mode, and discovery/manual setup entry points. The premium override is available only in Debug and explicitly flagged TestFlight builds; it is not part of the App Store Release Settings UI.
 - Manual setup collects server IP, share, target directory, optional port, username, and password.
 - Save persists `ServerSettings` and the password.
 - Reset clears fields and returns to first setup.
@@ -93,6 +100,8 @@ This note records the app features, the expected behavior, and the tests that co
 - Restoring archives copies files back into `Documents/images`, skips duplicates already in the gallery, and appends restored images once.
 - Deleting archives removes custom names for deleted dates.
 - Archived image detail supports fullscreen preview, Restore All, selected restore, selected delete, and removing an empty archive folder after deleting its final image.
+- Archived-image deletion retains failed items selected and reports partial
+  failure instead of silently presenting a full-success state.
 - Covered by AppData archive tests and local file/archive service tests.
 
 ## Local File Storage

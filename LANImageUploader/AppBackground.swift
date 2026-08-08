@@ -8,7 +8,9 @@
 import SwiftUI
 
 struct AppBackground: View {
-    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @State private var animate = false
 
     var body: some View {
@@ -16,36 +18,56 @@ struct AppBackground: View {
             // Base Gradient
             if colorScheme == .dark {
                 LinearGradient(
-                    gradient: Gradient(colors: [Color(uiColor: .systemGray2), Color.black]),
+                    colors: [Color(uiColor: .systemBackground), Color(uiColor: .secondarySystemBackground)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
             } else {
                 LinearGradient(
-                    gradient: Gradient(colors: [Color(uiColor: .systemGray3), Color.white]),
-                    startPoint: .bottom,
-                    endPoint: .top
+                    colors: [Color(uiColor: .systemBackground), Color(uiColor: .systemGray6)],
+                    startPoint: .top,
+                    endPoint: .bottom
                 )
             }
             
             // "Liquid" Refractive Blobs
             Circle()
-                .fill(colorScheme == .dark ? Color.blue.opacity(0.15) : Color.blue.opacity(0.1))
+                .fill(colorScheme == .dark ? Color.blue.opacity(0.13) : Color.blue.opacity(0.07))
                 .frame(width: 400, height: 400)
                 .blur(radius: 80)
                 .offset(x: animate ? 100 : -100, y: animate ? -150 : 150)
             
             Circle()
-                .fill(colorScheme == .dark ? Color.purple.opacity(0.15) : Color.purple.opacity(0.1))
+                .fill(colorScheme == .dark ? Color.purple.opacity(0.12) : Color.purple.opacity(0.06))
                 .frame(width: 300, height: 300)
                 .blur(radius: 60)
                 .offset(x: animate ? -150 : 150, y: animate ? 100 : -100)
         }
         .ignoresSafeArea()
         .onAppear {
-            withAnimation(.easeInOut(duration: 10).repeatForever(autoreverses: true)) {
-                animate.toggle()
-            }
+            updateAmbientMotion()
+        }
+        .onChange(of: reduceMotion) { _, _ in updateAmbientMotion() }
+        .onChange(of: scenePhase) { _, _ in updateAmbientMotion() }
+        .onDisappear { stopAmbientMotion() }
+    }
+
+    private func updateAmbientMotion() {
+        guard !reduceMotion, scenePhase == .active else {
+            stopAmbientMotion()
+            return
+        }
+        guard !animate else { return }
+        withAnimation(.easeInOut(duration: 12).repeatForever(autoreverses: true)) {
+            animate = true
+        }
+    }
+
+    private func stopAmbientMotion() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            animate = false
         }
     }
 }

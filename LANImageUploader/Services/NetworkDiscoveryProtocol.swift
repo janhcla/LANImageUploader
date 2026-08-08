@@ -20,6 +20,16 @@ protocol NetworkDiscoveryProtocol: Sendable {
         port: Int?,
         onStatus: (@Sendable (ConnectionStatus) -> Void)?
     ) async throws -> NetworkInfo
+
+    func validateConnection(
+        serverIP: String,
+        shareName: String,
+        targetDirectory: String?,
+        username: String,
+        password: String,
+        port: Int?,
+        onStatus: (@Sendable (ConnectionStatus) -> Void)?
+    ) async throws -> NetworkInfo
     
     func discoverAvailableHosts(
         onStatus: (@Sendable (ConnectionStatus) -> Void)?

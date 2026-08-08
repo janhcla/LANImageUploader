@@ -29,7 +29,7 @@ struct LaunchScreenView: View {
                     )
                 
                 // Fading-in app name
-                Text("ImageDropX")
+                Text("LensBridge")
                     .font(.title)
                     .fontWeight(.bold)
                     .opacity(textOpacity) // Controlled by state
@@ -38,7 +38,7 @@ struct LaunchScreenView: View {
                 Spacer()
                 
                 // Static copyright (or animate this too if desired)
-                Text("(c) Jan H. Clausen, Midtbylægerne")
+                Text("(c) Jan Hagen Clausen")
                     .font(.caption2)
                     .foregroundColor(.gray)
                     .padding(.bottom)

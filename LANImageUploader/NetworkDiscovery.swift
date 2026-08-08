@@ -13,7 +13,10 @@ import Darwin
 import SwiftUI
 
 // Logger for this specific file/module
-private let logger = Logger(subsystem: Bundle.main.bundleIdentifier!, category: "NetworkDiscovery")
+private let logger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "com.janhagenbruunclausen.LANImageUploader",
+    category: "NetworkDiscovery"
+)
 
 public enum ConnectionError: LocalizedError, Equatable, Sendable {
     case authenticationFailed
@@ -75,6 +78,71 @@ final class NetworkDiscovery: NetworkDiscoveryProtocol {
 
 // MARK: - Main Retrieval Function
 extension NetworkDiscovery {
+    internal func validateConnection(
+        serverIP: String,
+        shareName: String,
+        targetDirectory: String?,
+        username: String,
+        password: String,
+        port: Int? = nil,
+        onStatus: (@Sendable (ConnectionStatus) -> Void)? = nil
+    ) async throws -> NetworkInfo {
+        let normalizedIP = serverIP.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedShare = shareName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedDirectory = targetDirectory?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/\\\\"))
+
+        guard !normalizedIP.isEmpty else {
+            throw ConnectionError.hostNotFound("Server address is required.")
+        }
+        guard !normalizedShare.isEmpty else {
+            throw ConnectionError.folderNotFound("Share name is required.")
+        }
+        if try await !networkMonitor.waitForNetwork(timeout: 3.0) {
+            let error = ConnectionError.networkUnavailable
+            onStatus?(.failure(error))
+            throw error
+        }
+
+        var components = URLComponents()
+        components.scheme = "smb"
+        components.host = normalizedIP
+        components.port = port
+        guard let serverURL = components.url,
+              let client = SMB2Manager(
+                url: serverURL,
+                credential: URLCredential(user: username, password: password, persistence: .forSession)
+              ) else {
+            let error = ConnectionError.hostNotFound(normalizedIP)
+            onStatus?(.failure(error))
+            throw error
+        }
+
+        do {
+            onStatus?(.connecting(normalizedIP))
+            onStatus?(.authenticating)
+            try await client.connectShare(name: normalizedShare)
+            if let normalizedDirectory, !normalizedDirectory.isEmpty {
+                try await ensureDirectoryExists(normalizedDirectory, in: client, shareName: normalizedShare)
+            }
+            try await client.disconnectShare()
+
+            let info = NetworkInfo(
+                serverIP: normalizedIP,
+                shareName: normalizedShare,
+                targetDirectory: normalizedDirectory?.isEmpty == true ? nil : normalizedDirectory
+            )
+            onStatus?(.connected(info))
+            return info
+        } catch {
+            try? await client.disconnectShare()
+            let mappedError = mapToConnectionError(error)
+            onStatus?(.failure(mappedError))
+            throw mappedError
+        }
+    }
+
     internal func retrieveNetworkInfo(
         targetFolder: String,
         username: String,
@@ -115,7 +183,7 @@ extension NetworkDiscovery {
                 onStatus?(.connected(networkInfo))
                 return networkInfo
             } catch {
-                logger.warning("Direct IP (\(directIP, privacy: .private)) connection failed: \(error.localizedDescription). Falling back to discovery.")
+                logger.warning("Direct IP (\(directIP, privacy: .private)) connection failed: \(error.localizedDescription, privacy: .private). Falling back to discovery.")
             }
         }
         
@@ -175,7 +243,7 @@ extension NetworkDiscovery {
                         onStatus?(.connected(networkInfo))
                         return networkInfo
                     } catch {
-                        logger.debug("Failed to connect to discovered server \(service.name): \(error.localizedDescription)")
+                        logger.debug("Failed to connect to discovered server \(service.name, privacy: .private): \(error.localizedDescription, privacy: .private)")
                         continue
                     }
                 }
@@ -201,7 +269,7 @@ extension NetworkDiscovery {
                     retryCount += 1
                     continue
                 }
-                logger.error("Server discovery failed: \(error.localizedDescription)")
+                logger.error("Server discovery failed: \(error.localizedDescription, privacy: .private)")
                 let finalError = mapToConnectionError(error)
                 onStatus?(.failure(finalError))
                 throw finalError
@@ -575,7 +643,7 @@ extension NetworkDiscovery {
                         }
                     },
                     didFail: { error in
-                        logger.warning("Bonjour discovery failed for type \(type): \(error.localizedDescription)")
+                        logger.warning("Bonjour discovery failed for type \(type, privacy: .private): \(error.localizedDescription, privacy: .private)")
                         Task { @MainActor in
                             completedSearches += 1
                             if completedSearches == types.count {
@@ -764,7 +832,7 @@ extension NetworkDiscovery {
             logger.info("Found \(enumeratedShares.count) shares on \(ipAddress, privacy: .private): \(enumeratedShares.map { $0.name }, privacy: .private)")
         } catch {
             shareEnumerationError = error
-            logger.notice("Share enumeration failed on \(ipAddress, privacy: .private): \(error.localizedDescription)")
+            logger.notice("Share enumeration failed on \(ipAddress, privacy: .private): \(error.localizedDescription, privacy: .private)")
         }
         try? await client.disconnectShare()
 
@@ -821,7 +889,7 @@ extension NetworkDiscovery {
                         return info
                     } catch {
                         lastError = error
-                        logger.debug("Directory validation failed for share \'\(candidate.share, privacy: .private)\': \(error.localizedDescription)")
+                        logger.debug("Directory validation failed for share \'\(candidate.share, privacy: .private)\': \(error.localizedDescription, privacy: .private)")
                         try? await client.disconnectShare()
                     }
                 } else {
@@ -833,18 +901,18 @@ extension NetworkDiscovery {
                 }
             } catch {
                 lastError = error
-                logger.debug("Failed to connect to share \'\(candidate.share, privacy: .private)\': \(error.localizedDescription)")
+                logger.debug("Failed to connect to share \'\(candidate.share, privacy: .private)\': \(error.localizedDescription, privacy: .private)")
                 try? await client.disconnectShare()
             }
         }
 
         if let shareEnumerationError = shareEnumerationError, enumeratedShares.isEmpty {
-            logger.error("Share enumeration failed on \(ipAddress, privacy: .private): \(shareEnumerationError.localizedDescription)")
+            logger.error("Share enumeration failed on \(ipAddress, privacy: .private): \(shareEnumerationError.localizedDescription, privacy: .private)")
             throw mapToConnectionError(shareEnumerationError)
         }
 
         if let lastError = lastError {
-            logger.error("Failed to validate target \'\(normalizedTarget, privacy: .private)\' on \(ipAddress, privacy: .private): \(lastError.localizedDescription)")
+            logger.error("Failed to validate target \'\(normalizedTarget, privacy: .private)\' on \(ipAddress, privacy: .private): \(lastError.localizedDescription, privacy: .private)")
             throw mapToConnectionError(lastError)
         }
 

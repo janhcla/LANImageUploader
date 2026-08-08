@@ -19,6 +19,9 @@ final class LANImageUploaderUITestsLaunchTests: XCTestCase {
 
     @MainActor
     func testLaunch() throws {
-        throw XCTSkip("Launch screenshot capture is unstable and non-functional coverage in CI.")
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTestingHome"]
+        app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 5))
     }
 }

@@ -1,4 +1,4 @@
-# LANImageUploader (ImageDrop) Code Review Rubric
+# LensBridge (LANImageUploader) Code Review Rubric
 
 This document serves as the authoritative code review rubric for all automated and manual code reviews. When reviewing Pull Requests, evaluate changes against these guidelines.
 

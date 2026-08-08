@@ -19,6 +19,44 @@ struct GalleryModelsTests {
 
     @Test func cameraOffersAllSupportedUserFacingZoomTargets() {
         #expect(CameraZoomOption.preferredDisplayFactors == [0.5, 1, 2, 3, 4])
+        #expect(CameraZoomOption(factor: 1, displayFactor: 1).label == "1x")
+        #expect(CameraZoomOption(factor: 1.5, displayFactor: 1.5).label == "1.5x")
+    }
+
+    @Test func captureOrientationNormalizesAnglesAndSwapsOrientedDimensions() {
+        #expect(DocumentCaptureOrientation.visionOrientation(forVideoRotationAngle: -90) == .left)
+        #expect(DocumentCaptureOrientation.visionOrientation(forVideoRotationAngle: 450) == .right)
+        #expect(DocumentCaptureOrientation.visionOrientation(forVideoRotationAngle: 45) == .up)
+        #expect(DocumentCaptureOrientation.orientedSize(
+            CGSize(width: 1920, height: 1080), orientation: .right
+        ) == CGSize(width: 1080, height: 1920))
+        #expect(DocumentCaptureOrientation.orientedSize(
+            CGSize(width: 1920, height: 1080), orientation: .up
+        ) == CGSize(width: 1920, height: 1080))
+    }
+
+    @Test func aspectFillFramingHandlesInvalidDimensionsAndPreviewMapping() {
+        #expect(PhotoCaptureFraming.normalizedVisibleRect(
+            imageSize: .zero,
+            previewSize: CGSize(width: 300, height: 300)
+        ) == CGRect(x: 0, y: 0, width: 1, height: 1))
+
+        let crop = DocumentCrop(
+            topLeft: CGPoint(x: 0.2, y: 0.2),
+            topRight: CGPoint(x: 0.8, y: 0.2),
+            bottomRight: CGPoint(x: 0.8, y: 0.8),
+            bottomLeft: CGPoint(x: 0.2, y: 0.8)
+        )
+        let mapped = DocumentPreviewGeometry.points(
+            for: crop,
+            imageSize: CGSize(width: 400, height: 300),
+            previewBounds: CGRect(x: 0, y: 0, width: 300, height: 300)
+        )
+
+        #expect(mapped.topLeft.x == 30)
+        #expect(mapped.topRight.x == 270)
+        #expect(mapped.topLeft.y == 60)
+        #expect(mapped.bottomLeft.y == 240)
     }
 
     @Test func visibleCropMatchesAspectFillPreviewFraming() {

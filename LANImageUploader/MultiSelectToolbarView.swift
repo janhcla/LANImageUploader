@@ -7,6 +7,7 @@ import SwiftUI
 
 struct MultiSelectToolbarView: View {
     @ObservedObject var appData: AppData
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var onUpload: () -> Void
     var onDelete: () -> Void
     var onRename: () -> Void
@@ -15,17 +16,29 @@ struct MultiSelectToolbarView: View {
     
     var body: some View {
         GlassContainer(cornerRadius: 20) {
-            HStack(spacing: 12) {
-                ActionButton(systemImage: "square.and.arrow.up", title: "Upload", color: .green, action: onUpload)
-                ActionButton(systemImage: "trash", title: "Delete", color: .red, action: onDelete)
-                ActionButton(systemImage: "pencil.and.outline", title: "Rename", color: .blue, action: onRename)
-                ActionButton(systemImage: "rotate.right", title: "Rotate", color: .orange, action: onRotate)
-                ActionButton(systemImage: "archivebox", title: "Archive", color: .teal, action: onArchive)
+            if dynamicTypeSize.isAccessibilitySize {
+                ScrollView(.horizontal) {
+                    actionButtons
+                }
+                .scrollIndicators(.visible)
+            } else {
+                actionButtons
             }
-            .padding(.horizontal, 10)
         }
+        .accessibilityLabel("Actions for \(appData.selectedImageIDs.count) selected items")
         .padding(.horizontal)
         .padding(.bottom, 10)
+    }
+
+    private var actionButtons: some View {
+        HStack(spacing: 12) {
+            ActionButton(systemImage: "square.and.arrow.up", title: "Upload", color: .green, action: onUpload)
+            ActionButton(systemImage: "trash", title: "Delete", color: .red, action: onDelete)
+            ActionButton(systemImage: "pencil.and.outline", title: "Rename", color: .blue, action: onRename)
+            ActionButton(systemImage: "rotate.right", title: "Rotate", color: .orange, action: onRotate)
+            ActionButton(systemImage: "archivebox", title: "Archive", color: .teal, action: onArchive)
+        }
+        .padding(.horizontal, 10)
     }
 }
 
@@ -45,8 +58,9 @@ private struct ActionButton: View {
                     .fontWeight(.medium)
             }
             .foregroundStyle(color)
-            .frame(minWidth: 48)
+            .frame(minWidth: 52, minHeight: 44)
         }
         .buttonStyle(.plain) // Use plain to not conflict with the GlassContainer
+        .accessibilityLabel(title)
     }
 }

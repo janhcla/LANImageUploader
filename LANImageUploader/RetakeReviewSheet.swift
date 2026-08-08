@@ -10,6 +10,7 @@ struct RetakeReviewSheet: View {
     let onUseNew: () -> Void
     let onDiscard: () -> Void
     let onRetakeAgain: () -> Void
+    @State private var isApplying = false
 
     var body: some View {
         ZStack {
@@ -28,17 +29,30 @@ struct RetakeReviewSheet: View {
                     .shadow(radius: 5)
 
                 VStack(spacing: 16) {
-                    Button(action: onUseNew) {
-                        Label("Use New Image", systemImage: "checkmark.circle.fill")
-                            .frame(maxWidth: .infinity)
+                    Button {
+                        guard !isApplying else { return }
+                        isApplying = true
+                        onUseNew()
+                    } label: {
+                        HStack(spacing: 8) {
+                            if isApplying {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "checkmark.circle.fill")
+                            }
+                            Text(isApplying ? "Replacing…" : "Use New Image")
+                        }
+                        .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(BlueButtonStyle())
+                    .disabled(isApplying)
 
                     Button(action: onRetakeAgain) {
                         Label("Retake Again", systemImage: "camera")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(OrangeButtonStyle())
+                    .disabled(isApplying)
 
                     Button(action: onDiscard) {
                         Label("Discard & Keep Old", systemImage: "xmark.circle")
@@ -46,6 +60,7 @@ struct RetakeReviewSheet: View {
                             .foregroundStyle(.red)
                     }
                     .buttonStyle(GrayButtonStyle())
+                    .disabled(isApplying)
                 }
                 .padding(.horizontal)
 
@@ -53,5 +68,6 @@ struct RetakeReviewSheet: View {
             }
             .padding()
         }
+        .interactiveDismissDisabled(isApplying)
     }
 }

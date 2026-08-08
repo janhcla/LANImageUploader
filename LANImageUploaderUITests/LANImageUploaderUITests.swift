@@ -24,11 +24,161 @@ final class LANImageUploaderUITests: XCTestCase {
 
     @MainActor
     func testExample() throws {
-        throw XCTSkip("Template UI launch smoke test is unstable and non-functional coverage in CI.")
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTestingHome"]
+        app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 5))
+
+        XCTAssertTrue(
+            app.staticTexts["Capture. Organize. Upload."].waitForExistence(timeout: 5),
+            "Home should expose the primary capture/upload workflow"
+        )
+        XCTAssertTrue(app.buttons["home-scan-documents"].exists)
+        XCTAssertTrue(app.buttons["home-capture-image"].exists)
+    }
+
+    @MainActor
+    func testConfiguredSettingsExposesConnectionTest() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTestingHome", "-uiTestingConfiguredServer"]
+        app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 5))
+
+        let settings = app.buttons["home-settings"]
+        for _ in 0..<8 where !settings.exists || !settings.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        XCTAssertTrue(settings.isHittable)
+        settings.tap()
+
+        let testConnection = app.buttons["settings-test-connection"]
+        for _ in 0..<8 where !testConnection.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(testConnection.waitForExistence(timeout: 5))
+        XCTAssertTrue(testConnection.isHittable)
+        XCTAssertTrue(testConnection.isEnabled)
+    }
+
+    @MainActor
+    func testFullAppUnlockAlwaysExposesRestorePurchases() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTestingHome", "-uiTestingConfiguredServer"]
+        app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 5))
+
+        let settings = app.buttons["home-settings"]
+        for _ in 0..<8 where !settings.exists || !settings.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        XCTAssertTrue(settings.isHittable)
+        settings.tap()
+
+        let fullAppUnlock = app.buttons["Full App Unlock"]
+        for _ in 0..<8 where !fullAppUnlock.exists || !fullAppUnlock.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(fullAppUnlock.waitForExistence(timeout: 5))
+        XCTAssertTrue(fullAppUnlock.isHittable)
+        fullAppUnlock.tap()
+
+        XCTAssertTrue(
+            app.buttons["restore-purchases-button"].waitForExistence(timeout: 5),
+            "Restore Purchases must remain visible for previously purchased accounts."
+        )
+    }
+
+    @MainActor
+    func testEmptyUploadQueueShowsRecoveryWithoutSettingsPrompt() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTestingHome", "-uiTestingEmptyLibrary"]
+        app.launch()
+
+        let upload = app.buttons["home-upload"]
+        for _ in 0..<6 where !upload.exists || !upload.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(upload.waitForExistence(timeout: 5))
+        upload.tap()
+
+        XCTAssertTrue(app.staticTexts["Nothing to Upload"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Open Gallery"].exists)
+        XCTAssertFalse(app.alerts["Server Settings Required"].exists)
+    }
+
+    @MainActor
+    func testEmptyGalleryOffersCaptureAndScan() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTestingHome", "-uiTestingEmptyLibrary"]
+        app.launch()
+
+        let gallery = app.buttons["home-gallery"]
+        for _ in 0..<6 where !gallery.exists || !gallery.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(gallery.waitForExistence(timeout: 5))
+        gallery.tap()
+
+        XCTAssertTrue(app.staticTexts["Gallery Is Empty"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Capture"].exists)
+        XCTAssertTrue(app.buttons["Scan"].exists)
+    }
+
+    @MainActor
+    func testPopulatedGalleryExposesNamedItemsAndActions() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTestingHome", "-uiTestingPopulatedLibrary"]
+        app.launch()
+
+        let gallery = app.buttons["home-gallery"]
+        for _ in 0..<6 where !gallery.exists || !gallery.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(gallery.waitForExistence(timeout: 5))
+        gallery.tap()
+
+        XCTAssertTrue(app.buttons["Sample Document"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Sample Photo"].exists)
+        XCTAssertTrue(app.buttons["Sample Receipt"].exists)
+
+        let actions = app.buttons["Actions for Sample Document"]
+        XCTAssertTrue(actions.exists)
+        actions.tap()
+        XCTAssertTrue(app.buttons["Rename Photo"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["Delete"].exists)
+    }
+
+    @MainActor
+    func testPopulatedUploadWaitsForExplicitStart() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTestingHome", "-uiTestingPopulatedLibrary", "-uiTestingConfiguredServer"]
+        app.launch()
+
+        let upload = app.buttons["home-upload"]
+        for _ in 0..<6 where !upload.exists || !upload.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(upload.waitForExistence(timeout: 5))
+        upload.tap()
+
+        XCTAssertTrue(app.buttons["Start Upload"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Abort Upload"].exists)
+        XCTAssertTrue(app.staticTexts["Sample Document"].exists)
     }
 
     @MainActor
     func testLaunchPerformance() throws {
-        throw XCTSkip("Launch performance measurement is unstable and non-functional coverage in CI.")
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTestingOnboarding"]
+        measure(metrics: [XCTApplicationLaunchMetric()]) {
+            app.launch()
+            XCTAssertTrue(
+                app.staticTexts["Capture anything. Keep it private."].waitForExistence(timeout: 5),
+                "Onboarding should explain the privacy boundary"
+            )
+            app.terminate()
+        }
     }
 }

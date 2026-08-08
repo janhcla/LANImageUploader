@@ -30,6 +30,16 @@ private final class ProgressRecorder: @unchecked Sendable {
 
 struct LANImageUploaderTests {
 
+    @Test func fileNameValidationMatchesWindowsSMBRules() {
+        #expect(FileNameValidation.isValid("Consultation 2026-08-07"))
+        #expect(FileNameValidation.isValid("patient_note.v2"))
+        #expect(!FileNameValidation.isValid("CON"))
+        #expect(!FileNameValidation.isValid("con.txt"))
+        #expect(!FileNameValidation.isValid("note?.jpg"))
+        #expect(!FileNameValidation.isValid("trailing."))
+        #expect(!FileNameValidation.isValid("line\nfeed"))
+    }
+
     @Test func scannerCapturePolicyNeverConfiguresOrCapturesAudio() {
         #expect(!ScannerCapturePolicy.automaticallyConfiguresApplicationAudioSession)
         #expect(!ScannerCapturePolicy.includesAudioInput)
@@ -234,6 +244,15 @@ struct LANImageUploaderTests {
         #expect(!results.contains { $0.id == "capture-photo" })
     }
 
+    @Test func helpExplainsUploadBoundaryAndImmediateScanPersistence() {
+        let limits = HelpContent.articles.first { $0.id == "scope-and-limitations" }
+        let scanReview = HelpContent.articles.first { $0.id == "review-scan" }
+
+        #expect(limits?.steps.contains { $0.localizedCaseInsensitiveContains("does not") } == true)
+        #expect(limits?.tip?.localizedCaseInsensitiveContains("successful upload") == true)
+        #expect(scanReview?.steps.contains { $0.localizedCaseInsensitiveContains("saved to Gallery immediately") } == true)
+    }
+
     @Test func serverConnectionRequiresEveryUploadCredential() {
         let complete = ServerSettings(
             serverIP: "192.168.1.10",
@@ -351,6 +370,57 @@ struct LANImageUploaderTests {
         #expect(mockFile.savedImages[1].fileName.hasSuffix("_bbbbbbbb.jpg"))
     }
 
+    @Test @MainActor func retakeSaveUsesUniqueNamesAndPreservesIDs() async throws {
+        let mockFile = MockFileService()
+        let appData = AppData(
+            fileService: mockFile,
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService()
+        )
+        let image = try #require(Self.makeImage())
+        let firstID = UUID(uuidString: "11111111-1234-1234-1234-123456789abc")!
+        let secondID = UUID(uuidString: "22222222-1234-1234-1234-123456789abc")!
+
+        let first = try await appData.saveCapturedUIImage(image, suggestedPrefix: "RETAKE", id: firstID)
+        let second = try await appData.saveCapturedUIImage(image, suggestedPrefix: "RETAKE", id: secondID)
+
+        #expect(first.id == firstID)
+        #expect(second.id == secondID)
+        #expect(mockFile.savedImages.count == 2)
+        #expect(mockFile.savedImages[0].fileName != mockFile.savedImages[1].fileName)
+        #expect(mockFile.savedImages[0].fileName.hasSuffix("_11111111.jpg"))
+        #expect(mockFile.savedImages[1].fileName.hasSuffix("_22222222.jpg"))
+    }
+
+    @Test @MainActor func replacingRetakenImageDoesNotLeaveTheOldQueueEntry() {
+        let appData = AppData(
+            fileService: MockFileService(),
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService()
+        )
+        let oldImage = CapturedImage(
+            id: UUID(uuidString: "11111111-1234-1234-1234-123456789abc")!,
+            name: "old",
+            fileURL: URL(fileURLWithPath: "/tmp/mock/images/old.jpg")
+        )
+        let replacement = CapturedImage(
+            id: UUID(uuidString: "22222222-1234-1234-1234-123456789abc")!,
+            name: "replacement",
+            fileURL: URL(fileURLWithPath: "/tmp/mock/images/replacement.jpg")
+        )
+        appData.images = [oldImage]
+        appData.selectedImageIDs = [oldImage.id]
+
+        appData.replaceImage(withID: oldImage.id, with: replacement)
+
+        #expect(appData.images.count == 1)
+        #expect(appData.images.first?.id == replacement.id)
+        #expect(appData.images.first?.name == "replacement")
+        #expect(appData.selectedImageIDs.isEmpty)
+    }
+
     @Test func capturedImageTimestampFormatterIsDeterministicAndThreadSafe() async throws {
         var components = DateComponents()
         components.calendar = Calendar(identifier: .gregorian)
@@ -395,6 +465,30 @@ struct LANImageUploaderTests {
         }
 
         #expect(appData.images.isEmpty)
+    }
+
+    @Test @MainActor func injectedInMemoryPasswordStoreIsProcessLocalAndDoesNotUseKeychain() throws {
+        let firstStore = InMemoryServerPasswordStore()
+        let secondStore = InMemoryServerPasswordStore()
+        let firstAppData = AppData(
+            fileService: MockFileService(),
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService(),
+            passwordStore: firstStore
+        )
+        let secondAppData = AppData(
+            fileService: MockFileService(),
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService(),
+            passwordStore: secondStore
+        )
+
+        try firstAppData.savePassword("first-process-password")
+
+        #expect(firstAppData.getPassword() == "first-process-password")
+        #expect(secondAppData.getPassword() == nil)
     }
 
     @Test @MainActor func persistentGalleryRestoresScannedPagesAndCropMetadata() throws {
@@ -453,10 +547,11 @@ struct LANImageUploaderTests {
             hapticService: MockHapticFeedbackService()
         )
         
-        await appData.saveImagesToDatedFolder()
+        let outcome = await appData.saveImagesToDatedFolder()
         
         #expect(appData.scanStatus.contains("5 images saved"))
         #expect(appData.scanStatus.contains("2 images were already saved"))
+        #expect(outcome == .saved(savedCount: 5, alreadySavedCount: 2))
     }
 
     @Test @MainActor func appDataArchiveImagesError() async throws {
@@ -470,10 +565,11 @@ struct LANImageUploaderTests {
             hapticService: MockHapticFeedbackService()
         )
         
-        await appData.saveImagesToDatedFolder()
+        let outcome = await appData.saveImagesToDatedFolder()
         
         #expect(appData.scanStatus.contains("Failed to save images"))
         #expect(appData.scanStatus.contains("Disk Full"))
+        #expect(outcome == .failed(message: "Disk Full"))
     }
 
     @Test @MainActor func appDataArchiveNoImagesReportsNoImagesToSave() async throws {
@@ -486,9 +582,10 @@ struct LANImageUploaderTests {
             hapticService: MockHapticFeedbackService()
         )
 
-        await appData.saveImagesToDatedFolder()
+        let outcome = await appData.saveImagesToDatedFolder()
 
         #expect(appData.scanStatus == "No images to save.")
+        #expect(outcome == .noImages)
     }
 
     @Test @MainActor func appDataDeleteSelectedImagesRemovesFilesAndClearsSelection() async throws {
@@ -511,6 +608,27 @@ struct LANImageUploaderTests {
         #expect(appData.selectedImageIDs.isEmpty)
         #expect(mockFile.removedItems == [first.fileURL])
         #expect(haptics.lastNotificationType == .success)
+    }
+
+    @Test @MainActor func appDataDeletionFailureKeepsImageAndSelection() async {
+        let mockFile = MockFileService()
+        mockFile.removeItemError = CocoaError(.fileWriteUnknown)
+        let appData = AppData(
+            fileService: mockFile,
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService()
+        )
+        let image = CapturedImage(name: "protected", fileURL: URL(fileURLWithPath: "/tmp/mock/images/protected.jpg"))
+        appData.images = [image]
+        appData.selectedImageIDs = [image.id]
+
+        let succeeded = await appData.deleteSelectedImages()
+
+        #expect(!succeeded)
+        #expect(appData.images.map(\.id) == [image.id])
+        #expect(appData.selectedImageIDs == [image.id])
+        #expect(mockFile.removedItems.isEmpty)
     }
 
     @Test @MainActor func appDataGetArchivedDates() async throws {
@@ -589,6 +707,19 @@ struct LANImageUploaderTests {
         }))
     }
 
+    @Test func smbConnectionTargetKeepsConfiguredShareAndOptionalDirectorySeparate() throws {
+        let shareRoot = try #require(SMBConnectionTarget(shareName: " MediaCaptureShare ", targetDirectory: " / "))
+        #expect(shareRoot.shareName == "MediaCaptureShare")
+        #expect(shareRoot.targetDirectory == nil)
+
+        let nestedDirectory = try #require(SMBConnectionTarget(shareName: "MediaCaptureShare", targetDirectory: "Data/MediaCapture"))
+        #expect(nestedDirectory.shareName == "MediaCaptureShare")
+        #expect(nestedDirectory.targetDirectory == "Data/MediaCapture")
+
+        let sharePrefixedDirectory = try #require(SMBConnectionTarget(shareName: "MediaCaptureShare", targetDirectory: "MediaCaptureShare/Data/MediaCapture"))
+        #expect(sharePrefixedDirectory.targetDirectory == "Data/MediaCapture")
+    }
+
     @Test func connectionErrorMappingExists() async throws {
         let authError = ConnectionError.authenticationFailed
         #expect(authError.localizedDescription.contains("password"))
@@ -617,6 +748,70 @@ struct LANImageUploaderTests {
 
         #expect(detail.combinedMessage == "The server rejected the username or password.\nOpen Settings and verify your SMB credentials.")
         #expect(detail.action == .openSettings)
+    }
+
+    @Test @MainActor func pendingUploadDeletionKeepsOnlyUnremovedDerivativesForRetry() async {
+        let first = UploadableFile(
+            id: UUID(), name: "first", fileURL: URL(fileURLWithPath: "/tmp/mock/first.jpg"), kind: .jpeg
+        )
+        let second = UploadableFile(
+            id: UUID(), name: "second", fileURL: URL(fileURLWithPath: "/tmp/mock/second.jpg"), kind: .jpeg
+        )
+        let third = UploadableFile(
+            id: UUID(), name: "third", fileURL: URL(fileURLWithPath: "/tmp/mock/third.jpg"), kind: .jpeg
+        )
+        var removedURLs: [URL] = []
+
+        let result = await PendingUploadFileDeletion.removeSequentially([first, second, third]) { url in
+            if url == second.fileURL {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            removedURLs.append(url)
+        }
+
+        #expect(removedURLs == [first.fileURL])
+        #expect(result.remainingFiles.map(\.id) == [second.id, third.id])
+        #expect(result.error != nil)
+    }
+
+    @Test @MainActor func pendingUploadRetryRetainsOriginalSourceIDsUntilQueueIsCleared() {
+        let firstSourceID = UUID()
+        let secondSourceID = UUID()
+        let first = UploadableFile(
+            id: UUID(), name: "first", fileURL: URL(fileURLWithPath: "/tmp/mock/first.jpg"),
+            kind: .jpeg, sourceImageIDs: [firstSourceID]
+        )
+        let second = UploadableFile(
+            id: UUID(), name: "second", fileURL: URL(fileURLWithPath: "/tmp/mock/second.jpg"),
+            kind: .jpeg, sourceImageIDs: [secondSourceID]
+        )
+        let appData = AppData(
+            fileService: MockFileService(),
+            uploadService: MockImageUploadService(),
+            discoveryService: MockNetworkDiscovery(),
+            hapticService: MockHapticFeedbackService()
+        )
+
+        appData.setPendingUploadFiles([first, second])
+        appData.retainPendingUploadFilesForRetry([second])
+
+        #expect(appData.pendingUploadFiles?.map(\.id) == [second.id])
+        #expect(appData.pendingUploadSourceImageIDs == [firstSourceID, secondSourceID])
+
+        appData.clearPendingUploadFiles()
+        #expect(appData.pendingUploadSourceImageIDs == nil)
+    }
+
+    @Test @MainActor func galleryOperationGateDoesNotLetCancelledOperationFinishReplacement() {
+        let gate = GalleryOperationGate()
+        let cancelledOperation = gate.begin()
+        gate.cancel()
+        let replacementOperation = gate.begin()
+
+        #expect(!gate.finish(cancelledOperation))
+        #expect(gate.isCurrent(replacementOperation))
+        #expect(gate.finish(replacementOperation))
+        #expect(!gate.isCurrent(replacementOperation))
     }
 
     @Test func uploadErrorGuidanceMapsSettingsActions() async throws {
@@ -730,6 +925,82 @@ struct LANImageUploaderTests {
         #expect(!access.state.shouldShowTrialStatus)
     }
 
+    @Test @MainActor func restorePurchasesMarksFullUnlockWhenVerifiedEntitlementIsFound() async {
+        let store = InMemoryPremiumAccessStore()
+        let access = PremiumAccessController(store: store)
+        let purchaseManager = StoreKitPurchaseManager(restorePurchasesAction: { true })
+
+        await purchaseManager.restorePurchases(accessController: access)
+
+        #expect(access.state.isFullAppUnlocked)
+        #expect(purchaseManager.restorationStatus == .restored)
+        #expect(!purchaseManager.isRestoring)
+    }
+
+    @Test @MainActor func restorePurchasesReportsWhenNoEntitlementIsFound() async {
+        let store = InMemoryPremiumAccessStore()
+        let access = PremiumAccessController(store: store)
+        let purchaseManager = StoreKitPurchaseManager(restorePurchasesAction: { false })
+
+        await purchaseManager.restorePurchases(accessController: access)
+
+        #expect(!access.state.isFullAppUnlocked)
+        #expect(purchaseManager.restorationStatus == .noRestorablePurchase)
+        #expect(!purchaseManager.isRestoring)
+    }
+
+    @Test @MainActor func restorePurchasesReportsStoreKitErrors() async {
+        let store = InMemoryPremiumAccessStore()
+        let access = PremiumAccessController(store: store)
+        let purchaseManager = StoreKitPurchaseManager(restorePurchasesAction: {
+            throw CocoaError(.fileReadUnknown)
+        })
+
+        await purchaseManager.restorePurchases(accessController: access)
+
+        #expect(!access.state.isFullAppUnlocked)
+        #expect(purchaseManager.restorationStatus?.isError == true)
+        #expect(purchaseManager.restorationStatus?.message.contains("Unable to restore purchases") == true)
+        #expect(!purchaseManager.isRestoring)
+    }
+
+    @Test @MainActor func restorePurchasesIgnoresRepeatedRequestsWhileRestoring() async {
+        let store = InMemoryPremiumAccessStore()
+        let access = PremiumAccessController(store: store)
+        var restoreInvocationCount = 0
+        let purchaseManager = StoreKitPurchaseManager(restorePurchasesAction: {
+            restoreInvocationCount += 1
+            try await Task.sleep(for: .milliseconds(100))
+            return true
+        })
+
+        let firstRestore = Task { @MainActor in
+            await purchaseManager.restorePurchases(accessController: access)
+        }
+        await Task.yield()
+
+        #expect(purchaseManager.isRestoring)
+        await purchaseManager.restorePurchases(accessController: access)
+        #expect(restoreInvocationCount == 1)
+
+        await firstRestore.value
+        #expect(purchaseManager.restorationStatus == .restored)
+    }
+
+    @Test @MainActor func restorePurchaseErrorPreservesExistingFullUnlock() async {
+        let store = InMemoryPremiumAccessStore()
+        store.hasPurchasedFullUnlock = true
+        let access = PremiumAccessController(store: store)
+        let purchaseManager = StoreKitPurchaseManager(restorePurchasesAction: {
+            throw CocoaError(.fileReadUnknown)
+        })
+
+        await purchaseManager.restorePurchases(accessController: access)
+
+        #expect(access.state.isFullAppUnlocked)
+        #expect(purchaseManager.restorationStatus?.isError == true)
+    }
+
     @Test @MainActor func fullUnlockDoesNotConsumeAdditionalTrialUploads() async throws {
         let store = InMemoryPremiumAccessStore()
         let access = PremiumAccessController(store: store)
@@ -783,11 +1054,91 @@ struct LANImageUploaderTests {
         #expect(second.topLeft == CGPoint(x: 0.2, y: 0.2))
     }
 
+    @Test func autoCapturePageGateOnlyReleasesAfterMeaningfulMovement() {
+        let captured = DocumentCrop.fullFrame
+        let samePage = DocumentCrop.fullFrame
+        let nextPage = DocumentCrop(
+            topLeft: CGPoint(x: 0.2, y: 0.2),
+            topRight: CGPoint(x: 0.8, y: 0.2),
+            bottomRight: CGPoint(x: 0.8, y: 0.8),
+            bottomLeft: CGPoint(x: 0.2, y: 0.8)
+        )
+
+        #expect(!DocumentCaptureQuality.hasMovedToNextPage(from: captured, to: samePage))
+        #expect(DocumentCaptureQuality.hasMovedToNextPage(from: captured, to: nextPage))
+        #expect(!DocumentCaptureQuality.hasMovedToNextPage(from: nil, to: nextPage))
+    }
+
     @Test func pdfCompressionProfilesBecomeProgressivelySmaller() {
         #expect(PDFCompressionLevel.medium.jpegQuality < PDFCompressionLevel.light.jpegQuality)
         #expect(PDFCompressionLevel.high.jpegQuality < PDFCompressionLevel.medium.jpegQuality)
         #expect(PDFCompressionLevel.medium.maxPixelDimension < PDFCompressionLevel.light.maxPixelDimension)
         #expect(PDFCompressionLevel.high.maxPixelDimension < PDFCompressionLevel.medium.maxPixelDimension)
+    }
+
+    @Test func pdfGenerationRemovesPartialOutputWhenPageCannotBeRendered() async throws {
+        let outputName = "partial-(UUID().uuidString)"
+        let missingSource = FileManager.default.temporaryDirectory
+            .appendingPathComponent("missing-(UUID().uuidString).jpg")
+        let item = GalleryItem(
+            id: UUID(),
+            capturedImage: CapturedImage(
+                name: "missing",
+                fileURL: missingSource,
+                crop: .fullFrame,
+                isDocumentScan: true
+            ),
+            rotation: .degrees0
+        )
+
+        await #expect(throws: (any Error).self) {
+            try await PDFGenerationService.shared.generatePDF(
+                from: [item],
+                outputName: outputName,
+                settings: PDFSettings()
+            )
+        }
+
+        let remaining = try FileManager.default.contentsOfDirectory(
+            at: FileManager.default.temporaryDirectory,
+            includingPropertiesForKeys: nil
+        ).filter { $0.lastPathComponent.hasPrefix(outputName) }
+        #expect(remaining.isEmpty)
+    }
+
+    @Test func cancelledPDFGenerationDoesNotCreateAnOutputFile() async throws {
+        let outputName = "cancelled-\(UUID().uuidString)"
+        let missingSource = FileManager.default.temporaryDirectory
+            .appendingPathComponent("missing-\(UUID().uuidString).jpg")
+        let item = GalleryItem(
+            id: UUID(),
+            capturedImage: CapturedImage(name: "cancelled", fileURL: missingSource),
+            rotation: .degrees0
+        )
+
+        let task = Task {
+            try await PDFGenerationService.shared.generatePDF(
+                from: [item],
+                outputName: outputName,
+                settings: PDFSettings()
+            )
+        }
+        task.cancel()
+
+        do {
+            _ = try await task.value
+            Issue.record("Cancelled PDF generation unexpectedly completed")
+        } catch is CancellationError {
+            // Expected: cancellation is checked before creating the output file.
+        } catch {
+            Issue.record("Unexpected PDF cancellation error: \(error.localizedDescription)")
+        }
+
+        let remaining = try FileManager.default.contentsOfDirectory(
+            at: FileManager.default.temporaryDirectory,
+            includingPropertiesForKeys: nil
+        ).filter { $0.lastPathComponent.hasPrefix(outputName) }
+        #expect(remaining.isEmpty)
     }
 
     @Test func highPDFCompressionProducesSmallerDocumentThanLightCompression() async throws {
@@ -911,6 +1262,42 @@ struct LANImageUploaderTests {
 
         let text = try #require(String(data: Data(contentsOf: pdf), encoding: .isoLatin1))
         #expect(text.contains("12.000 Td (1 / 1) Tj ET"))
+    }
+
+    @Test func generatedPDFHandles100SequentialPagesWithoutDroppingPages() async throws {
+        let source = Self.makeCompressionTestImage(size: CGSize(width: 320, height: 480))
+        let sourceURL = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID()).jpg")
+        try #require(source.jpegData(compressionQuality: 1)).write(to: sourceURL)
+        defer { try? FileManager.default.removeItem(at: sourceURL) }
+
+        let items = (0..<100).map { index in
+            GalleryItem(
+                id: UUID(),
+                capturedImage: CapturedImage(
+                    name: "page-\(index + 1)",
+                    fileURL: sourceURL,
+                    crop: .fullFrame,
+                    isDocumentScan: true
+                ),
+                rotation: .degrees0
+            )
+        }
+
+        let pdf = try await PDFGenerationService.shared.generatePDF(
+            from: items,
+            outputName: "hundred-pages",
+            settings: PDFSettings(
+                includePageNumbers: false,
+                jpegQuality: 0.5,
+                maxPixelDimension: 800
+            )
+        )
+        defer { try? FileManager.default.removeItem(at: pdf) }
+
+        let text = try #require(String(data: Data(contentsOf: pdf), encoding: .isoLatin1))
+        let pageObjectCount = text.components(separatedBy: "/Type /Page /Parent").count - 1
+        #expect(pageObjectCount == items.count)
+        #expect(text.contains("/Count 100"))
     }
 
     @Test @MainActor func deleteAllRetainedImagesClearsGalleryAndRemovesFiles() async {

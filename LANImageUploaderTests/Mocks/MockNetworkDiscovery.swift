@@ -15,6 +15,9 @@ final class MockNetworkDiscovery: NetworkDiscoveryProtocol, @unchecked Sendable 
     
     var networkInfoResult: NetworkInfo = NetworkInfo(serverIP: "192.168.1.1", shareName: "MockShare", targetDirectory: nil)
     var networkInfoError: Error?
+    var validatedConnectionResult: NetworkInfo = NetworkInfo(serverIP: "192.168.1.1", shareName: "MockShare", targetDirectory: nil)
+    var validatedConnectionError: Error?
+    private(set) var validatedConnectionArguments: (serverIP: String, shareName: String, targetDirectory: String?, port: Int?)?
     
     func retrieveNetworkInfo(
         targetFolder: String,
@@ -29,6 +32,23 @@ final class MockNetworkDiscovery: NetworkDiscoveryProtocol, @unchecked Sendable 
         }
         onStatus?(.connecting("192.168.1.1"))
         return networkInfoResult
+    }
+
+    func validateConnection(
+        serverIP: String,
+        shareName: String,
+        targetDirectory: String?,
+        username: String,
+        password: String,
+        port: Int?,
+        onStatus: (@Sendable (ConnectionStatus) -> Void)?
+    ) async throws -> NetworkInfo {
+        validatedConnectionArguments = (serverIP, shareName, targetDirectory, port)
+        if let validatedConnectionError {
+            throw validatedConnectionError
+        }
+        onStatus?(.connecting(serverIP))
+        return validatedConnectionResult
     }
     
     var discoveredHostsResult: [DiscoveredHost] = []
