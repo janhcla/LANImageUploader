@@ -18,6 +18,8 @@ public struct OnboardingView: View {
                 OnboardingHeader(
                     currentPage: selectedPage,
                     pageCount: pages.count,
+                    reduceMotion: reduceMotion,
+                    isLastPage: selectedPage == pages.count - 1,
                     onSkip: completeOnboarding
                 )
 
@@ -149,15 +151,24 @@ struct OnboardingDetailItem: Identifiable {
 private struct OnboardingHeader: View {
     let currentPage: Int
     let pageCount: Int
+    let reduceMotion: Bool
+    let isLastPage: Bool
     let onSkip: () -> Void
 
     var body: some View {
         HStack(spacing: 16) {
-            OnboardingProgress(currentPage: currentPage, pageCount: pageCount)
+            OnboardingProgress(
+                currentPage: currentPage,
+                pageCount: pageCount,
+                reduceMotion: reduceMotion
+            )
             Spacer()
-            Button("Skip", action: onSkip)
-                .buttonStyle(.glass)
-                .accessibilityHint("Closes onboarding and opens the app")
+            if !isLastPage {
+                Button("Skip", action: onSkip)
+                    .buttonStyle(.glass)
+                    .accessibilityHint("Closes onboarding and opens the app")
+                    .transition(.opacity)
+            }
         }
         .frame(minHeight: 48)
     }
@@ -166,6 +177,7 @@ private struct OnboardingHeader: View {
 private struct OnboardingProgress: View {
     let currentPage: Int
     let pageCount: Int
+    let reduceMotion: Bool
 
     var body: some View {
         HStack(spacing: 7) {
@@ -175,7 +187,7 @@ private struct OnboardingProgress: View {
                     .frame(width: index == currentPage ? 28 : 8, height: 8)
             }
         }
-        .animation(.snappy, value: currentPage)
+        .animation(reduceMotion ? nil : .snappy, value: currentPage)
         .accessibilityElement()
         .accessibilityLabel("Onboarding progress")
         .accessibilityValue("Page \(currentPage + 1) of \(pageCount)")
@@ -187,10 +199,10 @@ private struct OnboardingPageView: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 26) {
-                Spacer(minLength: 16)
+            VStack(spacing: 20) {
+                Spacer(minLength: 6)
 
-                AppSymbolTile(systemImage: page.systemImage, tint: page.tint, size: 104)
+                AppSymbolTile(systemImage: page.systemImage, tint: page.tint, size: 84)
 
                 VStack(spacing: 12) {
                     Text(page.title)
@@ -215,12 +227,11 @@ private struct OnboardingPageView: View {
                 }
                 .frame(maxWidth: 560)
 
-                Spacer(minLength: 20)
+                Spacer(minLength: 12)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
+            .padding(.vertical, 8)
         }
-        .scrollIndicators(.hidden)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding-\(page.rawValue)")
     }

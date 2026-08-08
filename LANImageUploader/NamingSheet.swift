@@ -17,17 +17,32 @@ struct NamingSheet: View {
     var placeholder: String = "Enter name..."
     var onSave: () -> Void
     var saveButtonLabel: String
-    @Environment(\.dismiss) var dismiss
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isScanningOCR = false
     @FocusState private var isTextFieldFocused: Bool
     @State private var isHighlighted = false
     @State private var showCPRDetected = false
 
+    private var trimmedName: String {
+        imageName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var isNameValid: Bool {
+        FileNameValidation.isValid(trimmedName)
+    }
+
+    private var nameValidationIssue: String? {
+        guard !imageName.isEmpty else { return nil }
+        return FileNameValidation.issue(for: imageName)
+    }
+
     var body: some View {
         ZStack {
             AppBackground()
             
-            VStack(spacing: 24) {
+            ScrollView {
+              VStack(spacing: 24) {
                 Text(title)
                     .font(.title3)
                     .fontWeight(.bold)
@@ -39,7 +54,8 @@ struct NamingSheet: View {
                         .submitLabel(.done)
                         .focused($isTextFieldFocused)
                         .scaleEffect(isHighlighted ? 1.05 : 1.0) // Scale effect for feedback
-                        .animation(.spring(response: 0.3, dampingFraction: 0.5), value: isHighlighted)
+                        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.5), value: isHighlighted)
+                        .onSubmit(save)
                         .overlay(alignment: .trailing) {
                             HStack {
                                 if !imageName.isEmpty {
@@ -51,6 +67,7 @@ struct NamingSheet: View {
                                         Image(systemName: "xmark.circle.fill")
                                             .foregroundStyle(.gray)
                                     }
+                                    .accessibilityLabel("Clear name")
                                 }
                                 
                                 Button(action: {
@@ -59,7 +76,7 @@ struct NamingSheet: View {
                                     if !isScanningOCR {
                                         appData.imageName = ""
                                     }
-                                    withAnimation(.spring()) {
+                                    withAnimation(reduceMotion ? nil : .spring()) {
                                         isScanningOCR.toggle()
                                     }
                                 }) {
@@ -67,6 +84,7 @@ struct NamingSheet: View {
                                         .foregroundStyle(.blue)
                                         .font(.title3)
                                 }
+                                .accessibilityLabel(isScanningOCR ? "Close text scanner" : "Scan text for name")
                             }
                             .padding(.trailing, 4)
                         }
@@ -107,23 +125,29 @@ struct NamingSheet: View {
                                 .transition(.scale.combined(with: .opacity))
                         }
                     }
-                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: showCPRDetected)
+                    .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: showCPRDetected)
                     .transition(.scale.combined(with: .opacity))
                 }
 
-                Button(action: {
-                    appData.hapticService.playLiquidBounce()
-                    onSave()
-                    dismiss()
-                }) {
+                if let nameValidationIssue {
+                    Label(nameValidationIssue, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                Button(action: save) {
                     Label(saveButtonLabel, systemImage: "checkmark.circle.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(BlueButtonStyle())
+                .disabled(!isNameValid)
                 
                 Spacer()
             }
             .padding(24)
+          }
+          .scrollDismissesKeyboard(.interactively)
         }
         .onAppear {
             isTextFieldFocused = true
@@ -137,6 +161,15 @@ struct NamingSheet: View {
                 isTextFieldFocused = true
             }
         }
+    }
+
+    private func save() {
+        guard isNameValid else { return }
+        imageName = trimmedName
+        appData.imageName = trimmedName
+        appData.hapticService.playLiquidBounce()
+        onSave()
+        dismiss()
     }
 }
 

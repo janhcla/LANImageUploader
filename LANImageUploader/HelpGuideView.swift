@@ -188,7 +188,7 @@ enum HelpContent {
             summary: "Select, rename, reorder, delete, archive, or upload local items.",
             keywords: ["gallery", "rename", "select", "reorder", "delete", "batch"],
             steps: [
-                "Open View Gallery from Home.",
+                "Open Gallery from Home.",
                 "Select one or more items for batch actions.",
                 "Rename items individually or use the batch naming flow.",
                 "Reorder selected pages before creating a combined PDF.",
@@ -381,30 +381,32 @@ private struct HelpQuickActions: View {
                 .font(.headline)
 
             AppGlassCard(tint: .blue) {
-                if let connectServerArticle = HelpContent.articles.first(where: { $0.id == "connect-server" }) {
-                    NavigationLink(value: connectServerArticle) {
+                VStack(spacing: 0) {
+                    if let connectServerArticle = HelpContent.articles.first(where: { $0.id == "connect-server" }) {
+                        NavigationLink(value: connectServerArticle) {
+                            HelpActionRow(
+                                systemImage: "network",
+                                tint: .blue,
+                                title: "Server setup guide",
+                                subtitle: "Configure local SMB upload"
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Divider()
+                        .padding(.vertical, 8)
+
+                    Button(action: onReplayOnboarding) {
                         HelpActionRow(
-                            systemImage: "network",
-                            tint: .blue,
-                            title: "Connect your server",
-                            subtitle: "Set up local SMB upload"
+                            systemImage: "play.fill",
+                            tint: .indigo,
+                            title: "Replay onboarding",
+                            subtitle: "Review the essentials"
                         )
                     }
                     .buttonStyle(.plain)
                 }
-
-                Divider()
-                    .padding(.vertical, 8)
-
-                Button(action: onReplayOnboarding) {
-                    HelpActionRow(
-                        systemImage: "play.fill",
-                        tint: .indigo,
-                        title: "Replay onboarding",
-                        subtitle: "Review the essentials"
-                    )
-                }
-                .buttonStyle(.plain)
             }
         }
     }

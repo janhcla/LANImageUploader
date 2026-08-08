@@ -278,11 +278,12 @@ struct ScannerCaptureView: View {
     let keptPhotoCount: Int
     let scannedPageCount: Int
     let onScanCapture: (Data, DocumentCrop?, @escaping (Bool) -> Void) -> Void
-    let onKeepPhoto: (UIImage) -> Void
+    let onKeepPhoto: (UIImage, @escaping (Bool) -> Void) -> Void
     let onCountdownTick: () -> Void
     let onOpenGallery: (CameraCaptureMode) -> Void
     let onCancel: () -> Void
 
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(Constants.UserDefaults.scannerAutoCaptureEnabled) private var autoCapture = true
     @State private var mode: CameraCaptureMode
     @State private var captureRequest = UUID()
@@ -290,16 +291,18 @@ struct ScannerCaptureView: View {
     @State private var documentFound = false
     @State private var countdown: Int?
     @State private var photoReviewImage: UIImage?
+    @State private var isSavingPhoto = false
     @State private var zoomOptions: [CameraZoomOption] = [.standard]
     @State private var selectedZoomFactor: CGFloat = 1
     @State private var cameraPermissionDenied = false
+    @State private var permissionRefreshRequest = UUID()
 
     init(
         initialMode: CameraCaptureMode,
         keptPhotoCount: Int,
         scannedPageCount: Int,
         onScanCapture: @escaping (Data, DocumentCrop?, @escaping (Bool) -> Void) -> Void,
-        onKeepPhoto: @escaping (UIImage) -> Void,
+        onKeepPhoto: @escaping (UIImage, @escaping (Bool) -> Void) -> Void,
         onCountdownTick: @escaping () -> Void,
         onOpenGallery: @escaping (CameraCaptureMode) -> Void,
         onCancel: @escaping () -> Void
@@ -323,6 +326,7 @@ struct ScannerCaptureView: View {
                     autoCapture: $autoCapture,
                     captureRequest: captureRequest,
                     selectedZoomFactor: selectedZoomFactor,
+                    permissionRefreshRequest: permissionRefreshRequest,
                     onScanCapture: onScanCapture,
                     onPhotoCapture: { image in
                         photoReviewImage = image
@@ -370,11 +374,17 @@ struct ScannerCaptureView: View {
             .background(.black)
             .accessibilityElement(children: .contain)
         }
+        .onAppear { refreshCameraPermissionState(retrySession: false) }
         .onChange(of: mode) { _, _ in
             countdown = nil
             documentFound = false
             guidance = "Point the camera at a document"
-            cameraPermissionDenied = false
+            refreshCameraPermissionState(retrySession: true)
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                refreshCameraPermissionState(retrySession: true)
+            }
         }
     }
 
@@ -382,10 +392,12 @@ struct ScannerCaptureView: View {
         VStack {
             scannerTopBar
             Spacer()
-            if mode == .scan {
+            if cameraPermissionDenied || mode == .scan {
                 guidanceBanner
             }
-            captureBottomBar(isLandscape: false)
+            if !cameraPermissionDenied {
+                captureBottomBar(isLandscape: false)
+            }
         }
     }
 
@@ -397,12 +409,14 @@ struct ScannerCaptureView: View {
                 galleryButton
             }
             Spacer()
-            if mode == .scan {
+            if cameraPermissionDenied || mode == .scan {
                 guidanceBanner
                     .frame(maxWidth: 300)
             }
-            captureBottomBar(isLandscape: true)
-                .frame(width: 260)
+            if !cameraPermissionDenied {
+                captureBottomBar(isLandscape: true)
+                    .frame(width: 260)
+            }
         }
         .foregroundStyle(.white)
     }
@@ -487,6 +501,7 @@ struct ScannerCaptureView: View {
                 }
             }
             .pickerStyle(.segmented)
+            .accessibilityLabel("Capture mode")
             .accessibilityIdentifier("camera-mode-selector")
 
             zoomControls
@@ -515,6 +530,8 @@ struct ScannerCaptureView: View {
             }
             .accessibilityLabel(mode == .scan ? "Scan page" : "Take photo")
         }
+        .disabled(cameraPermissionDenied)
+        .opacity(cameraPermissionDenied ? 0.48 : 1)
         .foregroundStyle(.white)
         .padding(.horizontal, isLandscape ? 10 : 12)
         .padding(.vertical, isLandscape ? 12 : 14)
@@ -556,6 +573,7 @@ struct ScannerCaptureView: View {
                             reviewIconButton(label: "Discard photo", systemName: "xmark") {
                                 photoReviewImage = nil
                             }
+                            .disabled(isSavingPhoto)
                             Spacer()
                         }
 
@@ -573,6 +591,7 @@ struct ScannerCaptureView: View {
                             reviewIconButton(label: "Discard photo", systemName: "xmark") {
                                 photoReviewImage = nil
                             }
+                            .disabled(isSavingPhoto)
                             Spacer()
                         }
 
@@ -604,20 +623,36 @@ struct ScannerCaptureView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.white)
                 .accessibilityLabel("Retake photo")
+                .disabled(isSavingPhoto)
 
                 Button {
-                    onKeepPhoto(image)
-                    photoReviewImage = nil
+                    guard !isSavingPhoto else { return }
+                    isSavingPhoto = true
+                    onKeepPhoto(image) { saved in
+                        isSavingPhoto = false
+                        if saved {
+                            photoReviewImage = nil
+                        }
+                    }
                 } label: {
-                    Label("Keep Photo", systemImage: "checkmark")
-                        .font(.headline)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(.blue.opacity(0.65), in: Capsule())
+                    HStack(spacing: 8) {
+                        if isSavingPhoto {
+                            ProgressView()
+                                .tint(.white)
+                        } else {
+                            Image(systemName: "checkmark")
+                        }
+                        Text(isSavingPhoto ? "Saving…" : "Keep Photo")
+                    }
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(.blue.opacity(0.65), in: Capsule())
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white)
-                .accessibilityLabel("Keep photo")
+                .accessibilityLabel(isSavingPhoto ? "Saving photo" : "Keep photo")
+                .disabled(isSavingPhoto)
             }
             .padding(isLandscape ? 12 : 0)
         }
@@ -641,6 +676,18 @@ struct ScannerCaptureView: View {
         mode == .photo ? keptPhotoCount : scannedPageCount
     }
 
+    private func refreshCameraPermissionState(retrySession: Bool) {
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        cameraPermissionDenied = status == .denied || status == .restricted
+        if cameraPermissionDenied {
+            guidance = "Camera permission is required"
+            countdown = nil
+            documentFound = false
+        } else if retrySession {
+            permissionRefreshRequest = UUID()
+        }
+    }
+
     private var galleryAccessibilityLabel: String {
         if mode == .photo {
             return "Open gallery, \(keptPhotoCount) kept photos"
@@ -651,6 +698,7 @@ struct ScannerCaptureView: View {
 
 private struct ZoomablePhotoReviewImage: View {
     let image: UIImage
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var scale: CGFloat = 1
     @State private var offset: CGSize = .zero
     @GestureState private var activeScale: CGFloat = 1
@@ -678,19 +726,15 @@ private struct ZoomablePhotoReviewImage: View {
                 .gesture(magnifyGesture)
                 .simultaneousGesture(dragGesture)
                 .onTapGesture(count: 2) {
-                    withAnimation(.smooth(duration: 0.24)) {
-                        if scale > 1 {
-                            scale = 1
-                            offset = .zero
-                        } else {
-                            scale = 2
-                        }
-                    }
+                    toggleZoom()
                 }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityLabel("Captured photo preview")
-        .accessibilityHint("Pinch or double tap to zoom")
+        .accessibilityHint("Use the Zoom action to inspect the photo")
+        .accessibilityAction(named: scale > 1 ? "Reset Zoom" : "Zoom In") {
+            toggleZoom()
+        }
     }
 
     private var magnifyGesture: some Gesture {
@@ -704,6 +748,17 @@ private struct ZoomablePhotoReviewImage: View {
                     offset = .zero
                 }
             }
+    }
+
+    private func toggleZoom() {
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.24)) {
+            if scale > 1 {
+                scale = 1
+                offset = .zero
+            } else {
+                scale = 2
+            }
+        }
     }
 
     private var dragGesture: some Gesture {
@@ -728,6 +783,7 @@ struct DocumentCameraPreview: UIViewControllerRepresentable {
     @Binding var autoCapture: Bool
     let captureRequest: UUID
     let selectedZoomFactor: CGFloat
+    let permissionRefreshRequest: UUID
     let onScanCapture: (Data, DocumentCrop?, @escaping (Bool) -> Void) -> Void
     let onPhotoCapture: (UIImage) -> Void
     let onDetectionChanged: (String, Bool) -> Void
@@ -753,6 +809,10 @@ struct DocumentCameraPreview: UIViewControllerRepresentable {
         controller.mode = mode
         controller.autoCaptureEnabled = autoCapture
         controller.setZoomFactor(selectedZoomFactor)
+        if context.coordinator.lastPermissionRefreshRequest != permissionRefreshRequest {
+            context.coordinator.lastPermissionRefreshRequest = permissionRefreshRequest
+            controller.start()
+        }
         if context.coordinator.lastCaptureRequest != captureRequest {
             context.coordinator.lastCaptureRequest = captureRequest
             controller.capturePage()
@@ -760,13 +820,19 @@ struct DocumentCameraPreview: UIViewControllerRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(captureRequest: captureRequest)
+        Coordinator(
+            captureRequest: captureRequest,
+            permissionRefreshRequest: permissionRefreshRequest
+        )
     }
 
     final class Coordinator {
         var lastCaptureRequest: UUID
-        init(captureRequest: UUID) {
+        var lastPermissionRefreshRequest: UUID
+
+        init(captureRequest: UUID, permissionRefreshRequest: UUID) {
             self.lastCaptureRequest = captureRequest
+            self.lastPermissionRefreshRequest = permissionRefreshRequest
         }
     }
 }

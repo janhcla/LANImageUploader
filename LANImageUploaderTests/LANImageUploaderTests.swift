@@ -30,6 +30,16 @@ private final class ProgressRecorder: @unchecked Sendable {
 
 struct LANImageUploaderTests {
 
+    @Test func fileNameValidationMatchesWindowsSMBRules() {
+        #expect(FileNameValidation.isValid("Consultation 2026-08-07"))
+        #expect(FileNameValidation.isValid("patient_note.v2"))
+        #expect(!FileNameValidation.isValid("CON"))
+        #expect(!FileNameValidation.isValid("con.txt"))
+        #expect(!FileNameValidation.isValid("note?.jpg"))
+        #expect(!FileNameValidation.isValid("trailing."))
+        #expect(!FileNameValidation.isValid("line\nfeed"))
+    }
+
     @Test func scannerCapturePolicyNeverConfiguresOrCapturesAudio() {
         #expect(!ScannerCapturePolicy.automaticallyConfiguresApplicationAudioSession)
         #expect(!ScannerCapturePolicy.includesAudioInput)
@@ -537,10 +547,11 @@ struct LANImageUploaderTests {
             hapticService: MockHapticFeedbackService()
         )
         
-        await appData.saveImagesToDatedFolder()
+        let outcome = await appData.saveImagesToDatedFolder()
         
         #expect(appData.scanStatus.contains("5 images saved"))
         #expect(appData.scanStatus.contains("2 images were already saved"))
+        #expect(outcome == .saved(savedCount: 5, alreadySavedCount: 2))
     }
 
     @Test @MainActor func appDataArchiveImagesError() async throws {
@@ -554,10 +565,11 @@ struct LANImageUploaderTests {
             hapticService: MockHapticFeedbackService()
         )
         
-        await appData.saveImagesToDatedFolder()
+        let outcome = await appData.saveImagesToDatedFolder()
         
         #expect(appData.scanStatus.contains("Failed to save images"))
         #expect(appData.scanStatus.contains("Disk Full"))
+        #expect(outcome == .failed(message: "Disk Full"))
     }
 
     @Test @MainActor func appDataArchiveNoImagesReportsNoImagesToSave() async throws {
@@ -570,9 +582,10 @@ struct LANImageUploaderTests {
             hapticService: MockHapticFeedbackService()
         )
 
-        await appData.saveImagesToDatedFolder()
+        let outcome = await appData.saveImagesToDatedFolder()
 
         #expect(appData.scanStatus == "No images to save.")
+        #expect(outcome == .noImages)
     }
 
     @Test @MainActor func appDataDeleteSelectedImagesRemovesFilesAndClearsSelection() async throws {

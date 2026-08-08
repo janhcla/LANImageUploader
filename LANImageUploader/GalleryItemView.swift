@@ -67,6 +67,17 @@ struct GalleryItemView: View {
             .onTapGesture {
                 onTap()
             }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibleItemName)
+            .accessibilityValue(accessibleItemValue)
+            .accessibilityHint(isMultiSelectMode ? "Double tap to change selection" : "Double tap to open full screen")
+            .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+            .accessibilityAction(named: "Upload", onUpload)
+            .accessibilityAction(named: "Rotate", onRotate)
+            .accessibilityAction(named: "Edit Crop", onEditCrop)
+            .accessibilityAction(named: "Rename", onRename)
+            .accessibilityAction(named: "Retake", onRetake)
+            .accessibilityAction(named: "Delete", onDelete)
             .task(id: imageReloadID) {
                 await loadImage()
             }
@@ -84,6 +95,7 @@ struct GalleryItemView: View {
                 .padding(8)
                 .offset(x: -8, y: 8) // align to top left
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .accessibilityHidden(true)
 
             if isMultiSelectMode {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
@@ -91,46 +103,47 @@ struct GalleryItemView: View {
                     .foregroundStyle(isSelected ? .blue : .white)
                     .background(Circle().fill(Color.black.opacity(0.3)).padding(2))
                     .padding(8)
+                    .accessibilityHidden(true)
+            } else {
+                Menu {
+                    itemActions
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .frame(width: 36, height: 36)
+                        .background(.black.opacity(0.48), in: Circle())
+                }
+                .accessibilityLabel("Actions for \(item.capturedImage?.name ?? "empty position")")
+                .padding(6)
             }
         }
         .contextMenu {
-            if item.capturedImage != nil {
-                Button {
-                    onUpload()
-                } label: {
-                    Label("Upload", systemImage: "square.and.arrow.up")
-                }
+            itemActions
+        }
+    }
 
-                Button {
-                    onRotate()
-                } label: {
-                    Label("Rotate", systemImage: "rotate.right")
-                }
-
-                Button {
-                    onEditCrop()
-                } label: {
-                    Label("Edit Crop", systemImage: "crop.rotate")
-                }
-
-                Button {
-                    onRename()
-                } label: {
-                    Label("Rename Photo", systemImage: "pencil")
-                }
-
-                Button {
-                    onRetake()
-                } label: {
-                    Label("Retake", systemImage: "camera")
-                }
+    @ViewBuilder
+    private var itemActions: some View {
+        if item.capturedImage != nil {
+            Button(action: onUpload) {
+                Label("Upload", systemImage: "square.and.arrow.up")
             }
-
-            Button(role: .destructive) {
-                onDelete()
-            } label: {
-                Label("Delete", systemImage: "trash")
+            Button(action: onRotate) {
+                Label("Rotate", systemImage: "rotate.right")
             }
+            Button(action: onEditCrop) {
+                Label("Edit Crop", systemImage: "crop.rotate")
+            }
+            Button(action: onRename) {
+                Label("Rename Photo", systemImage: "pencil")
+            }
+            Button(action: onRetake) {
+                Label("Retake", systemImage: "camera")
+            }
+        }
+        Button(role: .destructive, action: onDelete) {
+            Label("Delete", systemImage: "trash")
         }
     }
 
@@ -148,6 +161,17 @@ struct GalleryItemView: View {
     private var imageReloadID: String {
         guard let image = item.capturedImage else { return item.id.uuidString }
         return "\(image.id.uuidString)-\(image.fileURL.path)-\(String(describing: image.crop))-\(item.rotation.rawValue)"
+    }
+
+    private var accessibleItemName: String {
+        item.capturedImage?.name ?? "Empty gallery position \(index + 1)"
+    }
+
+    private var accessibleItemValue: String {
+        if isMultiSelectMode {
+            return isSelected ? "Selected" : "Not selected"
+        }
+        return "Position \(index + 1)"
     }
 
     private func loadImage() async {

@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct LiquidButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isEnabled) private var isEnabled
     var backgroundColor: Color = .blue
     
     func makeBody(configuration: Configuration) -> some View {
@@ -28,9 +30,15 @@ struct LiquidButtonStyle: ButtonStyle {
                 }
             )
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.6, blendDuration: 0), value: configuration.isPressed)
-            .shadow(color: backgroundColor.opacity(0.2), radius: configuration.isPressed ? 4 : 10, x: 0, y: configuration.isPressed ? 2 : 5)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1.0)
+            .opacity(isEnabled ? (configuration.isPressed ? 0.84 : 1.0) : 0.46)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.18), value: configuration.isPressed)
+            .shadow(
+                color: backgroundColor.opacity(isEnabled ? 0.2 : 0.06),
+                radius: configuration.isPressed ? 4 : 10,
+                x: 0,
+                y: configuration.isPressed ? 2 : 5
+            )
     }
 }
 

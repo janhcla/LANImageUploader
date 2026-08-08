@@ -7,6 +7,7 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject private var appData: AppData
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var activeCameraMode: CameraCaptureMode?
 
     private var isServerConnectionComplete: Bool {
@@ -20,28 +21,28 @@ struct HomeView: View {
         NavigationStack {
             BackgroundContainerView {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 22) {
+                    VStack(alignment: .leading, spacing: 18) {
                         HomeHeader()
+
+                        HomeCaptureActions(activeCameraMode: $activeCameraMode)
 
                         if !isServerConnectionComplete {
                             ServerSetupCard()
                                 .transition(.move(edge: .top).combined(with: .opacity))
                         }
 
-                        HomeCaptureActions(activeCameraMode: $activeCameraMode)
                         HomeLibraryActions()
                     }
                     .padding(20)
                 }
+                .scrollBounceBehavior(.basedOnSize)
             }
-            .navigationTitle("LensBridge")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .fullScreenCover(item: $activeCameraMode) { mode in
                 CameraView(initialMode: mode)
                     .environmentObject(appData)
             }
-            .animation(.snappy, value: isServerConnectionComplete)
+            .animation(reduceMotion ? nil : .snappy, value: isServerConnectionComplete)
         }
     }
 }
@@ -65,45 +66,56 @@ private struct HomeHeader: View {
                 .foregroundStyle(.secondary)
                 .lineSpacing(3)
         }
+        .dynamicTypeSize(.xSmall ... .accessibility1)
         .accessibilityElement(children: .combine)
     }
 }
 
 private struct ServerSetupCard: View {
-    var body: some View {
-        AppGlassCard(tint: .blue) {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(spacing: 14) {
-                    AppSymbolTile(systemImage: "network", tint: .blue, size: 56)
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Get upload ready")
-                            .font(.title3.bold())
-                        Text("Connect your local SMB server. Capture and scanning already work without it.")
-                            .font(.subheadline)
+    var body: some View {
+        NavigationLink {
+            SettingsView()
+        } label: {
+            AppGlassCard(tint: .blue) {
+                if dynamicTypeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 8) {
+                        AppSymbolTile(systemImage: "network", tint: .blue, size: 48)
+                        serverSetupText
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    HStack(spacing: 14) {
+                        AppSymbolTile(systemImage: "network", tint: .blue, size: 48)
+                        serverSetupText
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right")
+                            .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityHidden(true)
                     }
                 }
-
-                NavigationLink {
-                    SettingsView()
-                } label: {
-                    FullWidthGlassButtonLabel("Open Server Connection", systemImage: "arrow.right")
-                }
-                .buttonStyle(.glassProminent)
-
-                Label("Settings > Server Connection", systemImage: "gearshape")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
             }
         }
+        .buttonStyle(.plain)
         .accessibilityIdentifier("server-setup-card")
+    }
+
+    private var serverSetupText: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("Connect your server")
+                .font(.headline)
+                .foregroundStyle(.primary)
+            Text("Required only when you're ready to upload")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
     }
 }
 
 private struct HomeCaptureActions: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Binding var activeCameraMode: CameraCaptureMode?
 
     var body: some View {
@@ -112,7 +124,19 @@ private struct HomeCaptureActions: View {
                 .font(.headline)
 
             GlassEffectContainer(spacing: 12) {
-                HStack(spacing: 12) {
+                Group {
+                    if dynamicTypeSize.isAccessibilitySize {
+                        VStack(spacing: 12) { actionCards }
+                    } else {
+                        HStack(spacing: 12) { actionCards }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var actionCards: some View {
                     HomeActionButton(
                         title: "Capture Image",
                         subtitle: "Take a photo",
@@ -130,13 +154,12 @@ private struct HomeCaptureActions: View {
                     ) {
                         activeCameraMode = .scan
                     }
-                }
-            }
-        }
     }
 }
 
 private struct HomeLibraryActions: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Library & Transfer")
@@ -144,10 +167,9 @@ private struct HomeLibraryActions: View {
 
             GlassEffectContainer(spacing: 12) {
                 LazyVGrid(
-                    columns: [
-                        GridItem(.flexible(), spacing: 12),
-                        GridItem(.flexible(), spacing: 12)
-                    ],
+                    columns: dynamicTypeSize.isAccessibilitySize
+                        ? [GridItem(.flexible())]
+                        : [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
                     spacing: 12
                 ) {
                     NavigationLink {
@@ -157,9 +179,11 @@ private struct HomeLibraryActions: View {
                             title: "Gallery",
                             subtitle: "Organize & create PDF",
                             systemImage: "photo.stack.fill",
-                            tint: .green
+                            tint: .green,
+                            glassTintOpacity: 0.035
                         )
                     }
+                    .accessibilityIdentifier("home-gallery")
 
                     NavigationLink {
                         UploadView()
@@ -168,9 +192,11 @@ private struct HomeLibraryActions: View {
                             title: "Upload",
                             subtitle: "Send queued files",
                             systemImage: "arrow.up.circle.fill",
-                            tint: .orange
+                            tint: .orange,
+                            glassTintOpacity: 0.035
                         )
                     }
+                    .accessibilityIdentifier("home-upload")
 
                     NavigationLink {
                         ArchiveView()
@@ -179,7 +205,8 @@ private struct HomeLibraryActions: View {
                             title: "Archives",
                             subtitle: "Restore saved work",
                             systemImage: "archivebox.fill",
-                            tint: .purple
+                            tint: .purple,
+                            glassTintOpacity: 0.035
                         )
                     }
 
@@ -190,7 +217,8 @@ private struct HomeLibraryActions: View {
                             title: "Settings",
                             subtitle: "Server, PDF & privacy",
                             systemImage: "gearshape.fill",
-                            tint: .gray
+                            tint: .gray,
+                            glassTintOpacity: 0.035
                         )
                     }
                     .accessibilityIdentifier("home-settings")
@@ -227,6 +255,8 @@ private struct HomeActionCard: View {
     let subtitle: String
     let systemImage: String
     let tint: Color
+    var glassTintOpacity = 0.08
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -243,12 +273,12 @@ private struct HomeActionCard: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading)
-                    .lineLimit(2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 124, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 110, alignment: .leading)
         .padding(16)
-        .glassEffect(.regular.tint(tint.opacity(0.1)).interactive(), in: .rect(cornerRadius: 22))
+        .glassEffect(.regular.tint(tint.opacity(glassTintOpacity)).interactive(), in: .rect(cornerRadius: 22))
         .contentShape(.rect(cornerRadius: 22))
     }
 }

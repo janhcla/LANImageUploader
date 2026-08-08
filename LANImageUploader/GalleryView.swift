@@ -58,6 +58,7 @@ final class GalleryOperationGate: ObservableObject {
 struct GalleryView: View {
     let initialOutputMode: GalleryOutputMode?
     @EnvironmentObject var appData: AppData
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isMultiSelectMode = false
     @State private var isShowingNamingSheet = false
     @State private var imageName = ""
@@ -70,7 +71,9 @@ struct GalleryView: View {
 
     // Deletion states
     @State private var showDeleteConfirmation = false
+    @State private var showBatchDeleteConfirmation = false
     @State private var itemToDelete: GalleryItem?
+    @State private var emptyStateCameraMode: CameraCaptureMode?
 
     // Mode
     @State private var outputMode: GalleryOutputMode
@@ -126,7 +129,7 @@ struct GalleryView: View {
                     if !galleryItems.isEmpty {
                         Button(isMultiSelectMode ? "Done" : "Select") {
                             appData.hapticService.playSelection()
-                            withAnimation(.spring()) {
+                            withAnimation(reduceMotion ? nil : .spring()) {
                                 isMultiSelectMode.toggle()
                                 if !isMultiSelectMode {
                                     appData.selectedImageIDs.removeAll()
@@ -164,21 +167,33 @@ struct GalleryView: View {
                 )
             }
             .confirmationDialog(
-                "Delete Options",
+                "Delete Image?",
                 isPresented: $showDeleteConfirmation,
                 titleVisibility: .visible
             ) {
                 if let item = itemToDelete, item.capturedImage != nil {
-                    Button("Leave Empty Space", role: .destructive) {
+                    Button("Delete Image, Keep Placeholder", role: .destructive) {
                         leaveEmptySpace(item)
                     }
                 }
-                Button("Delete Space", role: .destructive) {
+                Button("Delete Image and Close Gap", role: .destructive) {
                     if let item = itemToDelete { deleteSpace(item) }
                 }
                 Button("Cancel", role: .cancel) { itemToDelete = nil }
             } message: {
-                Text("What would you like to do?")
+                Text("Keep a placeholder to preserve this page position, or close the gap and renumber the remaining items.")
+            }
+            .confirmationDialog(
+                "Delete Selected Images?",
+                isPresented: $showBatchDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete \(appData.selectedImageIDs.count) Images", role: .destructive) {
+                    deleteSelectedItems()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("The selected local images will be permanently removed from Gallery.")
             }
             .fullScreenCover(item: $fullscreenData) { data in
                 FullscreenImageView(
@@ -191,8 +206,12 @@ struct GalleryView: View {
                         }
                         fullscreenData = nil
                     },
-                    onSave: { }
+                    onSave: nil
                 )
+            }
+            .fullScreenCover(item: $emptyStateCameraMode) { mode in
+                CameraView(initialMode: mode)
+                    .environmentObject(appData)
             }
             .sheet(item: $cropEditingItem) { item in
                 if let capturedImage = item.capturedImage,
@@ -223,7 +242,7 @@ struct GalleryView: View {
             }) {
                 CameraPickerWrapper(image: $retakeImage)
             }
-            .sheet(item: $retakeReviewData) { data in
+            .sheet(item: $retakeReviewData, onDismiss: clearRetakeState) { data in
                 RetakeReviewSheet(
                     newImage: data.image,
                     onUseNew: {
@@ -252,14 +271,15 @@ struct GalleryView: View {
                 Text(retakeError ?? "The original image was kept. Please try again.")
             }
             .navigationDestination(isPresented: $navigateToUpload) {
-                UploadView(fallbackToGalleryImages: false).environmentObject(appData)
+                UploadView(fallbackToGalleryImages: false, automaticallyStarts: true)
+                    .environmentObject(appData)
             }
             .safeAreaInset(edge: .bottom) {
                 if isMultiSelectMode && !appData.selectedImageIDs.isEmpty {
                     MultiSelectToolbarView(
                         appData: appData,
                         onUpload: uploadSelectedItemsForCurrentOutputMode,
-                        onDelete: deleteSelectedItems,
+                        onDelete: { showBatchDeleteConfirmation = true },
                         onRename: {
                             imageName = ""
                             namingIntent = .batchRenameOnly
@@ -293,7 +313,7 @@ struct GalleryView: View {
                                         namingIntent = .batchRenameAndUpload
                                         isShowingNamingSheet = true
                                     }) {
-                                        Label("Batch Rename & Upload", systemImage: "square.and.pencil")
+                                        Label("Rename & Upload", systemImage: "square.and.pencil")
                                             .font(.subheadline.weight(.semibold))
                                             .frame(maxWidth: .infinity)
                                             .frame(height: 44)
@@ -321,7 +341,7 @@ struct GalleryView: View {
             .alert("Error", isPresented: Binding(get: { pdfGenerationError != nil }, set: { if !$0 { pdfGenerationError = nil } })) {
                 Button("OK") { pdfGenerationError = nil }
             } message: {
-                Text(pdfGenerationError ?? "Unknown error occurred.")
+                Text(pdfGenerationError ?? "PDF generation failed. Please try again.")
             }
             .overlay {
                 if isGeneratingPDF || isPreparingUpload {
@@ -403,21 +423,46 @@ struct GalleryView: View {
         }
         .onDrop(
             of: [.text],
-            delegate: ReorderDropDelegate(item: item, items: $galleryItems, draggedItem: $draggedItem)
+            delegate: ReorderDropDelegate(
+                item: item,
+                items: $galleryItems,
+                draggedItem: $draggedItem,
+                reduceMotion: reduceMotion
+            )
         )
     }
 
     private var emptyStateView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "photo.on.rectangle.angled")
-                .font(.system(size: 70))
-                .foregroundStyle(.secondary)
-            Text("No images in gallery")
-                .font(.title3)
-                .foregroundStyle(.secondary)
+        ContentUnavailableView {
+            Label("Gallery Is Empty", systemImage: "photo.on.rectangle.angled")
+        } description: {
+            Text("Capture a photo or scan a document. Everything stays on this device until you choose to upload it.")
+        } actions: {
+            ViewThatFits {
+                HStack {
+                    emptyStateCaptureButton(title: "Capture", image: "camera.fill", mode: .photo)
+                    emptyStateCaptureButton(title: "Scan", image: "doc.viewfinder", mode: .scan)
+                }
+                VStack {
+                    emptyStateCaptureButton(title: "Capture", image: "camera.fill", mode: .photo)
+                    emptyStateCaptureButton(title: "Scan", image: "doc.viewfinder", mode: .scan)
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.top, 100)
+    }
+
+    private func emptyStateCaptureButton(
+        title: String,
+        image: String,
+        mode: CameraCaptureMode
+    ) -> some View {
+        Button {
+            emptyStateCameraMode = mode
+        } label: {
+            Label(title, systemImage: image)
+        }
+        .buttonStyle(.borderedProminent)
     }
 
     func handleItemTap(_ item: GalleryItem) {
@@ -628,11 +673,20 @@ struct GalleryView: View {
         guard !selectedImages.isEmpty else { return }
 
         Task {
-            await appData.saveImagesToDatedFolder(selectedImages)
+            let outcome = await appData.saveImagesToDatedFolder(selectedImages)
             await MainActor.run {
-                appData.selectedImageIDs.removeAll()
-                isMultiSelectMode = false
-                appData.hapticService.playNotification(type: .success)
+                switch outcome {
+                case .saved:
+                    appData.selectedImageIDs.removeAll()
+                    isMultiSelectMode = false
+                    appData.hapticService.playNotification(type: .success)
+                case .noImages:
+                    pdfGenerationError = "No selected images were available to archive."
+                    appData.hapticService.playNotification(type: .warning)
+                case .failed(let message):
+                    pdfGenerationError = "Could not archive the selected images: \(message)"
+                    appData.hapticService.playNotification(type: .error)
+                }
             }
         }
     }
@@ -694,6 +748,12 @@ struct GalleryView: View {
                 retakeError = "Could not replace the original image: \(error.localizedDescription)"
             }
         }
+    }
+
+    private func clearRetakeState() {
+        retakeImage = nil
+        retakeTargetId = nil
+        retakeReviewData = nil
     }
 
     @MainActor
@@ -965,6 +1025,7 @@ struct ReorderDropDelegate: DropDelegate {
     let item: GalleryItem
     @Binding var items: [GalleryItem]
     @Binding var draggedItem: GalleryItem?
+    let reduceMotion: Bool
 
     func dropEntered(info: DropInfo) {
         guard let dragged = draggedItem else { return }
@@ -972,7 +1033,7 @@ struct ReorderDropDelegate: DropDelegate {
 
         if let fromIndex = items.firstIndex(of: dragged),
            let toIndex = items.firstIndex(of: item) {
-            withAnimation(.default) {
+            withAnimation(reduceMotion ? nil : .default) {
                 self.items.move(fromOffsets: IndexSet(integer: fromIndex), toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex)
             }
         }
@@ -1031,7 +1092,19 @@ struct CropEditorView: View {
                             .position(position)
                             .gesture(dragGesture(for: control, in: frame))
                             .accessibilityLabel(control.accessibilityLabel)
-                            .accessibilityHint("Drag to adjust document crop")
+                            .accessibilityHint("Use the move actions to adjust the document crop")
+                            .accessibilityAction(named: "Move left") {
+                                adjust(control, x: -0.02, y: 0)
+                            }
+                            .accessibilityAction(named: "Move right") {
+                                adjust(control, x: 0.02, y: 0)
+                            }
+                            .accessibilityAction(named: "Move up") {
+                                adjust(control, x: 0, y: -0.02)
+                            }
+                            .accessibilityAction(named: "Move down") {
+                                adjust(control, x: 0, y: 0.02)
+                            }
                     }
 
                     if let activePoint {
@@ -1094,6 +1167,10 @@ struct CropEditorView: View {
                 activePoint = nil
             }
     }
+
+    private func adjust(_ control: CropControl, x: CGFloat, y: CGFloat) {
+        crop = control.moving(in: crop, delta: CGPoint(x: x, y: y)).clamped()
+    }
 }
 
 private struct CropPolygon: View {
@@ -1142,7 +1219,18 @@ private enum CropControl: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
     var isCorner: Bool { [.topLeft, .topRight, .bottomRight, .bottomLeft].contains(self) }
-    var accessibilityLabel: String { "\(rawValue) crop handle" }
+    var accessibilityLabel: String {
+        switch self {
+        case .topLeft: "Top left crop handle"
+        case .top: "Top crop handle"
+        case .topRight: "Top right crop handle"
+        case .right: "Right crop handle"
+        case .bottomRight: "Bottom right crop handle"
+        case .bottom: "Bottom crop handle"
+        case .bottomLeft: "Bottom left crop handle"
+        case .left: "Left crop handle"
+        }
+    }
 
     func point(in crop: DocumentCrop) -> CGPoint {
         switch self {

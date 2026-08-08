@@ -6,8 +6,6 @@
 //
 
 import SwiftUI
-import Combine
-import UIKit
 
 struct SMBConnectionTarget: Equatable {
     let shareName: String
@@ -43,6 +41,7 @@ struct SettingsView: View {
     @State private var showError = false
     @State private var errorMessage = ""
     @State private var showSuccess = false
+    @State private var successTitle = "Settings Saved"
     @State private var successMessage = ""
     @State private var showWarning = false
     @State private var isFirstSetup = true
@@ -54,9 +53,9 @@ struct SettingsView: View {
     @State private var tempNetworkInfo: NetworkInfo?
     @State private var showResetConfirmation = false
     @State private var showDirectIPPrompt = false
-    @State private var isKeyboardVisible = false
     @State private var directIPInput = ""
     @State private var discoveryTask: Task<Void, Never>? = nil
+    @State private var activeDiscoveryOperationID: UUID?
     @State private var activeSheet: SettingsSheet? = nil
 
     private enum SettingsSheet: Identifiable {
@@ -72,16 +71,28 @@ struct SettingsView: View {
     }
 
     var isSetupComplete: Bool {
-        !appData.settings.serverIP.isEmpty && !appData.settings.shareName.isEmpty &&
-        !appData.settings.username.isEmpty && appData.getPassword() != nil
+        ServerConnectionReadiness.isComplete(
+            settings: appData.settings,
+            password: appData.getPassword()
+        )
     }
 
     var canAutoFill: Bool {
-        !username.isEmpty && !password.isEmpty && !targetDirectory.isEmpty
+        !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !password.isEmpty && isPortValid
     }
 
     var canSave: Bool {
-        !serverIP.isEmpty && !shareName.isEmpty && !username.isEmpty && !password.isEmpty
+        !serverIP.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !shareName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !password.isEmpty && isPortValid
+    }
+
+    private var isPortValid: Bool {
+        guard !port.isEmpty else { return true }
+        guard let value = Int(port) else { return false }
+        return (1...65_535).contains(value)
     }
 
     var hasUnsavedChanges: Bool {
@@ -101,12 +112,30 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        Form {
-            if isFirstSetup {
-                firstSetupView
-            } else {
-                completeSetupView
+        BackgroundContainerView {
+            Form {
+                if isFirstSetup {
+                    firstSetupView
+                } else {
+                    completeSetupView
+                }
+
+                Section {
+                    VStack(spacing: 4) {
+                        if let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+                           let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String {
+                            Text("Version \(appVersion) (\(buildNumber))")
+                        }
+                        Text("© Jan Hagen Clausen")
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityElement(children: .combine)
+                }
+                .listRowBackground(Color.clear)
             }
+            .scrollContentBackground(.hidden)
         }
         .navigationTitle("Settings")
         .toolbar {
@@ -120,7 +149,7 @@ struct SettingsView: View {
         } message: {
             Text(errorMessage)
         }
-        .alert("Settings Saved", isPresented: $showSuccess) {
+        .alert(successTitle, isPresented: $showSuccess) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(successMessage.isEmpty ? "Your settings have been saved successfully." : successMessage)
@@ -153,28 +182,8 @@ struct SettingsView: View {
         } message: {
             Text("Enter the IP address of your SMB server.\n\nYou can typically find this in your router's connected devices list or by checking the server's network settings.")
         }
-        .onReceive(Publishers.keyboardVisibility) { isVisible in
-            isKeyboardVisible = isVisible
-        }
         .navigationBarBackButtonHidden(showWarning)
         .onChange(of: isFirstSetup) { _, _ in showAutoFillOption = false }
-        .safeAreaInset(edge: .bottom) {
-            if !isKeyboardVisible {
-                VStack(spacing: 4) {
-                    if let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
-                       let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String {
-                        Text("Version \(appVersion) (\(buildNumber))")
-                            .font(.caption2)
-                            .foregroundStyle(.gray)
-                    }
-                    Text("(c) Jan Hagen Clausen")
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 5)
-            }
-        }
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
             case .helpGuide:
@@ -188,6 +197,8 @@ struct SettingsView: View {
                         serverIP = info.serverIP
                         shareName = info.shareName
                         isFirstSetup = false
+                        successTitle = "Review Server Settings"
+                        successMessage = "Server details were found. Review them, then tap Save to keep this configuration."
                         showSuccess = true
                     }
                 )
@@ -199,10 +210,10 @@ struct SettingsView: View {
     var firstSetupView: some View {
         Group {
             Section("Server Connection") {
-                Text("Enter your credentials and target folder. Then choose 'Auto-Fill' to detect your SMB server automatically, or select 'Try Direct IP' if you already know the server's IP address. Note: Sometimes 'Auto-Fill' cannot extract the server info automatically. This app stores your password in a secure keychain.")
+                Text("Enter your credentials, then browse the local network or use a known server address. Your password is stored in Keychain.")
                     .font(.caption)
-                    .foregroundStyle(.gray)
-                TextField("Target Directory (e.g., MediaCapture)", text: $targetDirectory)
+                    .foregroundStyle(.secondary)
+                TextField("Target Directory (optional)", text: $targetDirectory)
                     .autocapitalization(.none)
                 TextField("Username (e.g., WORKGROUP\\user)", text: $username)
                     .textContentType(.username)
@@ -210,45 +221,12 @@ struct SettingsView: View {
                     .textContentType(.password)
                 TextField("Port (optional)", text: $port)
                     .keyboardType(.numberPad)
-            }
-            Section("Gallery") {
-                Picker("Default Handling", selection: $appData.defaultGalleryOutputMode) {
-                    ForEach(GalleryOutputMode.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
+                if !isPortValid {
+                    Label("Enter a port from 1 to 65535, or leave it empty.", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
                 }
             }
-
-            Section("PDF Output") {
-                Picker("Page Size", selection: $appData.pdfPageSize) {
-                    Text("A4").tag(PDFPageSize.a4)
-                    Text("Letter").tag(PDFPageSize.letter)
-                }
-                Picker("Image Layout", selection: $appData.pdfImageLayout) {
-                    Text("Fit Whole Image").tag(PDFImageLayout.fit)
-                    Text("Fill Page").tag(PDFImageLayout.fill)
-                }
-                Toggle("Include Page Numbers", isOn: $appData.pdfIncludePageNumbers)
-
-                Picker("Compression", selection: $appData.pdfCompressionLevel) {
-                    ForEach(PDFCompressionLevel.allCases) { level in
-                        Text(level.displayName).tag(level)
-                    }
-                }
-            }
-
-            Section("Image Handling") {
-                Picker("Max Image Size", selection: $appData.imageMaxPixelDimension) {
-                    Text("2048 px").tag(Double(2048))
-                    Text("2500 px").tag(Double(2500))
-                    Text("3000 px").tag(Double(3000))
-                    Text("Original").tag(Double.greatestFiniteMagnitude)
-                }
-                Toggle("Strip Image Metadata Before Upload", isOn: $appData.stripImageMetadata)
-            }
-
-            ocrSection
-            premiumSection
             Section {
                 if isDiscovering {
                     HStack(spacing: 15) {
@@ -279,7 +257,7 @@ struct SettingsView: View {
                 .disabled(!canAutoFill || isDiscovering)
                 .foregroundStyle(canAutoFill && !isDiscovering ? .blue : .gray)
                 
-                Button("Switch to Manual Setup") {
+                Button("Show All Settings") {
                     stopAutoFill()
                     isFirstSetup = false
                 }
@@ -298,6 +276,8 @@ struct SettingsView: View {
                     targetDirectory = info.targetDirectory ?? ""
                     isFirstSetup = false
                     tempNetworkInfo = nil
+                    successTitle = "Review Server Settings"
+                    successMessage = "Server details were found. Review them, then tap Save to keep this configuration."
                     showSuccess = true
                 }
             }
@@ -351,6 +331,11 @@ struct SettingsView: View {
                         Text("Port (optional) - Leave empty for default SMB ports")
                             .foregroundStyle(.gray)
                     }
+                if !isPortValid {
+                    Label("Enter a port from 1 to 65535, or leave it empty.", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
                 TextField("Username (e.g., WORKGROUP\\user)", text: $username)
                     .textContentType(.username)
                     .accessibilityIdentifier("settings-username")
@@ -359,7 +344,10 @@ struct SettingsView: View {
                     .accessibilityIdentifier("settings-password")
 
                 Button("Test Connection") {
-                    Task { await testConnection() }
+                    let operationID = UUID()
+                    discoveryTask?.cancel()
+                    activeDiscoveryOperationID = operationID
+                    discoveryTask = Task { await testConnection(operationID: operationID) }
                 }
                 .disabled(!canSave || isDiscovering)
                 .foregroundStyle(canSave && !isDiscovering ? .blue : .gray)
@@ -463,25 +451,31 @@ struct SettingsView: View {
     private func stopAutoFill() {
         discoveryTask?.cancel()
         discoveryTask = nil
+        activeDiscoveryOperationID = nil
         isDiscovering = false
         searchProgress = "Ready"
     }
 
     private func startAutoFill() {
+        let operationID = UUID()
         discoveryTask?.cancel()
+        activeDiscoveryOperationID = operationID
         discoveryTask = Task {
-            await performAutoFill()
+            await performAutoFill(operationID: operationID)
         }
     }
 
-    private func performAutoFill() async {
+    private func performAutoFill(operationID: UUID) async {
+        guard activeDiscoveryOperationID == operationID else { return }
         isDiscovering = true
         searchProgress = "Checking network connection..."
         
         defer {
             Task { @MainActor in
+                guard activeDiscoveryOperationID == operationID else { return }
                 isDiscovering = false
                 discoveryTask = nil
+                activeDiscoveryOperationID = nil
             }
         }
         
@@ -498,7 +492,7 @@ struct SettingsView: View {
                 port: portNumber,
                 onStatus: { status in
                     Task { @MainActor in
-                        guard !Task.isCancelled else { return }
+                        guard activeDiscoveryOperationID == operationID else { return }
                         appData.connectionStatus = status
                         switch status {
                         case .discovery(let state):
@@ -528,6 +522,7 @@ struct SettingsView: View {
             if Task.isCancelled { return }
             
             await MainActor.run {
+                guard activeDiscoveryOperationID == operationID else { return }
                 tempNetworkInfo = info
                 showAutoFillConfirmation = true
             }
@@ -536,6 +531,7 @@ struct SettingsView: View {
         } catch {
             if !Task.isCancelled {
                 await MainActor.run {
+                    guard activeDiscoveryOperationID == operationID else { return }
                     showError = true
                     errorMessage = "Failed to retrieve network info: \(error.localizedDescription)"
                 }
@@ -543,7 +539,8 @@ struct SettingsView: View {
         }
     }
 
-    private func testConnection() async {
+    private func testConnection(operationID: UUID) async {
+        guard activeDiscoveryOperationID == operationID else { return }
         guard canSave else {
             showError = true
             errorMessage = "Enter the server IP, share name, username, and password before testing the connection."
@@ -560,8 +557,11 @@ struct SettingsView: View {
         searchProgress = "Testing SMB connection..."
         defer {
             Task { @MainActor in
+                guard activeDiscoveryOperationID == operationID else { return }
                 isDiscovering = false
                 searchProgress = "Ready"
+                discoveryTask = nil
+                activeDiscoveryOperationID = nil
             }
         }
 
@@ -576,7 +576,7 @@ struct SettingsView: View {
                 port: Int(port),
                 onStatus: { status in
                     Task { @MainActor in
-                        guard !Task.isCancelled else { return }
+                        guard activeDiscoveryOperationID == operationID else { return }
                         appData.connectionStatus = status
                         switch status {
                         case .discovery(let state):
@@ -604,9 +604,11 @@ struct SettingsView: View {
             )
 
             await MainActor.run {
+                guard activeDiscoveryOperationID == operationID else { return }
                 serverIP = info.serverIP
                 shareName = info.shareName
                 targetDirectory = info.targetDirectory ?? ""
+                successTitle = "Connection Successful"
                 successMessage = "Connection succeeded. The SMB share and target directory are reachable. The journal system still needs to import the uploaded file separately."
                 showSuccess = true
             }
@@ -615,6 +617,7 @@ struct SettingsView: View {
         } catch {
             if !Task.isCancelled {
                 await MainActor.run {
+                    guard activeDiscoveryOperationID == operationID else { return }
                     showError = true
                     errorMessage = "Connection test failed: \(error.localizedDescription)"
                 }
@@ -640,7 +643,7 @@ struct SettingsView: View {
             return
         }
 
-        // Convert optional port to an Int if possible (silently drop invalid input)
+        // Port validity is enforced by canSave.
         let portNumber = Int(port)
 
         // Normalize target directory (relative to the share)
@@ -671,6 +674,7 @@ struct SettingsView: View {
         do {
             try appData.savePassword(password)
             await MainActor.run {
+                successTitle = "Settings Saved"
                 showSuccess = true
                 successMessage = "Your settings have been saved successfully."
                 isFirstSetup = false
@@ -701,20 +705,6 @@ struct SettingsView: View {
         try? appData.savePassword("")
         
         isFirstSetup = true
-    }
-}
-
-// Rest of the file (Publishers extension, View extension, Preview) remains the same...
-
-extension Publishers {
-    static var keyboardVisibility: AnyPublisher<Bool, Never> {
-        let willShow = NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)
-            .map { _ in true }
-        let willHide = NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)
-            .map { _ in false }
-
-        return MergeMany(willShow, willHide)
-            .eraseToAnyPublisher()
     }
 }
 

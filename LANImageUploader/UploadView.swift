@@ -59,7 +59,10 @@ enum PendingUploadFileDeletion {
 
 struct UploadView: View {
     let fallbackToGalleryImages: Bool
+    let automaticallyStarts: Bool
     @EnvironmentObject var appData: AppData
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var uploadStatuses: [UUID: UploadStatus] = [:]
     @State private var navigateToSettings = false
     @State private var showError = false
@@ -83,20 +86,22 @@ struct UploadView: View {
     @State private var showSettingsPrompt = false
     @State private var showSuccessBanner = false
     @State private var areAllUploadsSuccessful = false
-    @State private var showClearSuccess = false
-    @State private var navigateToHome = false
+    @State private var showLocalDeletionConfirmation = false
+    @State private var isFinishing = false
     @State private var showDuplicatePrompt = false
     @State private var duplicateFile: UploadableFile?
-    @State private var overwriteConfirmed = false
     @State private var navigateToFullUnlock = false
 
-    init(fallbackToGalleryImages: Bool = true) {
+    init(fallbackToGalleryImages: Bool = true, automaticallyStarts: Bool = false) {
         self.fallbackToGalleryImages = fallbackToGalleryImages
+        self.automaticallyStarts = automaticallyStarts
     }
 
     var areSettingsComplete: Bool {
-        !appData.settings.serverIP.isEmpty && !appData.settings.shareName.isEmpty &&
-        !appData.settings.username.isEmpty && appData.getPassword() != nil
+        ServerConnectionReadiness.isComplete(
+            settings: appData.settings,
+            password: appData.getPassword()
+        )
     }
 
     var hasFailedUploads: Bool {
@@ -109,107 +114,95 @@ struct UploadView: View {
 
     var body: some View {
         BackgroundContainerView {
-            NavigationStack {
                 ZStack {
-                    List(uploadFiles) { file in
-                        HStack {
-                            Text(file.name)
-                                .lineLimit(1)
-                            Spacer()
-                            statusView(for: file)
-                        }
-                        .padding(.vertical, 4)
-                    }
-                    .background(Color.clear)
-                    .scrollContentBackground(.hidden)
-                    .navigationTitle(isPendingPDFUpload ? "Upload PDF" : "Upload Images")
-                    .safeAreaInset(edge: .top) {
-                        trialStatusView
-                    }
-                    .toolbar {
-                        ToolbarItem(placement: .primaryAction) {
-                            if hasActiveUploads {
-                                Button("Abort Upload", role: .destructive) { abortUploads() }
-                            } else if !uploadFiles.isEmpty {
-                                Button("Start Upload") {
-                                    if !appData.premiumAccess.state.canUpload {
-                                        navigateToFullUnlock = true
-                                    } else if areSettingsComplete {
-                                        startUpload()
-                                    } else {
-                                        showSettingsPrompt = true
-                                    }
-                                }
-                            }
-                        }
-                        ToolbarItem(placement: .secondaryAction) {
-                            if hasFailedUploads {
-                                Button("Retry Failed") { retryFailedUploads() }
-                            }
-                        }
-                    }
-                    .alert("Upload Error", isPresented: $showError) {
-                        Button("OK", role: .cancel) {}
-                    } message: {
-                        Text(errorMessage)
-                    }
-                    .alert("Server Settings Required", isPresented: $showSettingsPrompt) {
-                        Button("Cancel", role: .cancel) {}
-                        Button("Go to Settings") {
-                            navigateToSettings = true
-                        }
-                    } message: {
-                        Text("Server settings are incomplete. Uploads cannot proceed without them.")
-                    }
-                    .alert("Duplicate File", isPresented: $showDuplicatePrompt) {
-                        Button("Rename") {
-                            if let file = duplicateFile { renameFile(file) }
-                        }
-                        Button("Overwrite", role: .destructive) {
-                            overwriteConfirmed = true
-                            if let file = duplicateFile { runSingleUpload(file, overwrite: true) }
-                        }
-                        Button("Cancel", role: .cancel) { duplicateFile = nil }
-                    } message: {
-                        Text("A file named '\(duplicateFile?.name ?? "")' already exists. Do you want to rename it or overwrite the existing file?")
-                    }
                     if uploadFiles.isEmpty {
-                        VStack {
-                            Spacer()
-                            Text("Nothing to upload - capture images first")
-                                .foregroundStyle(.gray)
-                                .padding()
-                            Spacer()
+                        ContentUnavailableView {
+                            Label("Nothing to Upload", systemImage: "tray")
+                        } description: {
+                            Text("Capture an image or prepare files from Gallery, then return here to review the queue.")
+                        } actions: {
+                            NavigationLink("Open Gallery") {
+                                GalleryView()
+                                    .environmentObject(appData)
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
+                    } else {
+                        List(uploadFiles) { file in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(file.name)
+                                    .font(.body.weight(.medium))
+                                    .fixedSize(horizontal: false, vertical: true)
+                                statusView(for: file)
+                            }
+                            .padding(.vertical, 5)
+                        }
+                        .background(Color.clear)
+                        .scrollContentBackground(.hidden)
                     }
                     if showSuccessBanner {
                         SuccessBanner(message: isPendingPDFUpload ? "PDF uploaded successfully!" : "All images have been uploaded successfully!")
                             .transition(.move(edge: .top).combined(with: .opacity))
-                            .animation(.easeInOut(duration: 0.5), value: showSuccessBanner)
-                            .onAppear {
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                                    withAnimation { showSuccessBanner = false }
-                                }
-                            }
-                    }
-                    if showClearSuccess {
-                        SuccessBanner(message: "Queue cleared and images deleted successfully!")
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                            .animation(.easeInOut(duration: 0.5), value: showClearSuccess)
-                            .onAppear {
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                                    withAnimation {
-                                        showClearSuccess = false
-                                        navigateToHome = true
-                                    }
+                            .animation(reduceMotion ? nil : .easeInOut(duration: 0.35), value: showSuccessBanner)
+                            .task {
+                                try? await Task.sleep(for: .seconds(3))
+                                guard !Task.isCancelled else { return }
+                                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
+                                    showSuccessBanner = false
                                 }
                             }
                     }
                 }
-                .navigationDestination(isPresented: $navigateToHome) {
-                    HomeView().environmentObject(appData)
+                .navigationTitle(isPendingPDFUpload ? "Upload PDF" : "Upload Images")
+                .safeAreaInset(edge: .top) {
+                    trialStatusView
                 }
-                // ADD: Navigation link
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) {
+                        if hasActiveUploads {
+                            Button("Abort Upload", role: .destructive) { abortUploads() }
+                        } else if !uploadFiles.isEmpty && !areAllUploadsSuccessful && !isFinishing {
+                            Button("Start Upload") {
+                                if !appData.premiumAccess.state.canUpload {
+                                    navigateToFullUnlock = true
+                                } else if areSettingsComplete {
+                                    startUpload()
+                                } else {
+                                    showSettingsPrompt = true
+                                }
+                            }
+                        }
+                    }
+                    ToolbarItem(placement: .secondaryAction) {
+                        if hasFailedUploads && !isFinishing {
+                            Button("Retry Failed") { retryFailedUploads() }
+                        }
+                    }
+                }
+                .alert("Upload Error", isPresented: $showError) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(errorMessage)
+                }
+                .alert("Server Settings Required", isPresented: $showSettingsPrompt) {
+                    Button("Cancel", role: .cancel) {}
+                    Button("Go to Settings") {
+                        navigateToSettings = true
+                    }
+                } message: {
+                    Text("Server settings are incomplete. Uploads cannot proceed without them.")
+                }
+                .alert("Duplicate File", isPresented: $showDuplicatePrompt) {
+                    Button("Keep Both") {
+                        if let file = duplicateFile { renameFile(file) }
+                    }
+                    Button("Overwrite", role: .destructive) {
+                        if let file = duplicateFile { runSingleUpload(file, overwrite: true) }
+                    }
+                    Button("Cancel", role: .cancel) { duplicateFile = nil }
+                } message: {
+                    Text("A file named '\(duplicateFile?.name ?? "")' already exists. Keep both creates a timestamped copy; overwrite replaces the server copy.")
+                }
                 .navigationDestination(isPresented: $navigateToSettings) {
                     SettingsView().environmentObject(appData)
                 }
@@ -218,39 +211,72 @@ struct UploadView: View {
                 }
                 .safeAreaInset(edge: .bottom) {
                     if areAllUploadsSuccessful {
-                        Button("Delete uploaded images", role: .destructive) {
-                            Task {
-                                await clearAndDeleteAllImages()
+                        VStack(spacing: 10) {
+                            Button {
+                                Task { await finishUploadKeepingOriginals() }
+                            } label: {
+                                if isFinishing {
+                                    ProgressView()
+                                        .frame(maxWidth: .infinity)
+                                } else {
+                                    Text("Done")
+                                        .frame(maxWidth: .infinity)
+                                }
                             }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(isFinishing)
+
+                            Button("Remove Local Originals…", role: .destructive) {
+                                showLocalDeletionConfirmation = true
+                            }
+                            .disabled(isFinishing)
                         }
-                        .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.red)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .padding(.horizontal)
+                        .background(.bar)
                     } else {
                         EmptyView()
                     }
                 }
+                .confirmationDialog(
+                    "Remove Local Originals?",
+                    isPresented: $showLocalDeletionConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Remove \(localOriginalCount) Local \(localOriginalCount == 1 ? "File" : "Files")", role: .destructive) {
+                        Task { await clearAndDeleteAllImages() }
+                    }
+                    Button("Keep Local Originals", role: .cancel) {}
+                } message: {
+                    Text("The server upload has completed. This permanently removes the matching local originals from Gallery; the server copies are not affected.")
+                }
                 .onChange(of: uploadStatuses) { _, _ in checkUploadStatus() }
                 .onAppear {
                     uploadStatuses = Dictionary(uniqueKeysWithValues: uploadFiles.map { ($0.id, .idle) })
-                    if !autoUploadTriggered && areSettingsComplete {
+                    guard !uploadFiles.isEmpty else { return }
+                    if automaticallyStarts && !autoUploadTriggered && areSettingsComplete {
                         startUpload()
                         autoUploadTriggered = true
-                    } else if !areSettingsComplete && !autoUploadTriggered {
+                    } else if automaticallyStarts && !areSettingsComplete && !autoUploadTriggered {
                         showSettingsPrompt = true
                         autoUploadTriggered = true
                     }
                 }
-            }
+                .onDisappear {
+                    if hasActiveUploads {
+                        abortUploads()
+                    }
+                }
         }
+    }
+
+    private var localOriginalCount: Int {
+        let sourceIDs = appData.pendingUploadSourceImageIDs ?? Set(uploadFiles.map(\.id))
+        return sourceIDs.isEmpty ? appData.images.count : sourceIDs.count
     }
 
     @ViewBuilder
     private var trialStatusView: some View {
-        if appData.premiumAccess.state.shouldShowTrialStatus {
+        if !uploadFiles.isEmpty && appData.premiumAccess.state.shouldShowTrialStatus {
             HStack {
                 Text("\(appData.premiumAccess.state.remainingTrialUploads) trial uploads remaining")
                     .font(.caption)
@@ -273,11 +299,16 @@ struct UploadView: View {
         case .idle:
             Text("Ready").font(.caption).foregroundStyle(.gray)
         case .uploading(let progress):
-            ProgressView(value: progress).progressViewStyle(.linear).frame(width: 100)
+            ProgressView(value: progress) {
+                Text("Uploading")
+            }
+            .progressViewStyle(.linear)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityValue("\(Int(progress * 100)) percent")
         case .success:
             Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
         case .failure(let detail):
-            VStack(alignment: .trailing, spacing: 6) {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 4) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.red)
@@ -289,12 +320,12 @@ struct UploadView: View {
                 Text(detail.reason)
                     .font(.caption2)
                     .foregroundStyle(.red)
-                    .multilineTextAlignment(.trailing)
+                    .multilineTextAlignment(.leading)
                 if !detail.guidance.isEmpty {
                     Text(detail.guidance)
                         .font(.caption2)
                         .foregroundStyle(Color.red.opacity(0.85))
-                        .multilineTextAlignment(.trailing)
+                        .multilineTextAlignment(.leading)
                 }
                 if detail.action == .openSettings {
                     Button("Update Settings") {
@@ -304,10 +335,12 @@ struct UploadView: View {
                     .buttonStyle(.borderless)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
     func startUpload() {
+        guard !areAllUploadsSuccessful, !isFinishing else { return }
         guard appData.premiumAccess.state.canUpload else {
             navigateToFullUnlock = true
             return
@@ -353,7 +386,35 @@ struct UploadView: View {
         }
     }
 
+    func finishUploadKeepingOriginals() async {
+        guard !isFinishing else { return }
+        isFinishing = true
+        defer { isFinishing = false }
+
+        if let pending = appData.pendingUploadFiles {
+            let deletion = await PendingUploadFileDeletion.removeSequentially(pending) { fileURL in
+                try await appData.fileService.removeItem(at: fileURL)
+            }
+            if deletion.error != nil {
+                appData.retainPendingUploadFilesForRetry(deletion.remainingFiles)
+                showError = true
+                errorMessage = "The upload succeeded, but a temporary local upload file could not be removed. Your originals were kept. Try again."
+                return
+            }
+        }
+
+        appData.clearPendingUploadFiles()
+        uploadStatuses.removeAll()
+        uploadTasks.removeAll()
+        areAllUploadsSuccessful = false
+        appData.clearNamingData()
+        dismiss()
+    }
+
     func clearAndDeleteAllImages() async {
+        guard !isFinishing else { return }
+        isFinishing = true
+        defer { isFinishing = false }
         uploadCoordinator.cancel()
         let sourceImageIDs = appData.pendingUploadSourceImageIDs ?? (appData.pendingUploadFiles?
             .reduce(into: Set<UUID>()) { ids, file in
@@ -389,7 +450,7 @@ struct UploadView: View {
             areAllUploadsSuccessful = false
             appData.clearNamingData()
             if sourceCleanupSucceeded {
-                showClearSuccess = true
+                dismiss()
             } else {
                 showError = true
                 errorMessage = "The upload succeeded, but one or more original local files could not be removed. They remain in Gallery."

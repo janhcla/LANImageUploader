@@ -24,7 +24,7 @@ struct LANImageUploaderApp: App {
     @AppStorage(Constants.UserDefaults.onboardingCompleted) var onboardingCompleted: Bool = false
     @StateObject private var appData: AppData
     @Environment(\.scenePhase) private var scenePhase
-    @State private var isShowingLaunchScreen = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init() {
         let fileService = FileService.shared
@@ -32,6 +32,10 @@ struct LANImageUploaderApp: App {
         let discoveryService = NetworkDiscovery.shared
         let hapticService = HapticFeedbackService.shared
         let launchArguments = ProcessInfo.processInfo.arguments
+
+        #if DEBUG
+        let isUITesting = launchArguments.contains { $0.hasPrefix("-uiTesting") }
+        #endif
 
         #if DEBUG
         let passwordStore: ServerPasswordPersisting = launchArguments.contains("-uiTestingConfiguredServer")
@@ -46,7 +50,14 @@ struct LANImageUploaderApp: App {
             uploadService: uploadService,
             discoveryService: discoveryService,
             hapticService: hapticService,
-            passwordStore: passwordStore
+            passwordStore: passwordStore,
+            persistsImageQueue: {
+                #if DEBUG
+                !isUITesting
+                #else
+                true
+                #endif
+            }()
         )
 
         #if DEBUG
@@ -59,6 +70,14 @@ struct LANImageUploaderApp: App {
                 port: nil
             )
             try? configuredAppData.savePassword("test-password")
+        }
+        if launchArguments.contains("-uiTestingEmptyLibrary") {
+            configuredAppData.images = []
+            configuredAppData.clearPendingUploadFiles()
+        }
+        if launchArguments.contains("-uiTestingPopulatedLibrary") {
+            configuredAppData.images = UITestImageFixtures.makeCapturedImages()
+            configuredAppData.clearPendingUploadFiles()
         }
         #endif
 
@@ -83,34 +102,19 @@ struct LANImageUploaderApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ZStack {
-                // Launch Screen
-                LaunchScreenView()
-                    .opacity(isShowingLaunchScreen ? 1.0 : 0.0) // Fade out smoothly
-                    .animation(.easeInOut(duration: 0.8), value: isShowingLaunchScreen) // Smooth animation
-                    .zIndex(1) // Keep on top initially
-
-                // Main Content
-                Group {
-                    if effectiveOnboardingCompleted {
-                        HomeView()
-                            .environmentObject(appData)
-                            .opacity(isShowingLaunchScreen ? 0.0 : 1.0) // Fade in smoothly
-                            .animation(.easeInOut(duration: 0.8), value: isShowingLaunchScreen)
-                    } else {
-                        OnboardingView()
-                            .environmentObject(appData)
-                            .opacity(isShowingLaunchScreen ? 0.0 : 1.0) // Fade in smoothly
-                            .animation(.easeInOut(duration: 0.8), value: isShowingLaunchScreen)
-                    }
+            Group {
+                if effectiveOnboardingCompleted {
+                    HomeView()
+                        .environmentObject(appData)
+                        .transition(.opacity)
+                } else {
+                    OnboardingView()
+                        .environmentObject(appData)
+                        .transition(.opacity)
                 }
             }
-            .background(AppBackground())
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.24), value: effectiveOnboardingCompleted)
             .onAppear {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-                    isShowingLaunchScreen = false // Trigger the fade transition
-                }
-
                 // Fix UIHostingController background after scene is created
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     UIApplication.shared.connectedScenes
@@ -142,11 +146,19 @@ struct LANImageUploaderApp: App {
 
     private func handleAppRefreshTask(task: BGAppRefreshTask) {
         scheduleDailyImageSave()
-        task.expirationHandler = {
+        let archiveTask = Task {
+            let outcome = await appData.saveImagesToDatedFolder()
+            guard !Task.isCancelled else { return }
+            switch outcome {
+            case .saved, .noImages:
+                task.setTaskCompleted(success: true)
+            case .failed:
+                task.setTaskCompleted(success: false)
+            }
         }
-        Task {
-            await appData.saveImagesToDatedFolder()
-            task.setTaskCompleted(success: true)
+        task.expirationHandler = {
+            archiveTask.cancel()
+            task.setTaskCompleted(success: false)
         }
     }
 
@@ -172,3 +184,66 @@ struct LANImageUploaderApp: App {
         }
     }
 }
+
+#if DEBUG
+private enum UITestImageFixtures {
+    private struct Fixture {
+        let name: String
+        let color: UIColor
+        let systemImage: String
+    }
+
+    static func makeCapturedImages() -> [CapturedImage] {
+        let fixtures = [
+            Fixture(name: "Sample Document", color: .systemBlue, systemImage: "doc.text.fill"),
+            Fixture(name: "Sample Photo", color: .systemGreen, systemImage: "photo.fill"),
+            Fixture(name: "Sample Receipt", color: .systemOrange, systemImage: "receipt.fill")
+        ]
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("LensBridgeUITestFixtures-\(UUID().uuidString)", isDirectory: true)
+
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        } catch {
+            return []
+        }
+
+        return fixtures.enumerated().compactMap { index, fixture in
+            let renderer = UIGraphicsImageRenderer(size: CGSize(width: 900, height: 1200))
+            let image = renderer.image { context in
+                fixture.color.setFill()
+                context.fill(CGRect(x: 0, y: 0, width: 900, height: 1200))
+
+                let configuration = UIImage.SymbolConfiguration(pointSize: 180, weight: .semibold)
+                let symbol = UIImage(systemName: fixture.systemImage, withConfiguration: configuration)?
+                    .withTintColor(.white, renderingMode: .alwaysOriginal)
+                symbol?.draw(in: CGRect(x: 330, y: 330, width: 240, height: 240))
+
+                let paragraph = NSMutableParagraphStyle()
+                paragraph.alignment = .center
+                (fixture.name as NSString).draw(
+                    in: CGRect(x: 90, y: 650, width: 720, height: 100),
+                    withAttributes: [
+                        .font: UIFont.systemFont(ofSize: 48, weight: .bold),
+                        .foregroundColor: UIColor.white,
+                        .paragraphStyle: paragraph
+                    ]
+                )
+            }
+
+            guard let data = image.jpegData(compressionQuality: 0.82) else { return nil }
+            let fileURL = directory.appendingPathComponent("sample-\(index + 1).jpg")
+            do {
+                try data.write(to: fileURL, options: .atomic)
+                return CapturedImage(
+                    name: fixture.name,
+                    fileURL: fileURL,
+                    isDocumentScan: index != 1
+                )
+            } catch {
+                return nil
+            }
+        }
+    }
+}
+#endif

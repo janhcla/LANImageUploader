@@ -484,7 +484,17 @@ class AppData: ObservableObject {
         return captured
     }
 
-    func saveImagesToDatedFolder(_ imagesToSave: [CapturedImage]? = nil, for date: Date = Date()) async {
+    enum ArchiveSaveOutcome: Equatable {
+        case saved(savedCount: Int, alreadySavedCount: Int)
+        case noImages
+        case failed(message: String)
+    }
+
+    @discardableResult
+    func saveImagesToDatedFolder(
+        _ imagesToSave: [CapturedImage]? = nil,
+        for date: Date = Date()
+    ) async -> ArchiveSaveOutcome {
         let targetImages = imagesToSave ?? images
         do {
             let (savedCount, alreadySavedCount) = try await fileService.archiveImages(targetImages, for: date)
@@ -499,10 +509,16 @@ class AppData: ObservableObject {
                     scanStatus = "No images to save."
                 }
             }
-        } catch {
-            await MainActor.run {
-                scanStatus = "Failed to save images: \(error.localizedDescription)"
+            if savedCount == 0 && alreadySavedCount == 0 {
+                return .noImages
             }
+            return .saved(savedCount: savedCount, alreadySavedCount: alreadySavedCount)
+        } catch {
+            let message = error.localizedDescription
+            await MainActor.run {
+                scanStatus = "Failed to save images: \(message)"
+            }
+            return .failed(message: message)
         }
     }
 

@@ -91,6 +91,84 @@ final class LANImageUploaderUITests: XCTestCase {
     }
 
     @MainActor
+    func testEmptyUploadQueueShowsRecoveryWithoutSettingsPrompt() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTestingHome", "-uiTestingEmptyLibrary"]
+        app.launch()
+
+        let upload = app.buttons["home-upload"]
+        for _ in 0..<6 where !upload.exists || !upload.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(upload.waitForExistence(timeout: 5))
+        upload.tap()
+
+        XCTAssertTrue(app.staticTexts["Nothing to Upload"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Open Gallery"].exists)
+        XCTAssertFalse(app.alerts["Server Settings Required"].exists)
+    }
+
+    @MainActor
+    func testEmptyGalleryOffersCaptureAndScan() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTestingHome", "-uiTestingEmptyLibrary"]
+        app.launch()
+
+        let gallery = app.buttons["home-gallery"]
+        for _ in 0..<6 where !gallery.exists || !gallery.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(gallery.waitForExistence(timeout: 5))
+        gallery.tap()
+
+        XCTAssertTrue(app.staticTexts["Gallery Is Empty"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Capture"].exists)
+        XCTAssertTrue(app.buttons["Scan"].exists)
+    }
+
+    @MainActor
+    func testPopulatedGalleryExposesNamedItemsAndActions() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTestingHome", "-uiTestingPopulatedLibrary"]
+        app.launch()
+
+        let gallery = app.buttons["home-gallery"]
+        for _ in 0..<6 where !gallery.exists || !gallery.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(gallery.waitForExistence(timeout: 5))
+        gallery.tap()
+
+        XCTAssertTrue(app.buttons["Sample Document"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Sample Photo"].exists)
+        XCTAssertTrue(app.buttons["Sample Receipt"].exists)
+
+        let actions = app.popUpButtons["Actions for Sample Document"]
+        XCTAssertTrue(actions.exists)
+        actions.tap()
+        XCTAssertTrue(app.buttons["Rename Photo"].waitForExistence(timeout: 2))
+        XCTAssertTrue(app.buttons["Delete"].exists)
+    }
+
+    @MainActor
+    func testPopulatedUploadWaitsForExplicitStart() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["-uiTestingHome", "-uiTestingPopulatedLibrary", "-uiTestingConfiguredServer"]
+        app.launch()
+
+        let upload = app.buttons["home-upload"]
+        for _ in 0..<6 where !upload.exists || !upload.isHittable {
+            app.swipeUp()
+        }
+        XCTAssertTrue(upload.waitForExistence(timeout: 5))
+        upload.tap()
+
+        XCTAssertTrue(app.buttons["Start Upload"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Abort Upload"].exists)
+        XCTAssertTrue(app.staticTexts["Sample Document"].exists)
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         let app = XCUIApplication()
         app.launchArguments = ["-uiTestingOnboarding"]
