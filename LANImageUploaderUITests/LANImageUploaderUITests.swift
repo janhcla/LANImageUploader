@@ -64,7 +64,7 @@ final class LANImageUploaderUITests: XCTestCase {
     @MainActor
     func testFullAppUnlockAlwaysExposesRestorePurchases() throws {
         let app = XCUIApplication()
-        app.launchArguments = ["-uiTestingHome"]
+        app.launchArguments = ["-uiTestingHome", "-uiTestingConfiguredServer"]
         app.launch()
         XCTAssertTrue(app.wait(for: .runningForeground, timeout: 5))
 
@@ -143,7 +143,7 @@ final class LANImageUploaderUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Sample Photo"].exists)
         XCTAssertTrue(app.buttons["Sample Receipt"].exists)
 
-        let actions = app.popUpButtons["Actions for Sample Document"]
+        let actions = app.buttons["Actions for Sample Document"]
         XCTAssertTrue(actions.exists)
         actions.tap()
         XCTAssertTrue(app.buttons["Rename Photo"].waitForExistence(timeout: 2))
