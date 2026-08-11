@@ -11,6 +11,16 @@ struct SMBConnectionTarget: Equatable {
     let shareName: String
     let targetDirectory: String?
 
+    /// The legacy SMB validator accepts one share-relative target path. Keeping
+    /// this conversion here lets the direct connection test use the same
+    /// resolution path as the established setup flow.
+    var validationTargetFolder: String {
+        guard let targetDirectory, !targetDirectory.isEmpty else {
+            return shareName
+        }
+        return "\(shareName)/\(targetDirectory)"
+    }
+
     init?(shareName: String, targetDirectory: String) {
         let normalizedShare = shareName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalizedShare.isEmpty else { return nil }

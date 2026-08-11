@@ -720,6 +720,17 @@ struct LANImageUploaderTests {
         #expect(sharePrefixedDirectory.targetDirectory == "Data/MediaCapture")
     }
 
+    @Test func smbConnectionTargetBuildsLegacyValidationTargetFromShareAndDirectory() throws {
+        let target = try #require(
+            SMBConnectionTarget(
+                shareName: "MediaCaptureShare",
+                targetDirectory: "Data/MediaCapture"
+            )
+        )
+
+        #expect(target.validationTargetFolder == "MediaCaptureShare/Data/MediaCapture")
+    }
+
     @Test func connectionErrorMappingExists() async throws {
         let authError = ConnectionError.authenticationFailed
         #expect(authError.localizedDescription.contains("password"))
@@ -935,6 +946,59 @@ struct LANImageUploaderTests {
         #expect(access.state.isFullAppUnlocked)
         #expect(purchaseManager.restorationStatus == .restored)
         #expect(!purchaseManager.isRestoring)
+    }
+
+    @Test @MainActor func promoCodeEntitlementRefreshRemovesUploadLimit() async {
+        let store = InMemoryPremiumAccessStore()
+        store.successfulUploadCount = PremiumAccessConstants.trialUploadLimit
+        let access = PremiumAccessController(store: store)
+        let purchaseManager = StoreKitPurchaseManager(
+            restorePurchasesAction: { false },
+            entitlementRefreshAction: { true }
+        )
+
+        await purchaseManager.syncPurchasedEntitlements(accessController: access)
+
+        #expect(access.state.isFullAppUnlocked)
+        #expect(access.state.canUpload)
+        #expect(!access.state.shouldShowTrialStatus)
+    }
+
+    @Test @MainActor func promoCodeTransactionUpdateRemovesUploadLimitWithoutOpeningPurchaseView() async {
+        let store = InMemoryPremiumAccessStore()
+        store.successfulUploadCount = PremiumAccessConstants.trialUploadLimit
+        let access = PremiumAccessController(store: store)
+        var continuation: AsyncStream<Void>.Continuation?
+        let updates = AsyncStream<Void> { continuation = $0 }
+        let purchaseManager = StoreKitPurchaseManager(
+            restorePurchasesAction: { false },
+            entitlementRefreshAction: { false },
+            transactionUpdatesAction: { updates }
+        )
+
+        purchaseManager.startObservingTransactionUpdates(accessController: access)
+        continuation?.yield()
+        for _ in 0..<100 where !access.state.isFullAppUnlocked {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(access.state.isFullAppUnlocked)
+        #expect(access.state.canUpload)
+        continuation?.finish()
+    }
+
+    @Test @MainActor func failedEntitlementRefreshPreservesExistingFullUnlock() async {
+        let store = InMemoryPremiumAccessStore()
+        store.hasPurchasedFullUnlock = true
+        let access = PremiumAccessController(store: store)
+        let purchaseManager = StoreKitPurchaseManager(
+            restorePurchasesAction: { false },
+            entitlementRefreshAction: { false }
+        )
+
+        await purchaseManager.syncPurchasedEntitlements(accessController: access)
+
+        #expect(access.state.isFullAppUnlocked)
     }
 
     @Test @MainActor func restorePurchasesReportsWhenNoEntitlementIsFound() async {
