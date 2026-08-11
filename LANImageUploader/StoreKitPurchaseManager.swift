@@ -44,11 +44,18 @@ final class StoreKitPurchaseManager: ObservableObject {
     @Published private(set) var restorationStatus: PurchaseRestorationStatus?
 
     private let restorePurchasesAction: @MainActor () async throws -> Bool
+    private let entitlementRefreshAction: @MainActor () async -> Bool
+    private let transactionUpdatesAction: @MainActor () -> AsyncStream<Void>
+    private var transactionUpdatesTask: Task<Void, Never>?
 
     init(
-        restorePurchasesAction: @escaping @MainActor () async throws -> Bool = StoreKitPurchaseManager.restoreFullUnlockEntitlement
+        restorePurchasesAction: @escaping @MainActor () async throws -> Bool = StoreKitPurchaseManager.restoreFullUnlockEntitlement,
+        entitlementRefreshAction: @escaping @MainActor () async -> Bool = StoreKitPurchaseManager.hasFullUnlockEntitlement,
+        transactionUpdatesAction: @escaping @MainActor () -> AsyncStream<Void> = StoreKitPurchaseManager.fullUnlockTransactionUpdates
     ) {
         self.restorePurchasesAction = restorePurchasesAction
+        self.entitlementRefreshAction = entitlementRefreshAction
+        self.transactionUpdatesAction = transactionUpdatesAction
     }
 
     func loadFullUnlockProduct() async {
@@ -99,12 +106,21 @@ final class StoreKitPurchaseManager: ObservableObject {
     }
 
     func syncPurchasedEntitlements(accessController: PremiumAccessController) async {
-        for await result in Transaction.currentEntitlements {
-            guard let transaction = try? Self.checkVerified(result),
-                  transaction.productID == PremiumAccessConstants.fullUnlockProductID else {
-                continue
-            }
+        if await entitlementRefreshAction() {
             accessController.markPurchasedFullUnlock()
+        }
+    }
+
+    /// Listens for purchases and promo codes redeemed outside the purchase view.
+    func startObservingTransactionUpdates(accessController: PremiumAccessController) {
+        guard transactionUpdatesTask == nil else { return }
+
+        let transactionUpdates = transactionUpdatesAction()
+        transactionUpdatesTask = Task { [weak accessController] in
+            for await _ in transactionUpdates {
+                guard let accessController else { break }
+                accessController.markPurchasedFullUnlock()
+            }
         }
     }
 
@@ -131,6 +147,10 @@ final class StoreKitPurchaseManager: ObservableObject {
     private static func restoreFullUnlockEntitlement() async throws -> Bool {
         try await AppStore.sync()
 
+        return await hasFullUnlockEntitlement()
+    }
+
+    private static func hasFullUnlockEntitlement() async -> Bool {
         for await result in Transaction.currentEntitlements {
             guard let transaction = try? checkVerified(result),
                   transaction.productID == PremiumAccessConstants.fullUnlockProductID else {
@@ -140,6 +160,27 @@ final class StoreKitPurchaseManager: ObservableObject {
         }
 
         return false
+    }
+
+    private static func fullUnlockTransactionUpdates() -> AsyncStream<Void> {
+        AsyncStream { continuation in
+            let task = Task {
+                for await result in Transaction.updates {
+                    guard let transaction = try? checkVerified(result),
+                          transaction.productID == PremiumAccessConstants.fullUnlockProductID else {
+                        continue
+                    }
+
+                    await transaction.finish()
+                    continuation.yield()
+                }
+                continuation.finish()
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
     }
 
     private static func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {

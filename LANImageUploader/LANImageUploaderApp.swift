@@ -23,6 +23,7 @@ class ClearBackgroundHostingController<Content: View>: UIHostingController<Conte
 struct LANImageUploaderApp: App {
     @AppStorage(Constants.UserDefaults.onboardingCompleted) var onboardingCompleted: Bool = false
     @StateObject private var appData: AppData
+    @StateObject private var purchaseManager = StoreKitPurchaseManager()
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -128,10 +129,15 @@ struct LANImageUploaderApp: App {
             }
             .task {
                 await appData.premiumAccess.refreshPremiumOverrideEligibility()
+                await purchaseManager.syncPurchasedEntitlements(accessController: appData.premiumAccess)
+                purchaseManager.startObservingTransactionUpdates(accessController: appData.premiumAccess)
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active {
                     scheduleDailyImageSave()
+                    Task {
+                        await purchaseManager.syncPurchasedEntitlements(accessController: appData.premiumAccess)
+                    }
                 }
             }
         }

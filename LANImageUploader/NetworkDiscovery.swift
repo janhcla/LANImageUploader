@@ -88,16 +88,15 @@ extension NetworkDiscovery {
         onStatus: (@Sendable (ConnectionStatus) -> Void)? = nil
     ) async throws -> NetworkInfo {
         let normalizedIP = serverIP.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedShare = shareName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedDirectory = targetDirectory?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "/\\\\"))
+        guard let target = SMBConnectionTarget(
+            shareName: shareName,
+            targetDirectory: targetDirectory ?? ""
+        ) else {
+            throw ConnectionError.folderNotFound("Share name is required.")
+        }
 
         guard !normalizedIP.isEmpty else {
             throw ConnectionError.hostNotFound("Server address is required.")
-        }
-        guard !normalizedShare.isEmpty else {
-            throw ConnectionError.folderNotFound("Share name is required.")
         }
         if try await !networkMonitor.waitForNetwork(timeout: 3.0) {
             let error = ConnectionError.networkUnavailable
@@ -105,42 +104,18 @@ extension NetworkDiscovery {
             throw error
         }
 
-        var components = URLComponents()
-        components.scheme = "smb"
-        components.host = normalizedIP
-        components.port = port
-        guard let serverURL = components.url,
-              let client = SMB2Manager(
-                url: serverURL,
-                credential: URLCredential(user: username, password: password, persistence: .forSession)
-              ) else {
-            let error = ConnectionError.hostNotFound(normalizedIP)
-            onStatus?(.failure(error))
-            throw error
-        }
-
-        do {
-            onStatus?(.connecting(normalizedIP))
-            onStatus?(.authenticating)
-            try await client.connectShare(name: normalizedShare)
-            if let normalizedDirectory, !normalizedDirectory.isEmpty {
-                try await ensureDirectoryExists(normalizedDirectory, in: client, shareName: normalizedShare)
-            }
-            try await client.disconnectShare()
-
-            let info = NetworkInfo(
-                serverIP: normalizedIP,
-                shareName: normalizedShare,
-                targetDirectory: normalizedDirectory?.isEmpty == true ? nil : normalizedDirectory
-            )
-            onStatus?(.connected(info))
-            return info
-        } catch {
-            try? await client.disconnectShare()
-            let mappedError = mapToConnectionError(error)
-            onStatus?(.failure(mappedError))
-            throw mappedError
-        }
+        // Use the mature validation path that setup has used since before the
+        // direct Test Connection button existed. It authenticates via IPC$ and
+        // resolves legacy share/directory layouts before reporting an auth
+        // failure, instead of treating a share-path mismatch as bad credentials.
+        return try await attemptConnection(
+            ipAddress: normalizedIP,
+            targetFolder: target.validationTargetFolder,
+            username: username,
+            password: password,
+            port: port,
+            onStatus: onStatus
+        )
     }
 
     internal func retrieveNetworkInfo(
