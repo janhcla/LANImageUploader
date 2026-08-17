@@ -1028,6 +1028,28 @@ struct LANImageUploaderTests {
         #expect(!purchaseManager.isRestoring)
     }
 
+    @Test @MainActor func restorePurchasesUsesVerifiedEntitlementWhenStoreSyncFails() async {
+        let store = InMemoryPremiumAccessStore()
+        let access = PremiumAccessController(store: store)
+        var entitlementCheckCount = 0
+        let purchaseManager = StoreKitPurchaseManager(
+            restorePurchasesAction: {
+                throw CocoaError(.fileReadUnknown)
+            },
+            entitlementRefreshAction: {
+                entitlementCheckCount += 1
+                return entitlementCheckCount == 2
+            }
+        )
+
+        await purchaseManager.restorePurchases(accessController: access)
+
+        #expect(entitlementCheckCount == 2)
+        #expect(access.state.isFullAppUnlocked)
+        #expect(purchaseManager.restorationStatus == .restored)
+        #expect(!purchaseManager.isRestoring)
+    }
+
     @Test @MainActor func restorePurchasesIgnoresRepeatedRequestsWhileRestoring() async {
         let store = InMemoryPremiumAccessStore()
         let access = PremiumAccessController(store: store)
@@ -1036,7 +1058,7 @@ struct LANImageUploaderTests {
             restoreInvocationCount += 1
             try await Task.sleep(for: .milliseconds(100))
             return true
-        })
+        }, entitlementRefreshAction: { false })
 
         let firstRestore = Task { @MainActor in
             await purchaseManager.restorePurchases(accessController: access)
