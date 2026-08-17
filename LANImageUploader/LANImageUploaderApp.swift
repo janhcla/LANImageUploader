@@ -136,6 +136,7 @@ struct LANImageUploaderApp: App {
                 if newPhase == .active {
                     scheduleDailyImageSave()
                     Task {
+                        await appData.premiumAccess.refreshPremiumOverrideEligibility()
                         await purchaseManager.syncPurchasedEntitlements(accessController: appData.premiumAccess)
                     }
                 }
