@@ -18,7 +18,7 @@ enum PurchaseRestorationStatus: Equatable {
         case .restored:
             return "Full App Unlock has been restored."
         case .noRestorablePurchase:
-            return "No previous Full App Unlock purchase was found for this Apple Account."
+            return "No Full App Unlock purchase was found for this Apple Account. An App Store code that only downloads LensBridge does not include the separate Full App Unlock in-app purchase."
         case .failed(let message):
             return "Unable to restore purchases: \(message)"
         }
@@ -131,6 +131,15 @@ final class StoreKitPurchaseManager: ObservableObject {
         restorationStatus = nil
         defer { isRestoring = false }
 
+        // Check the verified StoreKit 2 entitlement first. A valid non-consumable
+        // is already sufficient to restore access, even if AppStore.sync cannot
+        // complete on this device or account.
+        if await entitlementRefreshAction() {
+            accessController.markPurchasedFullUnlock()
+            restorationStatus = .restored
+            return
+        }
+
         do {
             guard try await restorePurchasesAction() else {
                 restorationStatus = .noRestorablePurchase
@@ -140,12 +149,23 @@ final class StoreKitPurchaseManager: ObservableObject {
             accessController.markPurchasedFullUnlock()
             restorationStatus = .restored
         } catch {
-            restorationStatus = .failed(error.localizedDescription)
+            // AppStore.sync is best-effort. It can fail after StoreKit has
+            // refreshed a verified entitlement, so give currentEntitlements one
+            // final chance before surfacing a restore error.
+            if await entitlementRefreshAction() {
+                accessController.markPurchasedFullUnlock()
+                restorationStatus = .restored
+            } else {
+                restorationStatus = .failed(error.localizedDescription)
+            }
         }
     }
 
     private static func restoreFullUnlockEntitlement() async throws -> Bool {
-        try await AppStore.sync()
+        // AppStore.sync may fail for a transient App Store account request. The
+        // verified entitlement remains the source of truth, so still inspect it
+        // and report the honest no-entitlement state instead of a generic error.
+        try? await AppStore.sync()
 
         return await hasFullUnlockEntitlement()
     }
