@@ -923,6 +923,66 @@ struct LANImageUploaderTests {
         #expect(!access.state.canUpload)
     }
 
+    @Test func premiumOverrideIsAllowedForSandboxTestFlightEnvironment() async {
+        let isAllowed = await AppDistribution.resolvePremiumOverrideEligibility {
+            .sandbox
+        }
+
+        #expect(isAllowed)
+    }
+
+    @Test func premiumOverrideIsHiddenForProductionAppStoreEnvironment() async {
+        let isAllowed = await AppDistribution.resolvePremiumOverrideEligibility {
+            .production
+        }
+
+        #expect(!isAllowed)
+    }
+
+    @Test func premiumOverrideFailsClosedForUnverifiedAppTransaction() async {
+        let isAllowed = await AppDistribution.resolvePremiumOverrideEligibility {
+            throw TestAppTransactionError.unverified
+        }
+
+        #expect(!isAllowed)
+    }
+
+    @Test func premiumOverrideFailsClosedWhenAppTransactionLookupFails() async {
+        let isAllowed = await AppDistribution.resolvePremiumOverrideEligibility {
+            throw TestAppTransactionError.requestFailed
+        }
+
+        #expect(!isAllowed)
+    }
+
+    @Test @MainActor func premiumOverrideEligibilityRefreshEnablesSandboxTestFlightToggle() async {
+        let store = InMemoryPremiumAccessStore()
+        store.successfulUploadCount = 15
+        let access = PremiumAccessController(store: store, canUsePremiumOverride: { false })
+
+        #expect(!access.state.canUsePremiumOverride)
+        await access.refreshPremiumOverrideEligibility { .sandbox }
+
+        #expect(access.state.canUsePremiumOverride)
+        access.setPremiumOverrideEnabled(true)
+        #expect(access.state.isFullAppUnlocked)
+    }
+
+    @Test @MainActor func premiumOverrideEligibilityRefreshHidesProductionToggleAndClearsOverride() async {
+        let store = InMemoryPremiumAccessStore()
+        store.successfulUploadCount = 15
+        let access = PremiumAccessController(store: store, canUsePremiumOverride: { true })
+        access.setPremiumOverrideEnabled(true)
+        #expect(access.state.isFullAppUnlocked)
+
+        await access.refreshPremiumOverrideEligibility { .production }
+
+        #expect(!access.state.canUsePremiumOverride)
+        #expect(!access.state.isPremiumOverrideEnabled)
+        #expect(!access.state.isFullAppUnlocked)
+        #expect(!store.isPremiumOverrideEnabled)
+    }
+
     @Test @MainActor func purchasedUnlockPersistsWhenDeveloperModeIsOff() async throws {
         let store = InMemoryPremiumAccessStore()
         store.successfulUploadCount = 15
@@ -1485,6 +1545,11 @@ struct LANImageUploaderTests {
         )
         return (CGFloat(pixel[0]) + CGFloat(pixel[1]) + CGFloat(pixel[2])) / (3 * 255)
     }
+}
+
+private enum TestAppTransactionError: Error {
+    case unverified
+    case requestFailed
 }
 
 private final class InMemoryPremiumAccessStore: PremiumAccessPersisting {

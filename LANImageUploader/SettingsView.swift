@@ -432,17 +432,15 @@ struct SettingsView: View {
 
     var premiumSection: some View {
         Section("Premium") {
-            #if DEBUG || TESTFLIGHT_BUILD
             if appData.premiumAccess.state.canUsePremiumOverride {
-                Toggle("Premium override", isOn: Binding(
+                Toggle("Full App Unlock", isOn: Binding(
                     get: { appData.premiumAccess.state.isPremiumOverrideEnabled },
                     set: { appData.premiumAccess.setPremiumOverrideEnabled($0) }
                 ))
-                Text("Bypasses the paywall for TestFlight validation only.")
+                Text("Unlocks all uploads for TestFlight validation only.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            #endif
 
             if appData.premiumAccess.state.isFullAppUnlocked {
                 Label("Full App Unlock active", systemImage: "checkmark.seal.fill")
