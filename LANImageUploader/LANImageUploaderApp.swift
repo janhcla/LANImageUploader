@@ -128,7 +128,7 @@ struct LANImageUploaderApp: App {
                 }
             }
             .task {
-                await appData.premiumAccess.refreshPremiumOverrideEligibility()
+                appData.premiumAccess.refreshPremiumOverrideEligibility()
                 await purchaseManager.syncPurchasedEntitlements(accessController: appData.premiumAccess)
                 purchaseManager.startObservingTransactionUpdates(accessController: appData.premiumAccess)
             }
@@ -136,7 +136,7 @@ struct LANImageUploaderApp: App {
                 if newPhase == .active {
                     scheduleDailyImageSave()
                     Task {
-                        await appData.premiumAccess.refreshPremiumOverrideEligibility()
+                        appData.premiumAccess.refreshPremiumOverrideEligibility()
                         await purchaseManager.syncPurchasedEntitlements(accessController: appData.premiumAccess)
                     }
                 }

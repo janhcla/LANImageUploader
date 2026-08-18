@@ -252,10 +252,10 @@ plan: a green compile or unit-test run is not enough to call the app release-rea
   not retain one full `Data` buffer per concurrent upload. Gallery JPEG/PDF
   preparation is cancellable and cleans generated temporary files; local
   deletion only commits metadata/UI removal after the file operation succeeds.
-  The TestFlight-only premium override is gated by the explicit
-  `TESTFLIGHT_BUILD` Swift compilation condition. TestFlight Release archives
-  set that condition; App Store archives omit it, so the toggle and its
-  implementation are absent from the submitted production binary. Gallery PDF
+  The TestFlight-only premium override is gated by the deterministic build
+  channel written by `ci_scripts/ci_pre_xcodebuild.sh`. The exact external-beta
+  workflow writes `.testFlight`; all other Cloud actions write `.production`.
+  Gallery PDF
   generation now has explicit cancellation propagation from the SwiftUI task to
   the detached page renderer, with partial-output cleanup retained in the PDF
   service.
@@ -270,11 +270,16 @@ plan: a green compile or unit-test run is not enough to call the app release-rea
   with 0 failures and 0 skips out of 88 discovered, with no reported warnings
   or errors. The result bundle is recorded in the scanner test matrix.
 - Reproducible build gates:
-  - App Store archive: omit `SWIFT_ACTIVE_COMPILATION_CONDITIONS=TESTFLIGHT_BUILD`.
-  - TestFlight archive: add
-    `SWIFT_ACTIVE_COMPILATION_CONDITIONS=TESTFLIGHT_BUILD`.
-  - Verify the production IPA with `strings` and require `Premium override` to
-    be absent before submission.
+  - App Store archive: run `ci_scripts/ci_pre_xcodebuild.sh` without the exact
+    external-beta workflow identity, which writes `.production`.
+  - TestFlight archive: the exact workflow ID
+    `37c9d62c-448d-4f60-8672-496a5c044c34` and name
+    `TestFlight - external beta test` write `.testFlight` automatically.
+  - Verify the script behavior from controlled temporary inputs with
+    `scripts/test_xcode_cloud_distribution_gate.sh` before release work.
+  - `scripts/release_preflight.sh` verifies the extracted IPA's deterministic
+    Info.plist marker: absent for production and
+    `external-testflight-v1` for TestFlight.
 - App Store Connect age-rating declaration is present with no declared medical,
   sexual, violent, gambling, messaging, or advertising content. The project sets
   `ITSAppUsesNonExemptEncryption=false` and has no separate encryption declaration;
@@ -449,8 +454,8 @@ now reports a user-facing state and reconnects only while the scanner remains vi
 Retake filenames now include a UUID suffix to prevent same-second overwrites, and
 upload cancellation now cancels the active task, stops SMB progress, preserves an
 explicit aborted status, and cancels before uploaded-file cleanup. The TestFlight
-override is compile-time gated by `TESTFLIGHT_BUILD`; App Store production
-archives do not contain the control.
+override uses the deterministic Xcode Cloud build channel; App Store production
+actions resolve to `.production`.
 The remaining release work is lifecycle stress, physical-device scanning, and evidence
 from Instruments/MetricKit or an equivalent crash/performance surface. The sequence
 handler change is covered by compilation and the full simulator suite, but a simulator
@@ -649,8 +654,7 @@ unzip -l .asc/artifacts/LensBridge-1.58-66-appstore.ipa | grep 'Payload/.app/Pri
 VERIFY_DIR=$(mktemp -d)
 unzip -q .asc/artifacts/LensBridge-1.58-66-appstore.ipa -d "$VERIFY_DIR"
 APP_PATH=$(find "$VERIFY_DIR/Payload" -maxdepth 1 -name '*.app' -print -quit)
-APP_BINARY="$APP_PATH/$(basename "$APP_PATH" .app)"
-if strings "$APP_BINARY" | grep -Fq 'Premium override'; then echo 'Production gate failed'; exit 1; fi
+scripts/verify_build_channel_marker.sh "$APP_PATH" production
 asc builds upload --app 6742799620 --ipa .asc/artifacts/LensBridge-1.58-66-appstore.ipa --platform IOS --wait
 ```
 

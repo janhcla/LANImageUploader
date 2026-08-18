@@ -7,7 +7,6 @@
 
 import Foundation
 import Security
-import StoreKit
 
 struct PremiumAccessState: Equatable {
     let isFullAppUnlocked: Bool
@@ -104,58 +103,46 @@ final class PremiumAccessController: ObservableObject {
     }
 
     func refreshPremiumOverrideEligibility(
-        environmentProvider: @escaping AppDistribution.AppTransactionEnvironmentProvider = AppDistribution.currentAppTransactionEnvironment
-    ) async {
-        let isAllowed = await AppDistribution.resolvePremiumOverrideEligibility(
-            environmentProvider: environmentProvider
-        )
-        await MainActor.run {
-            self.premiumOverrideAllowed = isAllowed
-            self.reload()
-        }
+        canUsePremiumOverride: () -> Bool = AppDistribution.allowsPremiumOverride
+    ) {
+        premiumOverrideAllowed = canUsePremiumOverride()
+        reload()
     }
 }
 
+enum AppBuildChannel: String, Equatable {
+    case production
+    case testFlight
+}
+
+enum BuildDistributionChannel {
+    // Xcode Cloud's ci_pre_xcodebuild.sh rewrites this before every action.
+    // Checked-in source remains production, so a missing or mismatched workflow
+    // cannot expose the validation control.
+    static let current: AppBuildChannel = .production
+}
+
 enum AppDistribution {
-    typealias AppTransactionEnvironmentProvider = () async throws -> AppStore.Environment
-
-    // Eligibility is resolved asynchronously from StoreKit at launch. Keep the
-    // synchronous default fail-closed until AppTransaction.shared has been
-    // verified, so a production build can never expose the validation control
-    // merely because of a stale flag or build setting.
     static func allowsPremiumOverride() -> Bool {
-        return false
+        allowsPremiumOverride(
+            buildChannel: BuildDistributionChannel.current,
+            isDebugBuild: isDebugBuild
+        )
     }
 
-    static func resolvePremiumOverrideEligibility(
-        environmentProvider: @escaping AppTransactionEnvironmentProvider = currentAppTransactionEnvironment
-    ) async -> Bool {
-        do {
-            let environment = try await environmentProvider()
-            // TestFlight transactions are signed by StoreKit's sandbox
-            // environment. A production App Store transaction is deliberately
-            // excluded, even when the app was previously installed through
-            // TestFlight on the same device.
-            return environment == .sandbox
-        } catch {
-            // An unavailable or unverified app transaction is not evidence that
-            // the app came from TestFlight. Fail closed in that case.
-            return false
-        }
+    static func allowsPremiumOverride(
+        buildChannel: AppBuildChannel,
+        isDebugBuild: Bool
+    ) -> Bool {
+        isDebugBuild || buildChannel == .testFlight
     }
 
-    static func currentAppTransactionEnvironment() async throws -> AppStore.Environment {
-        let verification = try await AppTransaction.shared
-        switch verification {
-        case .verified(let transaction):
-            return transaction.environment
-        case .unverified:
-            throw AppDistributionError.unverifiedAppTransaction
-        }
-    }
-
-    private enum AppDistributionError: Error {
-        case unverifiedAppTransaction
+    private static var isDebugBuild: Bool {
+        #if DEBUG
+        true
+        #else
+        false
+        #endif
     }
 }
 
