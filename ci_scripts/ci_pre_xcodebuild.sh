@@ -4,11 +4,18 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source_file="${BUILD_CHANNEL_SOURCE_FILE:-$repo_root/LANImageUploader/PremiumAccess.swift}"
+info_plist="${BUILD_CHANNEL_INFO_PLIST:-$repo_root/LANImageUploader/Info.plist}"
 expected_workflow_id="37c9d62c-448d-4f60-8672-496a5c044c34"
 expected_workflow_name="TestFlight - external beta test"
+marker_key='LensBridgeBuildChannelMarker'
+testflight_marker='external-testflight-v1'
 
 if [[ ! -f "$source_file" ]]; then
     printf 'Build distribution channel source is missing.\n' >&2
+    exit 1
+fi
+if [[ ! -f "$info_plist" ]]; then
+    printf 'Build distribution channel Info.plist is missing.\n' >&2
     exit 1
 fi
 
@@ -47,5 +54,21 @@ rewritten_count="$(/usr/bin/awk -v expected="static let current: AppBuildChannel
 ' "$source_file")"
 if [[ "$rewritten_count" != "1" ]]; then
     printf 'Build distribution channel rewrite verification failed.\n' >&2
+    exit 1
+fi
+
+/usr/libexec/PlistBuddy -c "Delete :$marker_key" "$info_plist" >/dev/null 2>&1 || true
+if [[ "$channel_source" == '.testFlight' ]]; then
+    /usr/libexec/PlistBuddy -c "Add :$marker_key string $testflight_marker" "$info_plist"
+fi
+
+if [[ "$channel_source" == '.testFlight' ]]; then
+    marker_value="$(/usr/libexec/PlistBuddy -c "Print :$marker_key" "$info_plist" 2>/dev/null || true)"
+    if [[ "$marker_value" != "$testflight_marker" ]]; then
+        printf 'TestFlight build-channel marker verification failed.\n' >&2
+        exit 1
+    fi
+elif /usr/libexec/PlistBuddy -c "Print :$marker_key" "$info_plist" >/dev/null 2>&1; then
+    printf 'Production build-channel marker removal failed.\n' >&2
     exit 1
 fi

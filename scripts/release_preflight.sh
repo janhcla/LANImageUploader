@@ -74,10 +74,9 @@ check_ipa() {
     local ipa="$2"
     local expected_marketing_version="$3"
     local expected_build="$4"
-    local expected_premium_string="$5"
+    local expected_build_channel="$5"
     local extraction_dir
     local app
-    local binary
     local display_name
     local short_version
     local build_number
@@ -97,7 +96,6 @@ check_ipa() {
         return
     fi
 
-    binary="$app/$(basename "$app" .app)"
     display_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$app/Info.plist")"
     short_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Info.plist")"
     build_number="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Info.plist")"
@@ -124,25 +122,17 @@ check_ipa() {
         fail "$label strict code signature"
     fi
 
-    if [[ "$expected_premium_string" == "present" ]]; then
-        if strings "$binary" | rg -q 'Premium override'; then
-            pass "$label contains TestFlight Premium override"
-        else
-            fail "$label contains TestFlight Premium override"
-        fi
+    if "$repo_root/scripts/verify_build_channel_marker.sh" "$app" "$expected_build_channel"; then
+        pass "$label has expected $expected_build_channel build-channel marker"
     else
-        if strings "$binary" | rg -q 'Premium override'; then
-            fail "$label excludes production Premium override"
-        else
-            pass "$label excludes production Premium override"
-        fi
+        fail "$label has expected $expected_build_channel build-channel marker"
     fi
 
     rm -rf "$extraction_dir"
 }
 
-check_ipa "production" "$production_ipa" "$marketing_version" "$production_build_number" "absent"
-check_ipa "TestFlight" "$testflight_ipa" "$testflight_marketing_version" "$testflight_build_number" "present"
+check_ipa "production" "$production_ipa" "$marketing_version" "$production_build_number" "production"
+check_ipa "TestFlight" "$testflight_ipa" "$testflight_marketing_version" "$testflight_build_number" "testFlight"
 
 if [[ "$skip_asc" == "1" ]]; then
     note "ASC checks skipped because SKIP_ASC=1"

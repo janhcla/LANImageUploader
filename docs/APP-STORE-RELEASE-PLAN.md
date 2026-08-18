@@ -277,6 +277,9 @@ plan: a green compile or unit-test run is not enough to call the app release-rea
     `TestFlight - external beta test` write `.testFlight` automatically.
   - Verify the script behavior from controlled temporary inputs with
     `scripts/test_xcode_cloud_distribution_gate.sh` before release work.
+  - `scripts/release_preflight.sh` verifies the extracted IPA's deterministic
+    Info.plist marker: absent for production and
+    `external-testflight-v1` for TestFlight.
 - App Store Connect age-rating declaration is present with no declared medical,
   sexual, violent, gambling, messaging, or advertising content. The project sets
   `ITSAppUsesNonExemptEncryption=false` and has no separate encryption declaration;
@@ -651,8 +654,7 @@ unzip -l .asc/artifacts/LensBridge-1.58-66-appstore.ipa | grep 'Payload/.app/Pri
 VERIFY_DIR=$(mktemp -d)
 unzip -q .asc/artifacts/LensBridge-1.58-66-appstore.ipa -d "$VERIFY_DIR"
 APP_PATH=$(find "$VERIFY_DIR/Payload" -maxdepth 1 -name '*.app' -print -quit)
-APP_BINARY="$APP_PATH/$(basename "$APP_PATH" .app)"
-if strings "$APP_BINARY" | grep -Fq 'Premium override'; then echo 'Production gate failed'; exit 1; fi
+scripts/verify_build_channel_marker.sh "$APP_PATH" production
 asc builds upload --app 6742799620 --ipa .asc/artifacts/LensBridge-1.58-66-appstore.ipa --platform IOS --wait
 ```
 

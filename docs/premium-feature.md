@@ -48,7 +48,10 @@ Apple blocks standalone submission for the first IAP with `STATE_ERROR.FIRST_IAP
   `TestFlight - external beta test` writes `.testFlight`; missing or mismatched
   identity writes `.production` and therefore fails closed. The script's three
   controlled-input cases can be run with
-  `scripts/test_xcode_cloud_distribution_gate.sh`.
+  `scripts/test_xcode_cloud_distribution_gate.sh`. The exact beta workflow also
+  writes `LensBridgeBuildChannelMarker=external-testflight-v1` to the built app
+  Info.plist; production actions remove that key. Release preflight verifies
+  this artifact marker with `scripts/verify_build_channel_marker.sh`.
 
 ## Code Map
 
