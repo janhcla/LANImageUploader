@@ -32,4 +32,23 @@ run_case production '' ''
 run_case testFlight '37c9d62c-448d-4f60-8672-496a5c044c34' 'TestFlight - external beta test'
 run_case production '37c9d62c-448d-4f60-8672-496a5c044c34' 'TestFlight - renamed workflow'
 
+run_malformed_case() {
+    local source_file="$temp_dir/MalformedBuildDistributionChannel.swift"
+
+    cp "$fixture" "$source_file"
+    /usr/bin/sed -i '' \
+        's/static let current: AppBuildChannel = \.production/static let selected: AppBuildChannel = .production/' \
+        "$source_file"
+
+    if CI_WORKFLOW_ID='37c9d62c-448d-4f60-8672-496a5c044c34' \
+        CI_WORKFLOW='TestFlight - external beta test' \
+        BUILD_CHANNEL_SOURCE_FILE="$source_file" \
+        "$gate_script" >/dev/null 2>&1; then
+        printf 'Malformed build-channel source unexpectedly succeeded.\n' >&2
+        exit 1
+    fi
+}
+
+run_malformed_case
+
 printf 'Xcode Cloud distribution gate behavior passed.\n'
