@@ -60,4 +60,16 @@ run_malformed_case() {
 
 run_malformed_case
 
+run_test_without_building_case() {
+    local missing_source="$temp_dir/UnavailableBuildDistributionChannel.swift"
+    local missing_info_plist="$temp_dir/UnavailableInfo.plist"
+
+    CI_XCODEBUILD_ACTION='test-without-building' \
+    BUILD_CHANNEL_SOURCE_FILE="$missing_source" \
+    BUILD_CHANNEL_INFO_PLIST="$missing_info_plist" \
+    "$gate_script"
+}
+
+run_test_without_building_case
+
 printf 'Xcode Cloud distribution gate behavior passed.\n'
