@@ -10,6 +10,14 @@ expected_workflow_name="TestFlight - external beta test"
 marker_key='LensBridgeBuildChannelMarker'
 testflight_marker='external-testflight-v1'
 
+# Xcode Cloud runs this pre-script again for each test-without-building
+# destination after build-for-testing has already compiled the channel. Those
+# environments do not retain the source checkout, so they must not validate or
+# mutate build inputs.
+if [[ "${CI_XCODEBUILD_ACTION:-}" == 'test-without-building' ]]; then
+    exit 0
+fi
+
 if [[ ! -f "$source_file" ]]; then
     printf 'Build distribution channel source is missing.\n' >&2
     exit 1
