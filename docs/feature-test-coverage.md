@@ -85,7 +85,7 @@ This note records the app features, the expected behavior, and the tests that co
 
 ## Settings And Discovery
 
-- First setup collects target directory, username, password, optional port, OCR mode, and discovery/manual setup entry points. The premium override is available only in Debug and explicitly flagged TestFlight builds; it is not part of the App Store Release Settings UI.
+- First setup collects target directory, username, password, optional port, OCR mode, and discovery/manual setup entry points. The premium override is available only in Debug and the exact Xcode Cloud external-beta build channel; it is not part of the App Store Release Settings UI.
 - Manual setup collects server IP, share, target directory, optional port, username, and password.
 - Save persists `ServerSettings` and the password.
 - Reset clears fields and returns to first setup.

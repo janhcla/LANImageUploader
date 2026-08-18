@@ -40,16 +40,20 @@ Apple blocks standalone submission for the first IAP with `STATE_ERROR.FIRST_IAP
 - Failed uploads and duplicate-file prompts do not consume trial uploads.
 - The successful upload count and purchased unlock state are stored in Keychain so uninstall/reinstall does not reset the trial.
 - The premium override is stored in UserDefaults only for local/TestFlight
-  validation. Debug builds enable it immediately. A TestFlight candidate is
-  built explicitly with the `TESTFLIGHT_BUILD` Swift compilation condition,
-  which includes the toggle in the Release Settings UI. App Store archives do
-  not set that condition, so the toggle and its implementation are absent from
-  the submitted production binary.
+  validation. Debug builds enable it immediately. Release builds are production
+  safe by default. Before each Xcode Cloud action,
+  `ci_scripts/ci_pre_xcodebuild.sh` writes the channel into the existing
+  `PremiumAccess.swift` source. Only workflow ID
+  `37c9d62c-448d-4f60-8672-496a5c044c34` named
+  `TestFlight - external beta test` writes `.testFlight`; missing or mismatched
+  identity writes `.production` and therefore fails closed. The script's three
+  controlled-input cases can be run with
+  `scripts/test_xcode_cloud_distribution_gate.sh`.
 
 ## Code Map
 
 - `PremiumAccess.swift`: trial state, Keychain persistence, and the
-  compile-time TestFlight-only premium override policy.
+  deterministic build-channel premium override policy.
 - `StoreKitPurchaseManager.swift`: StoreKit 2 product lookup, purchase, automatic entitlement refresh, and user-initiated restore. Restore calls `AppStore.sync()` and then verifies the current Full App Unlock entitlement.
 - `FullAppUnlockView.swift`: paywall screen with price, one-time unlock, and an always-visible Restore Purchases action with result feedback.
 - `UploadView.swift`: blocks upload when trial is exhausted and records each successful upload.
