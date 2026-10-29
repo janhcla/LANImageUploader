@@ -1534,3 +1534,74 @@ private final class InMemoryPremiumAccessStore: PremiumAccessPersisting {
     var hasPurchasedFullUnlock = false
     var isPremiumOverrideEnabled = false
 }
+
+struct TextValidationTests {
+
+    @Test func testConcurrentCPRValidation() async {
+        let cases: [(String, String?)] = [
+            ("290224-0000", "290224-0000"),
+            ("290223-0000", nil),
+            ("310224-0000", nil),
+            ("Rejected: 310224-0000; CPR: 290224-0000", "290224-0000")
+        ]
+        let failures = await withTaskGroup(of: Int.self) { group in
+            for _ in 0..<32 {
+                group.addTask {
+                    var failures = 0
+                    for _ in 0..<10 {
+                        for (text, expected) in cases {
+                            if OCRValidator.sanitizedText(from: text, mode: .cpr) != expected {
+                                failures += 1
+                            }
+                        }
+                    }
+                    return failures
+                }
+            }
+            var total = 0
+            for await count in group { total += count }
+            return total
+        }
+        #expect(failures == 0)
+    }
+
+    @Test func testFullMode() {
+        #expect(OCRValidator.sanitizedText(from: "Valid Name", mode: .full) == "Valid Name")
+        #expect(OCRValidator.sanitizedText(from: " Image 123 ", mode: .full) == "Image 123")
+        #expect(OCRValidator.sanitizedText(from: "", mode: .full) == nil)
+        #expect(OCRValidator.sanitizedText(from: "   ", mode: .full) == nil)
+        #expect(OCRValidator.sanitizedText(from: "A", mode: .full) == nil)
+    }
+
+    @Test func testNumbersMode() {
+        #expect(OCRValidator.sanitizedText(from: "123", mode: .numbers) == "123")
+        #expect(OCRValidator.sanitizedText(from: "1a2b3", mode: .numbers) == "123")
+        #expect(OCRValidator.sanitizedText(from: "Room 12B / 34", mode: .numbers) == "1234")
+        #expect(OCRValidator.sanitizedText(from: "  987  ", mode: .numbers) == "987")
+        #expect(OCRValidator.sanitizedText(from: "abc", mode: .numbers) == nil)
+        #expect(OCRValidator.sanitizedText(from: "No digits", mode: .numbers) == nil)
+    }
+
+    @Test func testCPRMode() {
+        #expect(OCRValidator.sanitizedText(from: "3112991234", mode: .cpr) == "311299-1234")
+        #expect(OCRValidator.sanitizedText(from: "311299-1234", mode: .cpr) == "311299-1234")
+        #expect(OCRValidator.sanitizedText(from: "120580–1234", mode: .cpr) == "120580-1234")
+        #expect(OCRValidator.sanitizedText(from: "CPR: 3112991234", mode: .cpr) == "311299-1234")
+        #expect(OCRValidator.sanitizedText(from: "311299 \u{2014} 1234", mode: .cpr) == "311299-1234")
+        #expect(OCRValidator.sanitizedText(from: "321299-1234", mode: .cpr) == nil) // Invalid day
+        #expect(OCRValidator.sanitizedText(from: "311399-1234", mode: .cpr) == nil) // Invalid month
+        #expect(OCRValidator.sanitizedText(from: "001299-1234", mode: .cpr) == nil) // Invalid day
+        #expect(OCRValidator.sanitizedText(from: "310224-1234", mode: .cpr) == nil) // Feb 31st
+        #expect(OCRValidator.sanitizedText(from: "290223-1234", mode: .cpr) == nil) // Feb 29th non-leap year
+        #expect(OCRValidator.sanitizedText(from: "290224-1234", mode: .cpr) == "290224-1234") // Feb 29th leap year
+        #expect(OCRValidator.sanitizedText(from: "123456789", mode: .cpr) == nil) // 9 digits
+        #expect(OCRValidator.sanitizedText(from: "12345678901", mode: .cpr) == nil) // 11 digits
+        #expect(OCRValidator.sanitizedText(from: "121256-123", mode: .cpr) == nil)
+        #expect(OCRValidator.sanitizedText(from: "121256-12345", mode: .cpr) == nil)
+        #expect(OCRValidator.sanitizedText(from: "ID: 150688-4321 is valid", mode: .cpr) == "150688-4321")
+        #expect(OCRValidator.sanitizedText(from: "290200-0000", mode: .cpr) == "290200-0000")
+        #expect(OCRValidator.sanitizedText(from: "311249-0000", mode: .cpr) == "311249-0000")
+        #expect(OCRValidator.sanitizedText(from: "010150-0000", mode: .cpr) == "010150-0000")
+        #expect(OCRValidator.sanitizedText(from: "Rejected: 310224-0000; CPR: 290224-0000", mode: .cpr) == "290224-0000")
+    }
+}

@@ -28,17 +28,19 @@ enum OCRMode: String, CaseIterable, Identifiable {
 enum OCRValidator {
     private static let logger = Logger(subsystem: Constants.bundleIdentifier, category: "OCRValidator")
 
-    private static func isValidDate(_ dateString: Substring) -> Bool {
+    private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
         formatter.dateFormat = "ddMMyy"
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         // Strict parsing so "310224" (Feb 31) fails
         formatter.isLenient = false
+        return formatter
+    }()
 
-        if let _ = formatter.date(from: String(dateString)) {
-            return true
-        }
-        return false
+    private static func isValidDate(_ dateString: Substring) -> Bool {
+        dateFormatter.date(from: String(dateString)) != nil
     }
 
     static func sanitizedText(from text: String, mode: OCRMode) -> String? {
